@@ -8,24 +8,51 @@ library(zoo)
 library(ggthemr)
 
 #set theme
-ggthemr('fresh')
+ggthemr('flat dark')
 
 
 #import files
-Alldata_Rhizon<-read.csv("csv_files/Alldata_Rhizon.csv", header = T, sep = ";") #sep seems to change from my pc to the other
+Alldata_Rhizon<-read.csv("csv_files/Alldata_Rhizon.csv", header = T) #NB change sep settings on other laptop
 Alldata_Soil_phEC<-read.csv("csv_files/Alldata_Soil_phEC.csv", header = T)
 
 
 #data cleaning
+Alldata_Rhizon<-Alldata_Rhizon[1:252,]
 Alldata_Rhizon <- Alldata_Rhizon %>%
   mutate(across(c(Treatment, Dose_response_exp.), as.factor)) #convert chr to factor
 
-Alldata_Rhizon$Sampled_on<-as.Date(Alldata_Rhizon$Sampled_on,format = "%Y/%m/%d") #date format
+Alldata_Rhizon <- Alldata_Rhizon %>%
+  separate(
+    col = Treatment,       
+    into = c("Tmt", "App_rate"), 
+    sep = "_"              
+  ) %>%
+  mutate(
+    App_rate = replace_na(App_rate, "0") 
+  )
+
+Alldata_Rhizon$Tmt<-as.factor(Alldata_Rhizon$Tmt)
+Alldata_Rhizon$Sampled_on<-as.Date(Alldata_Rhizon$Sampled_on,format = "%Y/%m/%d") 
+
+
+Alldata_Rhizon_summary <- Alldata_Rhizon %>%
+  group_by(Sampled_on, Tmt, App_rate) %>%
+  summarise(
+    across(
+      c(pH, EC_µS_cm, DOC, DIC, Alkalinity_meq_l, NO2.N_mgN_l, NH4.N_mgN_l,
+        NO3.N_mgN_l, PO4.P_mgP_l, Cl_mgCl_l, Ca_mg_l, Fe_mg_l, K_mg_l, 
+        Mg_mg_l, Na_mg_l, Ni_mg_l, P_mg_l, Al_mg_l, Si_mg_l),
+      list(
+        mean = ~ mean(.x, na.rm = TRUE),
+        se   = ~ sd(.x, na.rm = TRUE) / sqrt(n())
+      ),
+      .names = "{.fn}_{.col}"
+    ),
+    .groups = "drop"
+  )
 
 Alldata_Soil_phEC <- Alldata_Soil_phEC %>%
   mutate(across(c(Pot, Plot, Treatment, Dose_response_exp.), as.factor)) #convert chr to factor
-
-Alldata_Soil_phEC$Date<-as.Date(Alldata_Soil_phEC$Date, format = "%Y/%m/%d")
 
 Alldata_Soil_phEC <- Alldata_Soil_phEC %>%
   separate(
@@ -37,6 +64,7 @@ Alldata_Soil_phEC <- Alldata_Soil_phEC %>%
     App_rate = replace_na(App_rate, "0") 
   )
 
+Alldata_Soil_phEC$Date<-as.Date(Alldata_Soil_phEC$Date, format = "%Y/%m/%d")
 Alldata_Soil_phEC$Tmt<-as.factor(Alldata_Soil_phEC$Tmt)
 
 Alldata_Soil_phEC_summary <- Alldata_Soil_phEC %>%
@@ -55,27 +83,178 @@ Alldata_Soil_phEC_summary$Date<-as.Date(Alldata_Soil_phEC_summary$Date, format =
 
 #plotting
 soilpH_plot <- Alldata_Soil_phEC_summary %>%
-  dplyr::filter(App_rate %in% c("0", "2", "50")) %>%
-  ggplot(aes(x = Date, y = mean_pH, colour = Tmt, shape = App_rate)) +
-  #geom_line(aes(group = Treatment)) +
-  geom_point(size = 3) +
+  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  ggplot(aes(x = Date, y = mean_pH, colour = Tmt)) +
+  geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_pH - se_pH,
                     ymax = mean_pH + se_pH),
-                width = 0.1)+
+                width = 0.1) +
   scale_x_date(
-    breaks = "3 months",  # Display a tick mark every month
+    breaks = "3 months",  
     date_labels = "%b %Y"
-  )+
+  ) +
   theme(
-    # Specify the element for the x-axis text
-    axis.text.x = element_text(
-      angle = 45,           # Rotate labels by 45 degrees
-      hjust = 1,            # align the right edge of the label with the tick mark
-      vjust = 1             # move the label down slightly 
-    )
-  ) + labs(
-    y = "Soil pH", # <- Change the y-axis label
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Soil pH", 
     title = "Soil pH over time",
-    shape = "Application rate (t/ha)",
     colour = "Treatment"
   )
+
+soilEC_plot <- Alldata_Soil_phEC_summary %>%
+  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  ggplot(aes(x = Date, y = mean_EC, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_EC - se_EC,
+                    ymax = mean_EC + se_EC),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Soil EC (uS/cm)",
+    title = "Soil EC over time",
+    colour = "Treatment"
+  )
+
+rhizon_pH_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  ggplot(aes(x = Sampled_on, y = mean_pH, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_pH - se_pH,
+                    ymax = mean_pH + se_pH),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater pH", 
+    title = "Porewater pH over time",
+    colour = "Treatment"
+  )
+
+rhizon_EC_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  ggplot(aes(x = Sampled_on, y = mean_EC_µS_cm, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_EC_µS_cm - se_EC_µS_cm,
+                    ymax = mean_EC_µS_cm + se_EC_µS_cm),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater EC (uS/cm)", 
+    x = "Date",
+    title = "Porewater EC over time (no outliers 2nd sampling)",
+    colour = "Treatment"
+  ) +
+  ylim(0,750)
+
+
+rhizon_DIC_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  ggplot(aes(x = Sampled_on, y = mean_DIC, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_DIC - se_DIC,
+                    ymax = mean_DIC + se_DIC),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater DIC (ppm)", 
+    x = "Date",
+    title = "Porewater DIC over time",
+    colour = "Treatment"
+  ) 
+
+rhizon_DOC_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  ggplot(aes(x = Sampled_on, y = mean_DOC, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_DOC - se_DOC,
+                    ymax = mean_DOC + se_DOC),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater DOC (ppm)", 
+    x = "Date",
+    title = "Porewater DOC over time",
+    colour = "Treatment"
+  ) 
+
+grid.arrange(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_DIC_plot, rhizon_DOC_plot, nrow = 2)
+
+#the following no data yet
+
+Alldata_Rhizon_summary$mean_NO2.N_mgN_l
+
+rhizon_alkalinity_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  ggplot(aes(x = Sampled_on, y = mean_Alkalinity_meq_l, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_Alkalinity_meq_l - se_Alkalinity_meq_l,
+                    ymax = mean_Alkalinity_meq_l + se_Alkalinity_meq_l),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater alkalinity (meq/L)", 
+    x = "Date",
+    title = "Porewater alkalinity over time",
+    colour = "Treatment"
+  ) 
+
+print(rhizon_alkalinity_plot)
+
+rhizon_NH4_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  ggplot(aes(x = Sampled_on, y = mean_NH4.N_mgN_l, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_NH4.N_mgN_l - se_NH4.N_mgN_l,
+                    ymax = mean_NH4.N_mgN_l + se_NH4.N_mgN_l),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater alkalinity (meq/L)", 
+    x = "Date",
+    title = "Porewater alkalinity over time",
+    colour = "Treatment"
+  ) 
+
+
