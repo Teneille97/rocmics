@@ -5,44 +5,13 @@ format: pdf
 editor: visual
 ---
 
-
-```{r}
-#| echo: false
-#| message: false
-#| label: save pdf output location
-#| warning: FALSE
-
-# Source - https://stackoverflow.com/a
-# Posted by Shafee
-# Retrieved 2025-12-04, License - CC BY-SA 4.0
-
-render_qmd <- function(input_file, output_path, file_ext, ...) {
-    # Extract just the input file name (without the file-extension)
-    file_name <- xfun::sans_ext(input_file)
-
-    # render the input document and output file will be in the
-    # current working directory.
-    quarto::quarto_render(input = input_file, output_format = file_ext, ...)
-
-    # name of the rendered output file
-    output_name <- paste0(file_name, ".", file_ext)
-
-    # move the file to the output path
-    fs::file_move(paste0(output_name), output_path)
-
-    msg <- paste0(paste0(output_name, collapse = " and "), " moved to ", output_path)
-    message(msg)
-}
-
-```
-
 ## ROCMICS
 
-Teneille's full data analysis repository is available at <https://github.com/Teneille97/rocmicsg>.
+Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>.
 
 ## Malle soil and porewater chemistry
 
-Summarising over plot replicates and considering only 50t/ha basalt treatments, lime and control and rendering only `grid.arrange(plots)`, displays these plots (note still awaiting porewater **elements, nutrients and alkalinity** data):
+Summarising over plot replicates, considering **no dose-response treatments** except control, and rendering with `ggthemr('flat dark')`, displays these plots (note **still awaiting** porewater elements, nutrients and alkalinity data):
 
 ```{r}
 #| echo: false
@@ -58,6 +27,10 @@ library(car)
 library(lme4)
 library(zoo)
 library(ggthemr)
+theme_update(
+  legend.title = element_text(size = 10),
+  legend.text  = element_text(size = 8)
+)
 library(gridExtra)
 
 #set theme
@@ -136,7 +109,13 @@ Alldata_Soil_phEC_summary$Date<-as.Date(Alldata_Soil_phEC_summary$Date, format =
 
 #plotting
 soilpH_plot <- Alldata_Soil_phEC_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Date, y = mean_pH, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_pH - se_pH,
@@ -156,7 +135,13 @@ soilpH_plot <- Alldata_Soil_phEC_summary %>%
   )
 
 soilEC_plot <- Alldata_Soil_phEC_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Date, y = mean_EC, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_EC - se_EC,
@@ -176,7 +161,13 @@ soilEC_plot <- Alldata_Soil_phEC_summary %>%
   )
 
 rhizon_pH_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_pH, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_pH - se_pH,
@@ -196,7 +187,13 @@ rhizon_pH_plot <- Alldata_Rhizon_summary %>%
   )
 
 rhizon_EC_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_EC_µS_cm, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_EC_µS_cm - se_EC_µS_cm,
@@ -219,7 +216,13 @@ rhizon_EC_plot <- Alldata_Rhizon_summary %>%
 
 
 rhizon_DIC_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_DIC, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_DIC - se_DIC,
@@ -240,7 +243,13 @@ rhizon_DIC_plot <- Alldata_Rhizon_summary %>%
   ) 
 
 rhizon_DOC_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_DOC, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_DOC - se_DOC,
@@ -266,19 +275,11 @@ plots <- list(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_D
 multi_page <- marrangeGrob(
   grobs = plots,
   nrow = 1,
-  ncol = 1
+  ncol = 1,
+  top = NULL,      # removes “page x” title inside gridExtra
+  layout_matrix = matrix(1) # ensures full-page plot
 )
-
 multi_page
 
 ```
 
-```{r}
-#| echo: false
-#| message: false
-#| label: render pdf
-#| warning: FALSE
-
-render_qmd("Malle_temporal_soil_porewater_chemistry.qmd", "C:/Users/tnel/OneDrive - Universiteit Antwerpen/Documents/rocmics/quarto_outputs", file_ext = "pdf")
-
-```

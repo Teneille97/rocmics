@@ -6,6 +6,7 @@ library(car)
 library(lme4)
 library(zoo)
 library(ggthemr)
+library(gridExtra)
 
 #set theme
 ggthemr('flat dark')
@@ -83,7 +84,13 @@ Alldata_Soil_phEC_summary$Date<-as.Date(Alldata_Soil_phEC_summary$Date, format =
 
 #plotting
 soilpH_plot <- Alldata_Soil_phEC_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Date, y = mean_pH, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_pH - se_pH,
@@ -103,7 +110,13 @@ soilpH_plot <- Alldata_Soil_phEC_summary %>%
   )
 
 soilEC_plot <- Alldata_Soil_phEC_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Date, y = mean_EC, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_EC - se_EC,
@@ -123,7 +136,13 @@ soilEC_plot <- Alldata_Soil_phEC_summary %>%
   )
 
 rhizon_pH_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_pH, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_pH - se_pH,
@@ -143,7 +162,13 @@ rhizon_pH_plot <- Alldata_Rhizon_summary %>%
   )
 
 rhizon_EC_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_EC_µS_cm, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_EC_µS_cm - se_EC_µS_cm,
@@ -166,7 +191,13 @@ rhizon_EC_plot <- Alldata_Rhizon_summary %>%
 
 
 rhizon_DIC_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_DIC, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_DIC - se_DIC,
@@ -187,7 +218,13 @@ rhizon_DIC_plot <- Alldata_Rhizon_summary %>%
   ) 
 
 rhizon_DOC_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_DOC, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_DOC - se_DOC,
@@ -207,14 +244,20 @@ rhizon_DOC_plot <- Alldata_Rhizon_summary %>%
     colour = "Treatment"
   ) 
 
-grid.arrange(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_DIC_plot, rhizon_DOC_plot, nrow = 2)
+grid.arrange(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_DIC_plot, rhizon_DOC_plot, ncol = 2)
 
 #the following no data yet
 
 Alldata_Rhizon_summary$mean_NO2.N_mgN_l
 
 rhizon_alkalinity_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_Alkalinity_meq_l, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_Alkalinity_meq_l - se_Alkalinity_meq_l,
@@ -237,7 +280,13 @@ rhizon_alkalinity_plot <- Alldata_Rhizon_summary %>%
 print(rhizon_alkalinity_plot)
 
 rhizon_NH4_plot <- Alldata_Rhizon_summary %>%
-  dplyr::filter(App_rate %in% c("0", "02", "50")) %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
   ggplot(aes(x = Sampled_on, y = mean_NH4.N_mgN_l, colour = Tmt)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = mean_NH4.N_mgN_l - se_NH4.N_mgN_l,
