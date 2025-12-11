@@ -1,11 +1,18 @@
 #load packages
 library(ggplot2)
+library(gganimate)
+library(viridis)
+library(RColorBrewer)
 library(tidyverse)
 library(dplyr)
 library(car)
 library(lme4)
 library(zoo)
 library(ggthemr)
+theme_update(
+  legend.title = element_text(size = 10),
+  legend.text  = element_text(size = 8)
+)
 library(gridExtra)
 
 #set theme
@@ -15,6 +22,7 @@ ggthemr('flat dark')
 #import files
 Alldata_Rhizon<-read.csv("csv_files/Alldata_Rhizon.csv", header = T) #NB change sep settings on other laptop
 Alldata_Soil_phEC<-read.csv("csv_files/Alldata_Soil_phEC.csv", header = T)
+Alldata_PRS<-read.csv("csv_files/Alldata_PRS.csv", header = T)
 
 
 #data cleaning
@@ -246,9 +254,7 @@ rhizon_DOC_plot <- Alldata_Rhizon_summary %>%
 
 grid.arrange(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_DIC_plot, rhizon_DOC_plot, ncol = 2)
 
-#the following no data yet
-
-Alldata_Rhizon_summary$mean_NO2.N_mgN_l
+#add to quarto 11/12/2025
 
 rhizon_alkalinity_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
@@ -279,7 +285,7 @@ rhizon_alkalinity_plot <- Alldata_Rhizon_summary %>%
 
 print(rhizon_alkalinity_plot)
 
-rhizon_NH4_plot <- Alldata_Rhizon_summary %>%
+rhizon_Ca_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
     (Tmt == "Control" & App_rate == "0") |
       (Tmt == "Lime"    & App_rate == "02") |
@@ -287,10 +293,10 @@ rhizon_NH4_plot <- Alldata_Rhizon_summary %>%
       (Tmt == "Eifelgold"  & App_rate == "50") |
       (Tmt == "Huhnerberg"  & App_rate == "50") 
   ) %>%
-  ggplot(aes(x = Sampled_on, y = mean_NH4.N_mgN_l, colour = Tmt)) +
+  ggplot(aes(x = Sampled_on, y = mean_Ca_mg_l, colour = Tmt)) +
   geom_point(size = 4) +
-  geom_errorbar(aes(ymin = mean_NH4.N_mgN_l - se_NH4.N_mgN_l,
-                    ymax = mean_NH4.N_mgN_l + se_NH4.N_mgN_l),
+  geom_errorbar(aes(ymin = mean_Ca_mg_l - se_Ca_mg_l,
+                    ymax = mean_Ca_mg_l + se_Ca_mg_l),
                 width = 0.1) +
   scale_x_date(
     breaks = "3 months",  
@@ -300,10 +306,156 @@ rhizon_NH4_plot <- Alldata_Rhizon_summary %>%
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
   ) + 
   labs(
-    y = "Porewater alkalinity (meq/L)", 
+    y = "Porewater Ca (mg/L)", 
     x = "Date",
-    title = "Porewater alkalinity over time",
+    title = "Porewater Ca over time",
     colour = "Treatment"
   ) 
 
+print(rhizon_Ca_plot)
+
+rhizon_Mg_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
+  ggplot(aes(x = Sampled_on, y = mean_Mg_mg_l, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_Mg_mg_l - se_Mg_mg_l,
+                    ymax = mean_Mg_mg_l + se_Mg_mg_l),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater Mg (mg/L)", 
+    x = "Date",
+    title = "Porewater Mg over time",
+    colour = "Treatment"
+  ) 
+
+print(rhizon_Mg_plot)
+
+rhizon_K_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
+  ggplot(aes(x = Sampled_on, y = mean_K_mg_l, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_K_mg_l - se_K_mg_l,
+                    ymax = mean_K_mg_l + se_K_mg_l),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater K (mg/L)", 
+    x = "Date",
+    title = "Porewater K over time",
+    colour = "Treatment"
+  ) 
+
+print(rhizon_K_plot)
+
+rhizon_Na_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
+  ggplot(aes(x = Sampled_on, y = mean_Na_mg_l, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_Na_mg_l - se_Na_mg_l,
+                    ymax = mean_Na_mg_l + se_Na_mg_l),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater Na (mg/L)", 
+    x = "Date",
+    title = "Porewater Na over time",
+    colour = "Treatment"
+  ) 
+
+print(rhizon_Na_plot)
+
+rhizon_Fe_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
+  ggplot(aes(x = Sampled_on, y = mean_Fe_mg_l, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_Fe_mg_l - se_Fe_mg_l,
+                    ymax = mean_Fe_mg_l + se_Fe_mg_l),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater Fe (mg/L)", 
+    x = "Date",
+    title = "Porewater Fe over time",
+    colour = "Treatment"
+  ) 
+
+print(rhizon_Fe_plot)
+
+rhizon_Al_plot <- Alldata_Rhizon_summary %>%
+  dplyr::filter(
+    (Tmt == "Control" & App_rate == "0") |
+      (Tmt == "Lime"    & App_rate == "02") |
+      (Tmt == "Bolsdorfer"  & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg"  & App_rate == "50") 
+  ) %>%
+  ggplot(aes(x = Sampled_on, y = mean_Al_mg_l, colour = Tmt)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = mean_Al_mg_l - se_Al_mg_l,
+                    ymax = mean_Al_mg_l + se_Al_mg_l),
+                width = 0.1) +
+  scale_x_date(
+    breaks = "3 months",  
+    date_labels = "%b %Y"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  ) + 
+  labs(
+    y = "Porewater Al (mg/L)", 
+    x = "Date",
+    title = "Porewater Al over time",
+    colour = "Treatment"
+  ) 
+
+print(rhizon_Al_plot)
 
