@@ -21,6 +21,9 @@ Summarising over plot replicates, considering **no dose-response treatments** ex
 
 #load packages
 library(ggplot2)
+library(gganimate)
+library(viridis)
+library(RColorBrewer)
 library(tidyverse)
 library(dplyr)
 library(car)
@@ -38,8 +41,9 @@ ggthemr('flat dark')
 
 
 #import files
-Alldata_Rhizon<-read.csv("csv_files/Alldata_Rhizon.csv", header = T) #NB change sep settings on other laptop
+Alldata_Rhizon<-read.csv("csv_files/Alldata_Rhizon.csv", header = T) 
 Alldata_Soil_phEC<-read.csv("csv_files/Alldata_Soil_phEC.csv", header = T)
+Alldata_PRS<-read.csv("csv_files/Alldata_PRS.csv", header = T)
 
 
 #data cleaning
