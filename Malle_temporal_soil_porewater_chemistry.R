@@ -42,7 +42,10 @@ Alldata_Rhizon <- Alldata_Rhizon %>%
 
 Alldata_Rhizon$Tmt<-as.factor(Alldata_Rhizon$Tmt)
 Alldata_Rhizon$Sampled_on<-as.Date(Alldata_Rhizon$Sampled_on,format = "%Y/%m/%d") 
-
+#coerce ecosphere data char to num
+start_col <- which(names(Alldata_Rhizon) == "Alkalinity_mg_l_CaCO3")
+Alldata_Rhizon[start_col:ncol(Alldata_Rhizon)] <- 
+  lapply(Alldata_Rhizon[start_col:ncol(Alldata_Rhizon)], \(x) as.numeric(trimws(x)))
 
 Alldata_Rhizon_summary <- Alldata_Rhizon %>%
   group_by(Sampled_on, Tmt, App_rate) %>%
@@ -118,7 +121,7 @@ soilpH_plot <- Alldata_Soil_phEC_summary %>%
   )
 
 soilEC_plot <- Alldata_Soil_phEC_summary %>%
-  dplyr::dplyr::filter(
+  dplyr::filter(
     (Tmt == "Control" & App_rate == "0") |
       (Tmt == "Lime"    & App_rate == "02") |
       (Tmt == "Bolsdorfer"  & App_rate == "50") |
@@ -252,9 +255,6 @@ rhizon_DOC_plot <- Alldata_Rhizon_summary %>%
     colour = "Treatment"
   ) 
 
-grid.arrange(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_DIC_plot, rhizon_DOC_plot, ncol = 2)
-
-#add to quarto 11/12/2025
 
 rhizon_alkalinity_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
@@ -283,8 +283,6 @@ rhizon_alkalinity_plot <- Alldata_Rhizon_summary %>%
     colour = "Treatment"
   ) 
 
-print(rhizon_alkalinity_plot)
-
 rhizon_Ca_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
     (Tmt == "Control" & App_rate == "0") |
@@ -311,8 +309,6 @@ rhizon_Ca_plot <- Alldata_Rhizon_summary %>%
     title = "Porewater Ca over time",
     colour = "Treatment"
   ) 
-
-print(rhizon_Ca_plot)
 
 rhizon_Mg_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
@@ -341,8 +337,6 @@ rhizon_Mg_plot <- Alldata_Rhizon_summary %>%
     colour = "Treatment"
   ) 
 
-print(rhizon_Mg_plot)
-
 rhizon_K_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
     (Tmt == "Control" & App_rate == "0") |
@@ -370,7 +364,6 @@ rhizon_K_plot <- Alldata_Rhizon_summary %>%
     colour = "Treatment"
   ) 
 
-print(rhizon_K_plot)
 
 rhizon_Na_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
@@ -399,7 +392,6 @@ rhizon_Na_plot <- Alldata_Rhizon_summary %>%
     colour = "Treatment"
   ) 
 
-print(rhizon_Na_plot)
 
 rhizon_Fe_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
@@ -428,7 +420,6 @@ rhizon_Fe_plot <- Alldata_Rhizon_summary %>%
     colour = "Treatment"
   ) 
 
-print(rhizon_Fe_plot)
 
 rhizon_Al_plot <- Alldata_Rhizon_summary %>%
   dplyr::filter(
@@ -457,5 +448,14 @@ rhizon_Al_plot <- Alldata_Rhizon_summary %>%
     colour = "Treatment"
   ) 
 
-print(rhizon_Al_plot)
 
+plots <- list(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_DIC_plot, rhizon_DOC_plot, rhizon_alkalinity_plot, rhizon_Ca_plot, rhizon_Mg_plot, rhizon_Na_plot, rhizon_K_plot, rhizon_Al_plot, rhizon_Fe_plot)  
+
+multi_page <- marrangeGrob(
+  grobs = plots,
+  nrow = 1,
+  ncol = 1,
+  top = NULL,      # removes “page x” title inside gridExtra
+  layout_matrix = matrix(1) # ensures full-page plot
+)
+multi_page
