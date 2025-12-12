@@ -68,6 +68,7 @@ start_col <- which(names(Alldata_Rhizon) == "Alkalinity_mg_l_CaCO3")
 Alldata_Rhizon[start_col:ncol(Alldata_Rhizon)] <- 
   lapply(Alldata_Rhizon[start_col:ncol(Alldata_Rhizon)], \(x) as.numeric(trimws(x)))
 
+#summary
 Alldata_Rhizon_summary <- Alldata_Rhizon %>%
   group_by(Sampled_on, Tmt, App_rate) %>%
   summarise(
@@ -471,10 +472,9 @@ multi_page <- marrangeGrob(
   grobs = plots,
   nrow = 1,
   ncol = 1,
-  top = NULL,      # removes “page x” title inside gridExtra
-  layout_matrix = matrix(1) # ensures full-page plot
+  top = NULL,      # removes “page x” title 
+  layout_matrix = matrix(1) # full-page plots
 )
 multi_page
 
 ```
-
