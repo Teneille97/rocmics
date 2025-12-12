@@ -187,11 +187,9 @@ plots <- list(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_D
               PRS_plots$Ca, PRS_plots$Mg, PRS_plots$K, PRS_plots$Fe, PRS_plots$Mn, PRS_plots$Cu, PRS_plots$Zn, PRS_plots$B, PRS_plots$S, PRS_plots$Pb)  
 
 #print in console
-
 for (p in plots) print(p)
 
 #render with quarto
-
 multi_page <- marrangeGrob(
   grobs = plots,
   nrow = 1,
