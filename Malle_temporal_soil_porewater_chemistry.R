@@ -341,5 +341,5 @@ prs_micro_long <- PRS_filtered %>%
 
 prs_micro_anim <- make_uniform_anim(prs_micro_long, date_col = "Retrieval.Date", variable_col = "Variable", title_prefix = "PRS Micro Nutrients")
 
-prs_micro_anim_gif<- animate(prs_micro_anim, nframes = length(unique(prs_micro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer())
+prs_micro_anim_gif<- animate(prs_micro_anim, nframes = length(unique(prs_micro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, units = "px", renderer = gifski_renderer())
 anim_save("prs_micro_anim.gif", animation = prs_micro_anim_gif)
