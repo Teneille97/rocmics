@@ -20,7 +20,7 @@ library(here)
 #set theme
 ggthemr('flat dark')
 
-# Import files in one step
+# Import files
 Alldata_Rhizon <- read.csv(here("csv_files", "Alldata_Rhizon.csv"), header = TRUE)[1:252, ]
 Alldata_Soil_phEC <- read.csv(here("csv_files", "Alldata_Soil_phEC.csv"), header = TRUE)
 Alldata_PRS <- read.csv( here("csv_files", "Alldata_PRS.csv"), header = TRUE)
