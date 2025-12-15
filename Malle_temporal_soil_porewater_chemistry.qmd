@@ -371,10 +371,10 @@ Normalizing each measured parameter **across all treatments** and plotting a tim
 ![](soil_animation.gif)
 **Porewater alkalinity and dissolved C**
 
-![](rhizon_anim_group1.gif)
+![](rhizon_animation1.gif)
 
 **Porewater elements**
-![](rhizon_anim_group2.gif)
+![](rhizon_animation2.gif)
 
 
 **Macroelement supply rates**
