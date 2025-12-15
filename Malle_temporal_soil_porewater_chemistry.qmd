@@ -226,154 +226,25 @@ multi_page
 
 ```
 
-```{r animation-code, echo=FALSE, include=FALSE}
-### --- animate plots --------------------------------------------------------
-# Normalize function 
-normalize <- function(x) {
-  (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
-}
-
-# Define a theme for all plots
-uniform_theme <- theme_minimal(base_size = 14) +
-  theme(
-    legend.position = "bottom",
-    plot.title = element_text(face = "bold", size = 16),
-    axis.title = element_text(face = "bold"),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-  )
-
-# Define a set of shapes to cycle through
-uniform_shapes <- c(16, 17, 15, 18, 8, 4, 1, 2, 3, 5)
-
-# Define a color palette function
-get_color_scale <- function(vars) {
-  # vars is vector of unique variable names (e.g. "pH", "DOC", "Ca", etc)
-  n <- length(vars)
-  cols <- viridis(n, option = "D")
-  names(cols) <- vars
-  scale_color_manual(values = cols)
-}
-
-# Helper function to create uniform animated plot
-make_uniform_anim <- function(data, date_col, x_col = "Tmt", variable_col = "Variable", y_col = "Value_norm", title_prefix) {
-  unique_vars <- unique(data[[variable_col]])
-  
-  ggplot(data, aes_string(x = x_col, y = y_col, color = variable_col, shape = variable_col)) +
-    geom_point(size = 4) +
-    get_color_scale(unique_vars) +
-    scale_shape_manual(values = uniform_shapes[1:length(unique_vars)]) +
-    labs(
-      x = "Treatment",
-      y = "Normalized Value (0-1)",
-      color = variable_col,
-      shape = variable_col,
-      title = paste0(title_prefix, " over Time: {closest_state}")
-    ) +
-    uniform_theme +
-    transition_states(as.factor(data[[date_col]]), state_length = 1, wrap = FALSE) +
-    ease_aes('linear')
-}
-
-# 1) Soil animation
-soil_long <- Alldata_Soil_phEC_summary %>%
-  filter(Tmt %in% valid_treatments$Tmt) %>%
-  select(Date, Tmt, mean_pH, mean_EC) %>%
-  pivot_longer(cols = c(mean_pH, mean_EC),
-               names_to = "Variable",
-               values_to = "Value") %>%
-  group_by(Variable) %>%
-  mutate(Value_norm = normalize(Value)) %>%
-  ungroup()
-
-soil_anim <- make_uniform_anim(soil_long, date_col = "Date", variable_col = "Variable", title_prefix = "Soil Variables")
-
-soil_anim_gif <- animate(soil_anim, nframes = length(unique(soil_long$Date)) * 3, fps = 5, width = 600, height = 400, units = "px",renderer = gifski_renderer())
-anim_save("soil_animation.gif", animation = soil_anim_gif)
-
-
-# 2) Rhizon group 1 animation
-rhizon_group1_vars <- c("mean_pH", "mean_DOC", "mean_DIC", "mean_Alkalinity_meq_l")
-
-rhizon_long1 <- Alldata_Rhizon_summary %>%
-  select(Sampled_on, Tmt, all_of(rhizon_group1_vars)) %>%
-  pivot_longer(cols = rhizon_group1_vars,
-               names_to = "Variable",
-               values_to = "Value") %>%
-  group_by(Variable) %>%
-  mutate(Value_norm = normalize(Value)) %>%
-  ungroup()
-
-rhizon_long1$Variable <- recode_factor(rhizon_long1$Variable,
-                                       "mean_pH" = "pH",
-                                       "mean_DOC" = "DOC",
-                                       "mean_DIC" = "DIC",
-                                       "mean_Alkalinity_meq_l" = "Alkalinity")
-
-rhizon_anim1 <- make_uniform_anim(rhizon_long1, date_col = "Sampled_on", variable_col = "Variable", title_prefix = "Rhizon Porewater DOC/DIC/pH/Alkalinity")
-
-rhizon_anim1_gif <- animate(rhizon_anim1, nframes = length(unique(rhizon_long1$Sampled_on)) * 3, fps = 5, width = 600, height = 400, units = "px",renderer = gifski_renderer())
-anim_save("rhizon_animation1.gif", animation = rhizon_anim1_gif)
-
-
-# 3) Rhizon group 2 animation
-rhizon_group2_vars <- c("mean_Ca_mg_l", "mean_Mg_mg_l", "mean_Na_mg_l", "mean_K_mg_l", "mean_Fe_mg_l", "mean_Al_mg_l")
-
-rhizon_long2 <- Alldata_Rhizon_summary %>%
-  select(Sampled_on, Tmt, all_of(rhizon_group2_vars)) %>%
-  pivot_longer(cols = rhizon_group2_vars,
-               names_to = "Variable",
-               values_to = "Value") %>%
-  group_by(Variable) %>%
-  mutate(Value_norm = normalize(Value)) %>%
-  ungroup()
-
-rhizon_long2$Variable <- recode_factor(rhizon_long2$Variable,
-                                       "mean_Ca_mg_l" = "Ca",
-                                       "mean_Mg_mg_l" = "Mg",
-                                       "mean_Na_mg_l" = "Na",
-                                       "mean_K_mg_l" = "K",
-                                       "mean_Fe_mg_l" = "Fe",
-                                       "mean_Al_mg_l" = "Al")
-
-rhizon_anim2 <- make_uniform_anim(rhizon_long2, date_col = "Sampled_on", variable_col = "Variable", title_prefix = "Rhizon Porewater Elements")
-
-rhizon_anim2_gif <- animate(rhizon_anim2, nframes = length(unique(rhizon_long2$Sampled_on)) * 3, fps = 5, width = 600, height = 400, units = "px", renderer = gifski_renderer())
-anim_save("rhizon_animation2.gif", animation = rhizon_anim2_gif)
-
-
-# 4) PRS Macro elements animation
-macro_elements <- c("Ca","Mg","K")
-prs_macro_long <- PRS_filtered %>%
-  select(Retrieval.Date, Tmt, all_of(macro_elements)) %>%
-  pivot_longer(cols = macro_elements, names_to = "Variable", values_to = "Value") %>%
-  group_by(Variable) %>%
-  mutate(Value_norm = normalize(Value)) %>%
-  ungroup()
-
-prs_macro_anim <- make_uniform_anim(prs_macro_long, date_col = "Retrieval.Date", variable_col = "Variable", title_prefix = "PRS Macro Nutrients")
-
-prs_macro_anim_gif<-animate(prs_macro_anim, nframes = length(unique(prs_macro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, units = "px",renderer = gifski_renderer())
-anim_save("prs_macro_anim.gif", animation = prs_macro_anim_gif)
-
-# 5) PRS Micro elements animation
-micro_elements <- c("Fe","Mn","Cu","Zn","B","S","Pb")
-prs_micro_long <- PRS_filtered %>%
-  select(Retrieval.Date, Tmt, all_of(micro_elements)) %>%
-  pivot_longer(cols = micro_elements, names_to = "Variable", values_to = "Value") %>%
-  group_by(Variable) %>%
-  mutate(Value_norm = normalize(Value)) %>%
-  ungroup()
-
-prs_micro_anim <- make_uniform_anim(prs_micro_long, date_col = "Retrieval.Date", variable_col = "Variable", title_prefix = "PRS Micro Nutrients")
-
-prs_micro_anim_gif<- animate(prs_micro_anim, nframes = length(unique(prs_micro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, units = 'px', renderer = gifski_renderer())
-anim_save("prs_micro_anim.gif", animation = prs_micro_anim_gif)
-
-
-```
 
 ## Animations over time
 
-Normalizing each measured parameter **across all treatments** and plotting a time-series with `gganimate`, displays these gifs:
+Normalizing each measured parameter **across all treatments** and plotting a time-series with `gganimate` (this only works in a separate R script, not in Quarto for some reason), displays these gifs:
 
 **Soil Animation**
+![](soil_animation.gif)
+
+**Rhizon alkalinity animation**
+![](rhizon_animation1.gif)
+
+**Rhizon elements animation**
+![](rhizon_animation2.gif)
+
+**PRS macroelements animation**
+![](prs_macro_anim.gif)
+
+**PRS microelements animation**
+![](prs_micro_anim.gif)
+
+
+
