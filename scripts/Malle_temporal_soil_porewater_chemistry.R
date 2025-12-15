@@ -9,7 +9,6 @@ library(RColorBrewer)
 library(tidyverse)
 library(dplyr)
 library(car)
-library(lme4)
 library(zoo)
 library(ggthemr)
 theme_update(
@@ -20,8 +19,6 @@ library(gridExtra)
 library(here)
 #set theme
 ggthemr('flat dark')
-
-library(tidyverse)
 
 # Import files in one step
 Alldata_Rhizon <- read.csv(here("csv_files", "Alldata_Rhizon.csv"), header = TRUE)[1:252, ]
