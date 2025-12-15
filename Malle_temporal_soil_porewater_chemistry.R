@@ -190,17 +190,17 @@ plots <- list(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_D
               PRS_plots$Ca, PRS_plots$Mg, PRS_plots$K, PRS_plots$Fe, PRS_plots$Mn, PRS_plots$Cu, PRS_plots$Zn, PRS_plots$B, PRS_plots$S, PRS_plots$Pb)  
 
 #print in console
-for (p in plots) print(p)
+#for (p in plots) print(p)
 
 #render with quarto
-multi_page <- marrangeGrob(
-  grobs = plots,
-  nrow = 1,
-  ncol = 1,
-  top = NULL,      # removes “page x” title inside gridExtra
-  layout_matrix = matrix(1) # ensures full-page plot
-)
-multi_page
+#multi_page <- marrangeGrob(
+  #grobs = plots,
+  #nrow = 1,
+  #ncol = 1,
+  #top = NULL,      # removes “page x” title inside gridExtra
+  #layout_matrix = matrix(1) # ensures full-page plot
+#)
+#multi_page
 
 ### --- animate plots --------------------------------------------------------
 # Normalize function 
@@ -262,7 +262,7 @@ soil_long <- Alldata_Soil_phEC_summary %>%
 
 soil_anim <- make_uniform_anim(soil_long, date_col = "Date", variable_col = "Variable", title_prefix = "Soil Variables")
 
-soil_anim_gif <- animate(soil_anim, nframes = length(unique(soil_long$Date)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("soil_animation.gif"))
+soil_anim_gif <- animate(soil_anim, nframes = length(unique(soil_long$Date)) * 3, fps = 5, width = 600, height = 400, units = "px",renderer = gifski_renderer())
 anim_save("soil_animation.gif", animation = soil_anim_gif)
 
 
@@ -286,7 +286,7 @@ rhizon_long1$Variable <- recode_factor(rhizon_long1$Variable,
 
 rhizon_anim1 <- make_uniform_anim(rhizon_long1, date_col = "Sampled_on", variable_col = "Variable", title_prefix = "Rhizon Porewater DOC/DIC/pH/Alkalinity")
 
-rhizon_anim1_gif <- animate(rhizon_anim1, nframes = length(unique(rhizon_long1$Sampled_on)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("rhizon_anim_group1.gif"))
+rhizon_anim1_gif <- animate(rhizon_anim1, nframes = length(unique(rhizon_long1$Sampled_on)) * 3, fps = 5, width = 600, height = 400, units = "px",renderer = gifski_renderer())
 anim_save("rhizon_animation1.gif", animation = rhizon_anim1_gif)
 
 
@@ -312,7 +312,7 @@ rhizon_long2$Variable <- recode_factor(rhizon_long2$Variable,
 
 rhizon_anim2 <- make_uniform_anim(rhizon_long2, date_col = "Sampled_on", variable_col = "Variable", title_prefix = "Rhizon Porewater Elements")
 
-rhizon_anim2_gif <- animate(rhizon_anim2, nframes = length(unique(rhizon_long2$Sampled_on)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("rhizon_anim_group2.gif"))
+rhizon_anim2_gif <- animate(rhizon_anim2, nframes = length(unique(rhizon_long2$Sampled_on)) * 3, fps = 5, width = 600, height = 400, units = "px", renderer = gifski_renderer())
 anim_save("rhizon_animation2.gif", animation = rhizon_anim2_gif)
 
 
@@ -327,7 +327,7 @@ prs_macro_long <- PRS_filtered %>%
 
 prs_macro_anim <- make_uniform_anim(prs_macro_long, date_col = "Retrieval.Date", variable_col = "Variable", title_prefix = "PRS Macro Nutrients")
 
-prs_macro_anim_gif<-animate(prs_macro_anim, nframes = length(unique(prs_macro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("prs_macro_anim.gif"))
+prs_macro_anim_gif<-animate(prs_macro_anim, nframes = length(unique(prs_macro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, units = "px",renderer = gifski_renderer())
 anim_save("prs_macro_anim.gif", animation = prs_macro_anim_gif)
 
 # 5) PRS Micro elements animation
@@ -341,5 +341,5 @@ prs_micro_long <- PRS_filtered %>%
 
 prs_micro_anim <- make_uniform_anim(prs_micro_long, date_col = "Retrieval.Date", variable_col = "Variable", title_prefix = "PRS Micro Nutrients")
 
-prs_micro_anim_gif<- animate(prs_micro_anim, nframes = length(unique(prs_micro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("prs_micro_anim.gif"))
+prs_micro_anim_gif<- animate(prs_micro_anim, nframes = length(unique(prs_micro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer())
 anim_save("prs_micro_anim.gif", animation = prs_micro_anim_gif)
