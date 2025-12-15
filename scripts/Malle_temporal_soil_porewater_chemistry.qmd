@@ -3,11 +3,10 @@ title: "Malle temporal soil porewater chemistry"
 author: "Teneille Nel"
 format: html
 editor: visual
-format:
-  html:
-    toc: true
-    toc-location: left
-    embed-resources: true
+html:
+  toc: true
+  toc-location: left
+  embed-resources: true
 ---
 
 ## ROCMICS
@@ -231,25 +230,30 @@ multi_page
 
 ```
 
-
 ## Animations over time
+
+```{r}
+#| echo: false
+#| message: false
+#| label: render
+#| warning: FALSE
+
+#run this in R script to render html to Git Page
+
+#quarto::quarto_render(
+  #"scripts/Malle_temporal_soil_porewater_chemistry.qmd",
+  #output_dir = "docs"
+#)
+```
 
 Normalizing each measured parameter **across all treatments** and plotting a time-series with `gganimate` (this only works in a separate R script, not in Quarto for some reason), displays these gifs:
 
-**Soil Animation**
-![](soil_animation.gif)
+**Soil Animation** ![](soil_animation.gif)
 
-**Rhizon alkalinity animation**
-![](rhizon_animation1.gif)
+**Rhizon alkalinity animation** ![](rhizon_animation1.gif)
 
-**Rhizon elements animation**
-![](rhizon_animation2.gif)
+**Rhizon elements animation** ![](rhizon_animation2.gif)
 
-**PRS macroelements animation**
-![](prs_macro_anim.gif)
+**PRS macroelements animation** ![](prs_macro_anim.gif)
 
-**PRS microelements animation**
-![](prs_micro_anim.gif)
-
-
-
+**PRS microelements animation** ![](prs_micro_anim.gif)
