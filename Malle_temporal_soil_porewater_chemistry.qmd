@@ -286,7 +286,8 @@ soil_long <- Alldata_Soil_phEC_summary %>%
 
 soil_anim <- make_uniform_anim(soil_long, date_col = "Date", variable_col = "Variable", title_prefix = "Soil Variables")
 
-animate(soil_anim, nframes = length(unique(soil_long$Date)) * 3, fps = 5, width = 600, height = 400, units = "px", renderer = gifski_renderer("soil_animation.gif"))
+soil_anim_gif <- animate(soil_anim, nframes = length(unique(soil_long$Date)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("soil_animation.gif"))
+anim_save("soil_animation.gif", animation = soil_anim_gif)
 
 
 # 2) Rhizon group 1 animation
@@ -309,7 +310,9 @@ rhizon_long1$Variable <- recode_factor(rhizon_long1$Variable,
 
 rhizon_anim1 <- make_uniform_anim(rhizon_long1, date_col = "Sampled_on", variable_col = "Variable", title_prefix = "Rhizon Porewater DOC/DIC/pH/Alkalinity")
 
-animate(rhizon_anim1, nframes = length(unique(rhizon_long1$Sampled_on)) * 3, fps = 5, width = 600, height = 400, units = "px", renderer = gifski_renderer("rhizon_anim_group1.gif"))
+rhizon_anim1_gif <- animate(rhizon_anim1, nframes = length(unique(rhizon_long1$Sampled_on)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("rhizon_anim_group1.gif"))
+anim_save("rhizon_animation1.gif", animation = rhizon_anim1_gif)
+
 
 # 3) Rhizon group 2 animation
 rhizon_group2_vars <- c("mean_Ca_mg_l", "mean_Mg_mg_l", "mean_Na_mg_l", "mean_K_mg_l", "mean_Fe_mg_l", "mean_Al_mg_l")
@@ -333,7 +336,9 @@ rhizon_long2$Variable <- recode_factor(rhizon_long2$Variable,
 
 rhizon_anim2 <- make_uniform_anim(rhizon_long2, date_col = "Sampled_on", variable_col = "Variable", title_prefix = "Rhizon Porewater Elements")
 
-animate(rhizon_anim2, nframes = length(unique(rhizon_long2$Sampled_on)) * 3, fps = 5, width = 600, height = 400, units = "px", renderer = gifski_renderer("rhizon_anim_group2.gif"))
+rhizon_anim2_gif <- animate(rhizon_anim2, nframes = length(unique(rhizon_long2$Sampled_on)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("rhizon_anim_group2.gif"))
+anim_save("rhizon_animation2.gif", animation = rhizon_anim2_gif)
+
 
 # 4) PRS Macro elements animation
 macro_elements <- c("Ca","Mg","K")
@@ -346,7 +351,8 @@ prs_macro_long <- PRS_filtered %>%
 
 prs_macro_anim <- make_uniform_anim(prs_macro_long, date_col = "Retrieval.Date", variable_col = "Variable", title_prefix = "PRS Macro Nutrients")
 
-animate(prs_macro_anim, nframes = length(unique(prs_macro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, units = "px", renderer = gifski_renderer("prs_macro_anim.gif"))
+prs_macro_anim_gif<-animate(prs_macro_anim, nframes = length(unique(prs_macro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("prs_macro_anim.gif"))
+anim_save("prs_macro_anim.gif", animation = prs_macro_anim_gif)
 
 # 5) PRS Micro elements animation
 micro_elements <- c("Fe","Mn","Cu","Zn","B","S","Pb")
@@ -359,7 +365,9 @@ prs_micro_long <- PRS_filtered %>%
 
 prs_micro_anim <- make_uniform_anim(prs_micro_long, date_col = "Retrieval.Date", variable_col = "Variable", title_prefix = "PRS Micro Nutrients")
 
-animate(prs_micro_anim, nframes = length(unique(prs_micro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, units = "px", renderer = gifski_renderer("prs_micro_anim.gif"))
+prs_micro_anim_gif<- animate(prs_micro_anim, nframes = length(unique(prs_micro_long$Retrieval.Date)) * 3, fps = 5, width = 600, height = 400, renderer = gifski_renderer("prs_micro_anim.gif"))
+anim_save("prs_micro_anim.gif", animation = prs_micro_anim_gif)
+
 ```
 
 ## Animations over time
