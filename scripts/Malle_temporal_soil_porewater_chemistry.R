@@ -17,16 +17,16 @@ theme_update(
   legend.text  = element_text(size = 8)
 )
 library(gridExtra)
-
+library(here)
 #set theme
 ggthemr('flat dark')
 
 library(tidyverse)
 
 # Import files in one step
-Alldata_Rhizon <- read.csv("csv_files/Alldata_Rhizon.csv", header = TRUE)[1:252, ]
-Alldata_Soil_phEC <- read.csv("csv_files/Alldata_Soil_phEC.csv", header = TRUE)
-Alldata_PRS <- read.csv("csv_files/Alldata_PRS.csv", header = TRUE)
+Alldata_Rhizon <- read.csv(here("csv_files", "Alldata_Rhizon.csv"), header = TRUE)[1:252, ]
+Alldata_Soil_phEC <- read.csv(here("csv_files", "Alldata_Soil_phEC.csv"), header = TRUE)
+Alldata_PRS <- read.csv( here("csv_files", "Alldata_PRS.csv"), header = TRUE)
 
 # Helper vector for filtering treatments
 valid_treatments <- tribble(
