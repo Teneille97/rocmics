@@ -1,3 +1,24 @@
+---
+title: "Aggstab_trial_nov2025"
+author: "Teneille Nel"
+format: html
+editor: visual
+---
+
+## ROCMICS
+
+Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>.
+
+## Aggregate size classes
+
+Soaking 10 g sub-samples of Lucilla's bulk density sample of plot 20 in five different extractants to remove cementing agents, conducting Anova tests and rendering with `ggthemr('fresh')`, displays these plots (note compact letter display indicates significance of differences amongst extracts for the **given size class**):
+
+```{r}
+#| echo: FALSE
+#| message: FALSE
+#| label: soil aggregate stability fractions
+#| warning: FALSE
+
 #load packages
 library(ggplot2)
 library(viridis)
@@ -217,20 +238,33 @@ get_pvalues <- function(df) {
 pval_results <- agg_long_raw %>%
   group_by(fraction) %>%
   group_map(~ get_pvalues(.x))
+```
 
-#optional: view results
+Since calcimetry showed no SIC, we expected **no HCl effect and can eliminate** this analysis going forward. 
+Not sure if **H2O2 will become more significant with improved recovery?** (syringe to remove supernatant below light fraction, followed by centrifuge). 
+**NaOH had significant increase in clay-silt** fraction. Viewing the results of pairwise tests of clay/silt class shows that **oxalate was also almost significant** (confident this will become even more clear with the planned, **larger sample size** of 20g and including plot replicates:
 
-pval_results[[which(levels(agg_long_raw$fraction) == "coarse")]]$omnibus
-pval_results[[which(levels(agg_long_raw$fraction) == "coarse")]]$pairwise
-
-pval_results[[which(levels(agg_long_raw$fraction) == "macro")]]$omnibus
-pval_results[[which(levels(agg_long_raw$fraction) == "macro")]]$pairwise
-
-pval_results[[which(levels(agg_long_raw$fraction) == "micro")]]$omnibus
-pval_results[[which(levels(agg_long_raw$fraction) == "micro")]]$pairwise
+```{r}
+#| echo: true
+#| message: false
+#| label: p-values size classes
+#| warning: FALSE
 
 pval_results[[which(levels(agg_long_raw$fraction) == "siltclay")]]$omnibus
 pval_results[[which(levels(agg_long_raw$fraction) == "siltclay")]]$pairwise
+
+
+```
+
+## Mean weight diameter
+
+Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the following plots:
+
+```{r}
+#| echo: false
+#| message: false
+#| label: MWD comparison
+#| warning: FALSE
 
 ### MWD comparison
 
@@ -311,12 +345,6 @@ ggplot(MWD_summary, aes(x = extract, y = mean_MWD, fill = extract)) +
   )
 
 
-#optional: view p-values
-if (shapiro_p > 0.05 & levene_p > 0.05) {
-  tidy(aov_mwd)
-  TukeyHSD(aov_mwd)$extract
-} else {
-  kruskal_test(MWD_df, MWD ~ extract)
-  dunn_mwd
-}
+```
 
+Perhaps this will be a more useful parameter to compare one of the extract-fraction-combinations across treatments, i.e. basalts vs control. 
