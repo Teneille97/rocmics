@@ -343,13 +343,6 @@ ggplot(MWD_summary, aes(x = extract, y = mean_MWD, fill = extract)) +
     legend.position = "none",
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
-
-#run this in R script to render html to Git Page
-
-#quarto::quarto_render(
-  #"scripts/Malle_temporal_soil_porewater_chemistry.qmd",
-  #output_dir = "docs"
-#)
 ```
 
 Perhaps this will be a more useful parameter to compare one of the extract-fraction-combinations **across treatments**, i.e. basalts vs control. 
