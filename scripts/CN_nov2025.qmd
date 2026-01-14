@@ -1,5 +1,8 @@
 ---
---- title: "CN_nov2025" author: "Teneille Nel" format: html editor: visual ---
+title: "CN_nov2025" 
+author: "Teneille Nel" 
+format: html 
+editor: visual
 ---
 
 ## ROCMICS
@@ -10,7 +13,11 @@ Teneille's data analysis repository is available at <https://github.com/Teneille
 
 Performing combustion analysis (assuming zero soil inorganic carbon, confirmed by calcimetry tests) and rendering with `ggthemr('fresh')`, displays these plots:
 
-```{r} #| echo: FALSE #| message: FALSE #| label: CN_all_treatments #| warning: FALSE}
+```{r}
+#| echo: FALSE
+#| message: FALSE
+#| label: soil aggregate stability fractions
+#| warning: FALSE
 
 #load packages
 library(ggplot2)
@@ -113,7 +120,11 @@ ggplot(CN_data_summary,
 
 ##Subsetting for selected treatments
 
-```{r} #| echo: true #| message: false #| label: selected_treatments #| warning: FALSE}
+```{r}
+#| echo: FALSE
+#| message: FALSE
+#| label: selected_treatments
+#| warning: FALSE
 
 # subset for selected treatments and rates
 CN_sel <- CN_data %>%
@@ -184,7 +195,11 @@ ggplot(CN_sel_summary,
 
 ## Dose-response only
 
-```{r} #| echo: true #| message: false #| label: dose-response #| warning: FALSE}
+```{r} 
+#| echo: FALSE
+#| message: FALSE
+#| label: dose-response
+#| warning: FALSE
 
 CN_dose <- CN_data %>%
   filter(Dose_response_exp. == "Y") %>%
