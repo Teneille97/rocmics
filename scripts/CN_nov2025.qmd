@@ -1,3 +1,17 @@
+---
+--- title: "CN_nov2025" author: "Teneille Nel" format: html editor: visual ---
+---
+
+## ROCMICS
+
+Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>.
+
+## Soil organic carbon content
+
+Performing combustion analysis (assuming zero soil inorganic carbon, confirmed by calcimetry tests) and rendering with `ggthemr('fresh')`, displays these plots:
+
+```{r} #| echo: FALSE #| message: FALSE #| label: CN_all_treatments #| warning: FALSE}
+
 #load packages
 library(ggplot2)
 library(viridis)
@@ -95,6 +109,12 @@ ggplot(CN_data_summary,
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 
+```
+
+##Subsetting for selected treatments
+
+```{r} #| echo: true #| message: false #| label: selected_treatments #| warning: FALSE}
+
 # subset for selected treatments and rates
 CN_sel <- CN_data %>%
   filter(
@@ -160,6 +180,12 @@ ggplot(CN_sel_summary,
     colour = "none"   # removes Tmt legend
   )
 
+```
+
+## Dose-response only
+
+```{r} #| echo: true #| message: false #| label: dose-response #| warning: FALSE}
+
 CN_dose <- CN_data %>%
   filter(Dose_response_exp. == "Y") %>%
   group_by(Tmt, App_rate) %>%
@@ -186,3 +212,8 @@ ggplot(CN_dose,
   ) +
   theme_classic()+
   geom_hline(aes(yintercept=yintercept, linetype=initial_SOC), data=initial_SOC_df, show.legend=TRUE)
+
+
+```
+
+Most treatments seem to have changed minimally or even decreased. Could be that LOI underestimates SOC, or CN overestimates it.

@@ -240,9 +240,7 @@ pval_results <- agg_long_raw %>%
   group_map(~ get_pvalues(.x))
 ```
 
-Since calcimetry showed no SIC, we expected **no HCl effect and can eliminate** this analysis going forward. 
-Not sure if **H2O2 will become more significant with improved recovery?** (syringe to remove supernatant below light fraction, followed by centrifuge). 
-**NaOH had significant increase in clay-silt** fraction. Viewing the results of pairwise tests of clay/silt class shows that **oxalate was also almost significant** (confident this will become even more clear with the planned, **larger sample size** of 20g and including plot replicates:
+Since calcimetry showed no SIC, we expected **no HCl effect and can eliminate** this analysis going forward. Not sure if **H2O2 will become more significant with improved recovery?** (syringe to remove supernatant below light fraction, followed by centrifuge). **NaOH had significant increase in clay-silt** fraction. Viewing the results of pairwise tests of clay/silt class shows that **oxalate was also almost significant** (confident this will become even more clear with the planned, **larger sample size** of 20g and including plot replicates:
 
 ```{r}
 #| echo: true
@@ -345,4 +343,4 @@ ggplot(MWD_summary, aes(x = extract, y = mean_MWD, fill = extract)) +
   )
 ```
 
-Perhaps this will be a more useful parameter to compare one of the extract-fraction-combinations **across treatments**, i.e. basalts vs control. 
+Perhaps this will be a more useful parameter to compare one of the extract-fraction-combinations **across treatments**, i.e. basalts vs control.

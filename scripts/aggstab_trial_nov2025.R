@@ -15,7 +15,7 @@ library(multcompView)
 library(here)
 
 #import data
-aggstab_data <- read.csv( here("csv_files", "aggstab_trial_nov2025.csv"), header = TRUE)
+aggstab_data <- read.csv(here("csv_files", "aggstab_trial_nov2025.csv"), header = TRUE)
 
 #data cleaning
 aggstab_data[, 4:8] <- lapply(aggstab_data[, 4:8], as.numeric)
