@@ -1,9 +1,0 @@
-diff a/scripts/Aggstab_2026.R b/scripts/Aggstab_2026.R	(rejected hunks)
-@@ -14,7 +14,6 @@
- library(multcompView)
- library(here)
- 
--#import data
- # Read treatment names once
- treatment_names <- read.csv(here("csv_files", "treatment_names.csv"), header = TRUE)
- tmt_names_vec <- rep(treatment_names$Treatment, each = 2)
