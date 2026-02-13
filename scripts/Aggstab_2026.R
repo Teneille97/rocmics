@@ -70,12 +70,16 @@ clean_aggstab_extract <- function(filename, extract_label) {
         fraction_type == ">0.063mm.fraction" ~ ">0.063",
         fraction_type == "<0.063mm.fraction" ~ "<0.063"
       ),
+      fraction_type = factor(
+        fraction_type,
+        levels = c(">2", ">0.25", ">0.063", "<0.063")
+      ),
       extract_type = factor(extract_label,
-                            levels = c("h2o", "oxalate", "h2o2", "naoh"))
+                            levels = c("h2o", "oxalate", "h2o2", "naoh")),
     )
   
   return(as.data.frame(df_long))
-}
+} 
 
 #apply to my dataframes
 aggstab_h2o      <- clean_aggstab_extract("aggstab_2026_h2o.csv", "h2o")
@@ -90,6 +94,9 @@ aggstab_all <- bind_rows(
   aggstab_h2o2,
   aggstab_naoh
 )
+
+aggstab_all <- aggstab_all %>%
+  select(-extract) #remove old column
 
 #check final df
 str(aggstab_all)
