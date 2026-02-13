@@ -60,7 +60,7 @@ clean_aggstab_extract <- function(filename, extract_label) {
   # Calculate MWD (mean weight diameter) **before pivoting**
   df <- df %>%
     mutate(
-      MWD = `>2mm.fraction` * 3 +
+      MWD = 
         `>0.25mm.fraction` * 1.125 +
         `>0.063mm.fraction` * 0.1565 +
         `<0.063mm.fraction` * 0.0315
