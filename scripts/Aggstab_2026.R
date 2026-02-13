@@ -6,13 +6,17 @@ library(tidyverse)
 library(dplyr)
 library(car)
 library(lme4)
+library(lmerTest)
 library(ggthemr)
 #set theme
 ggthemr('fresh')
 library(rstatix)
 library(emmeans)
+library(multcomp)
 library(multcompView)
 library(here)
+library(ARTool)
+library(tidyr)
 
 # Read treatment names once
 treatment_names <- read.csv(here("csv_files", "treatment_names.csv"), header = TRUE)
@@ -100,4 +104,5 @@ aggstab_all <- aggstab_all %>%
 
 #check final df
 str(aggstab_all)
+
 
