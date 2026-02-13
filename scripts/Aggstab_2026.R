@@ -407,36 +407,3 @@ analyze_MWD_by_treatment <- function(df) {
   
   return(list(results = results_list, plots = plot_list))
 }
-
-# Run function
-MWD_analysis <- analyze_MWD_by_treatment(aggstab_all)
-
-# Combine all treatment summaries into one dataframe
-MWD_all_summary <- bind_rows(
-  lapply(MWD_analysis$results, function(x) x$summary)
-)
-
-# Make treatment a factor (preserve original order)
-MWD_all_summary$treatment <- factor(MWD_all_summary$treatment, 
-                                    levels = unique(MWD_all_summary$treatment))
-
-# Facetted plot
-ggplot(MWD_all_summary, aes(x = extract_type, y = mean_MWD, fill = extract_type)) +
-  geom_col(width = 0.7, colour = "grey20") +
-  geom_errorbar(aes(ymin = mean_MWD - se_MWD, ymax = mean_MWD + se_MWD),
-                width = 0.2, linewidth = 0.6) +
-  geom_text(aes(label = .group, y = mean_MWD + se_MWD + 1),
-            size = 4, fontface = "bold") +
-  facet_wrap(~ treatment, scales = "free_y") +
-  scale_fill_viridis_d(option = "D", end = 0.9) +
-  labs(x = NULL, y = "Mean weight diameter (µm)") +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none",
-    strip.text = element_text(face = "bold")
-  )
-
-
-#access individual test results like so:
-MWD_analysis$results[["Bolsdorfer_50"]]$summary
