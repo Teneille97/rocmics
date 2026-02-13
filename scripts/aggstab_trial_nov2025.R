@@ -155,8 +155,6 @@ agg_long <- aggstab_data_summary %>%
 agg_long_plot <- agg_long %>%
   left_join(letters_df, by = c("fraction", "extract"))
 
-
-
 ggplot(agg_long_plot, aes(x = fraction, y = mean, fill = fraction)) +
   geom_col(width = 0.7, colour = "grey20") +
   geom_errorbar(
