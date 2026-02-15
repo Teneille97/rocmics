@@ -115,7 +115,7 @@ aggstab_all <- bind_rows(
 #check final df
 str(aggstab_all)
 
-# MWD test with figures of merit
+# MWD comparison of extracts with figures of merit
 analyze_MWD_by_treatment <- function(df) {
   
   results_list <- list()
@@ -263,6 +263,31 @@ analyze_MWD_by_treatment <- function(df) {
 # Run function
 MWD_analysis <- analyze_MWD_by_treatment(aggstab_all)
 
+# Combine all treatment summaries into one dataframe
+MWD_all_summary <- bind_rows(
+  lapply(MWD_analysis$results, function(x) x$summary)
+)
+
+# Make treatment a factor (preserve original order)
+MWD_all_summary$treatment <- factor(MWD_all_summary$treatment, 
+                                    levels = unique(MWD_all_summary$treatment))
+
+# Facetted plot
+ggplot(MWD_all_summary, aes(x = extract_type, y = mean_MWD, fill = extract_type)) +
+  geom_col(width = 0.7, colour = "grey20") +
+  geom_errorbar(aes(ymin = mean_MWD - se_MWD, ymax = mean_MWD + se_MWD),
+                width = 0.2, linewidth = 0.6) +
+  geom_text(aes(label = .group, y = mean_MWD + se_MWD + 1),
+            size = 4, fontface = "bold") +
+  facet_wrap(~ treatment, scales = "free_y") +
+  scale_fill_viridis_d(option = "D", end = 0.9) +
+  labs(x = NULL, y = "Mean weight diameter (µm)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",
+    strip.text = element_text(face = "bold")
+  )
 
 #access individual test results like so:
 MWD_analysis$results[["Bolsdorfer_50"]]$summary
@@ -270,8 +295,7 @@ MWD_analysis$results[["Bolsdorfer_50"]]$summary
 ##access individual plot facets like so: 
 MWD_analysis$plots
 
-#function to compare treatments within each extract type
-
+#function to compare mwd of tmts with figures of merit
 analyze_MWD_by_extract <- function(df) {
   
   results_list <- list()
@@ -279,21 +303,31 @@ analyze_MWD_by_extract <- function(df) {
   
   for(xtract in unique(df$extract_type)) {
     
-    # Subset for this treatment
-    MWD_df <- df %>% filter(extract_type == xtract)
+    # Subset
+    MWD_df <- df %>% 
+      filter(extract_type == xtract) %>%
+      mutate(treatment = factor(treatment))
     
-    # Ensure tmt is factor
-    MWD_df <- MWD_df %>% mutate(treatment = factor(treatment))
-    
-    # Check assumptions
+    # Assumption checks
     mwd_mod <- lm(MWD ~ treatment, data = MWD_df)
     shapiro_p <- shapiro.test(residuals(mwd_mod))$p.value
     levene_p  <- car::leveneTest(MWD ~ treatment, data = MWD_df)$`Pr(>F)`[1]
     
+    # -----------------------------
+    # PARAMETRIC
+    # -----------------------------
     if(shapiro_p > 0.05 & levene_p > 0.05) {
       
-      # Parametric: ANOVA + Tukey
+      test_type <- "ANOVA"
+      
       aov_mwd <- aov(MWD ~ treatment, data = MWD_df)
+      aov_tab <- summary(aov_mwd)[[1]]
+      
+      F_value  <- aov_tab$`F value`[1]
+      p_value  <- aov_tab$`Pr(>F)`[1]
+      df1      <- aov_tab$Df[1]
+      df2      <- aov_tab$Df[2]
+      
       emm_mwd <- emmeans(aov_mwd, ~ treatment)
       
       letters_mwd <- multcomp::cld(
@@ -302,12 +336,24 @@ analyze_MWD_by_extract <- function(df) {
         adjust = "tukey"
       ) %>%
         as.data.frame() %>%
-        select(treatment, .group)
+        dplyr::select(treatment, .group)
       
     } else {
       
-      # Non-parametric: Kruskal-Wallis + Dunn
-      dunn_mwd <- dunn_test(
+      # -----------------------------
+      # NON-PARAMETRIC
+      # -----------------------------
+      
+      test_type <- "Kruskal-Wallis"
+      
+      kw_test <- kruskal.test(MWD ~ treatment, data = MWD_df)
+      
+      F_value <- kw_test$statistic
+      p_value <- kw_test$p.value
+      df1     <- kw_test$parameter
+      df2     <- NA
+      
+      dunn_mwd <- rstatix::dunn_test(
         MWD_df,
         MWD ~ treatment,
         p.adjust.method = "bonferroni"
@@ -326,32 +372,65 @@ analyze_MWD_by_extract <- function(df) {
       )
     }
     
-    # Summarise mean ± SE
+    # -----------------------------
+    # Summary table
+    # -----------------------------
+    
     MWD_summary <- MWD_df %>%
       group_by(treatment) %>%
       summarise(
         mean_MWD = mean(MWD, na.rm = TRUE),
-        se_MWD = sd(MWD, na.rm = TRUE)/sqrt(n()),
+        se_MWD   = sd(MWD, na.rm = TRUE)/sqrt(n()),
         .groups = "drop"
       ) %>%
       left_join(letters_mwd, by = "treatment") %>%
       mutate(extract_type = xtract)
     
+    # Store full results
     results_list[[xtract]] <- list(
-      summary = MWD_summary,
-      shapiro_p = shapiro_p,
-      levene_p  = levene_p
+      summary    = MWD_summary,
+      test_type  = test_type,
+      statistic  = F_value,
+      df_between = df1,
+      df_within  = df2,
+      p_value    = p_value,
+      shapiro_p  = shapiro_p,
+      levene_p   = levene_p
     )
     
+    # -----------------------------
     # Plot
+    # -----------------------------
+    
+    p_label <- if(test_type == "ANOVA") {
+      paste0("ANOVA: F(", df1, ", ", df2, ") = ",
+             round(F_value, 2),
+             ", p = ",
+             signif(p_value, 3))
+    } else {
+      paste0("Kruskal-Wallis: χ²(", df1, ") = ",
+             round(F_value, 2),
+             ", p = ",
+             signif(p_value, 3))
+    }
+    
     p <- ggplot(MWD_summary, aes(x = treatment, y = mean_MWD, fill = treatment)) +
       geom_col(width = 0.7, colour = "grey20") +
-      geom_errorbar(aes(ymin = mean_MWD - se_MWD, ymax = mean_MWD + se_MWD),
+      geom_errorbar(aes(ymin = mean_MWD - se_MWD,
+                        ymax = mean_MWD + se_MWD),
                     width = 0.2, linewidth = 0.6) +
-      geom_text(aes(label = .group, y = mean_MWD + se_MWD + 1),
+      geom_text(aes(label = .group,
+                    y = mean_MWD + se_MWD + 1),
                 size = 4, fontface = "bold") +
+      annotate("text",
+               x = Inf, y = Inf,
+               label = p_label,
+               hjust = 1.1, vjust = 1.5,
+               size = 3.5) +
       scale_fill_viridis_d(option = "D", end = 0.9) +
-      labs(x = NULL, y = "Mean weight diameter (µm)", title = paste("Extract:", xtract)) +
+      labs(x = NULL,
+           y = "Mean weight diameter (µm)",
+           title = paste("Extract:", xtract)) +
       theme(legend.position = "none",
             axis.text.x = element_text(angle = 45, hjust = 1))
     
