@@ -75,14 +75,30 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="rocmics">ROCMICS</h2>
 <p>Teneille’s data analysis repository is available at <a href="https://github.com/Teneille97/rocmics" class="uri">https://github.com/Teneille97/rocmics</a>.</p>
 </section>
-<section id="mean-weight-diameter" class="level2">
-<h2 class="anchored" data-anchor-id="mean-weight-diameter">Mean weight diameter</h2>
-<p>Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the following mean weight diameter (MWD) plots. Note that <strong>within each treatment group</strong> (lime, basalt, control etc) a parametric (Anova &amp; Tukey) or non-parametric (Kruskal-Wallis &amp; Dunn) was run (based on Shapiro &amp; Levene tests for normality and homogeneity of residuals distribution, respectively) to <strong>compare MWD between extracts</strong>, thereby showing <strong>which cementing agents</strong> were the most important driver of aggregate stability <strong>for that treatment</strong>.</p>
+<section id="mean-weight-diameter---tmt-effect" class="level2">
+<h2 class="anchored" data-anchor-id="mean-weight-diameter---tmt-effect">Mean weight diameter - tmt effect</h2>
+<p>Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the following mean weight diameter (MWD) plots. <strong>For the water extract</strong>, non-parametric (Kruskal-Wallis &amp; Dunn) tests were run (based on Shapiro &amp; Levene tests for normality and homogeneity of residuals distribution, respectively) to <strong>compare MWD between treatments</strong> (lime, basalt, control etd), thereby showing <strong>which treatment</strong> had the greatest aggregate stability in each extract. Water-stable aggregate is the most relevant extract for this baseline comparison.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>$h2o</code></pre>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20extracts-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="mean-weight-diameter---treatment-effect" class="level2">
+<h2 class="anchored" data-anchor-id="mean-weight-diameter---treatment-effect">Mean weight diameter - treatment effect</h2>
+<p>Here, <strong>within each treatment group</strong> (lime, basalt, control etc) a parametric (Anova &amp; Tukey) or non-parametric (Kruskal-Wallis &amp; Dunn) was run (based on Shapiro &amp; Levene tests for normality and homogeneity of residuals distribution, respectively) to <strong>compare MWD between extracts</strong>, thereby showing <strong>which cementing agents</strong> were the most important driver of aggregate stability <strong>for that treatment</strong>.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="aggstab_2026_files/figure-html/MWD%20comparison-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20tmts-1.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
