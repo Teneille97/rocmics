@@ -241,3 +241,5 @@ ggplot(MWD_all_summary, aes(x = extract_type, y = mean_MWD, fill = extract_type)
 
 #access individual test results like so:
 MWD_analysis$results[["Bolsdorfer_50"]]$summary
+
+#to do - compare treatments for each extract type
