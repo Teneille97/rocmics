@@ -22,9 +22,7 @@ library(tidyr)
 treatment_names <- read.csv(here("csv_files", "treatment_names.csv"), header = TRUE)
 tmt_names_vec <- rep(treatment_names$Treatment, each = 2)
 
-# -------------------------------------------------
-# FUNCTION
-# -------------------------------------------------
+# data cleaning function
 
 clean_aggstab_extract <- function(filename, extract_label) {
   
@@ -242,4 +240,127 @@ ggplot(MWD_all_summary, aes(x = extract_type, y = mean_MWD, fill = extract_type)
 #access individual test results like so:
 MWD_analysis$results[["Bolsdorfer_50"]]$summary
 
-#to do - compare treatments for each extract type
+#function to compare treatments within each extract type
+
+analyze_MWD_by_extract <- function(df) {
+  
+  results_list <- list()
+  plot_list <- list()
+  
+  for(xtract in unique(df$extract_type)) {
+    
+    # Subset for this treatment
+    MWD_df <- df %>% filter(extract_type == xtract)
+    
+    # Ensure tmt is factor
+    MWD_df <- MWD_df %>% mutate(treatment = factor(treatment))
+    
+    # Check assumptions
+    mwd_mod <- lm(MWD ~ treatment, data = MWD_df)
+    shapiro_p <- shapiro.test(residuals(mwd_mod))$p.value
+    levene_p  <- car::leveneTest(MWD ~ treatment, data = MWD_df)$`Pr(>F)`[1]
+    
+    if(shapiro_p > 0.05 & levene_p > 0.05) {
+      
+      # Parametric: ANOVA + Tukey
+      aov_mwd <- aov(MWD ~ treatment, data = MWD_df)
+      emm_mwd <- emmeans(aov_mwd, ~ treatment)
+      
+      letters_mwd <- multcomp::cld(
+        emm_mwd,
+        Letters = letters,
+        adjust = "tukey"
+      ) %>%
+        as.data.frame() %>%
+        select(treatment, .group)
+      
+    } else {
+      
+      # Non-parametric: Kruskal-Wallis + Dunn
+      dunn_mwd <- dunn_test(
+        MWD_df,
+        MWD ~ treatment,
+        p.adjust.method = "bonferroni"
+      )
+      
+      letters_vec <- multcompView::multcompLetters(
+        setNames(
+          dunn_mwd$p.adj,
+          paste(dunn_mwd$group1, dunn_mwd$group2, sep = "-")
+        )
+      )$Letters
+      
+      letters_mwd <- tibble(
+        treatment = names(letters_vec),
+        .group = letters_vec
+      )
+    }
+    
+    # Summarise mean ± SE
+    MWD_summary <- MWD_df %>%
+      group_by(treatment) %>%
+      summarise(
+        mean_MWD = mean(MWD, na.rm = TRUE),
+        se_MWD = sd(MWD, na.rm = TRUE)/sqrt(n()),
+        .groups = "drop"
+      ) %>%
+      left_join(letters_mwd, by = "treatment") %>%
+      mutate(extract_type = xtract)
+    
+    results_list[[xtract]] <- list(
+      summary = MWD_summary,
+      shapiro_p = shapiro_p,
+      levene_p  = levene_p
+    )
+    
+    # Plot
+    p <- ggplot(MWD_summary, aes(x = treatment, y = mean_MWD, fill = treatment)) +
+      geom_col(width = 0.7, colour = "grey20") +
+      geom_errorbar(aes(ymin = mean_MWD - se_MWD, ymax = mean_MWD + se_MWD),
+                    width = 0.2, linewidth = 0.6) +
+      geom_text(aes(label = .group, y = mean_MWD + se_MWD + 1),
+                size = 4, fontface = "bold") +
+      scale_fill_viridis_d(option = "D", end = 0.9) +
+      labs(x = NULL, y = "Mean weight diameter (µm)", title = paste("Extract:", xtract)) +
+      theme(legend.position = "none",
+            axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    plot_list[[tmt]] <- p
+  }
+  
+  return(list(results = results_list, plots = plot_list))
+}
+
+# Run function
+MWD_analysis2 <- analyze_MWD_by_extract(aggstab_all)
+
+# Combine all treatment summaries into one dataframe
+MWD_all_summary2 <- bind_rows(
+  lapply(MWD_analysis2$results, function(x) x$summary)
+)
+
+# Make treatment a factor (preserve original order)
+MWD_all_summary2$treatment <- factor(MWD_all_summary2$treatment, 
+                                    levels = unique(MWD_all_summary2$treatment))
+
+# Facetted plot
+ggplot(MWD_all_summary2, aes(x = treatment, y = mean_MWD, fill = treatment)) +
+  geom_col(width = 0.7, colour = "grey20") +
+  geom_errorbar(aes(ymin = mean_MWD - se_MWD, ymax = mean_MWD + se_MWD),
+                width = 0.2, linewidth = 0.6) +
+  geom_text(aes(label = .group, y = mean_MWD + se_MWD + 1),
+            size = 4, fontface = "bold") +
+  facet_wrap(~ treatment, scales = "free_y") +
+  scale_fill_viridis_d(option = "D", end = 0.9) +
+  labs(x = NULL, y = "Mean weight diameter (µm)") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",
+    strip.text = element_text(face = "bold")
+  )
+
+
+#access individual test results like so:
+MWD_analysis2$results[["h2o"]]$summary
+
