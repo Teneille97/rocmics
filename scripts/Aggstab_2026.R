@@ -240,6 +240,9 @@ ggplot(MWD_all_summary, aes(x = extract_type, y = mean_MWD, fill = extract_type)
 #access individual test results like so:
 MWD_analysis$results[["Bolsdorfer_50"]]$summary
 
+##access individual plot facets like so: 
+MWD_analysis$plots
+
 #function to compare treatments within each extract type
 
 analyze_MWD_by_extract <- function(df) {
@@ -325,10 +328,10 @@ analyze_MWD_by_extract <- function(df) {
       theme(legend.position = "none",
             axis.text.x = element_text(angle = 45, hjust = 1))
     
-    plot_list[[tmt]] <- p
+    plot_list[[xtract]] <- p
   }
   
-  return(list(results = results_list, plots = plot_list))
+  return(list(results2 = results_list, plots2 = plot_list))
 }
 
 # Run function
@@ -336,7 +339,7 @@ MWD_analysis2 <- analyze_MWD_by_extract(aggstab_all)
 
 # Combine all treatment summaries into one dataframe
 MWD_all_summary2 <- bind_rows(
-  lapply(MWD_analysis2$results, function(x) x$summary)
+  lapply(MWD_analysis2$results2, function(x) x$summary)
 )
 
 # Make treatment a factor (preserve original order)
@@ -350,7 +353,7 @@ ggplot(MWD_all_summary2, aes(x = treatment, y = mean_MWD, fill = treatment)) +
                 width = 0.2, linewidth = 0.6) +
   geom_text(aes(label = .group, y = mean_MWD + se_MWD + 1),
             size = 4, fontface = "bold") +
-  facet_wrap(~ treatment, scales = "free_y") +
+  facet_wrap(~ extract_type, scales = "free_y") +
   scale_fill_viridis_d(option = "D", end = 0.9) +
   labs(x = NULL, y = "Mean weight diameter (µm)") +
   theme_minimal() +
@@ -362,5 +365,8 @@ ggplot(MWD_all_summary2, aes(x = treatment, y = mean_MWD, fill = treatment)) +
 
 
 #access individual test results like so:
-MWD_analysis2$results[["h2o"]]$summary
+MWD_analysis2$results2[["h2o"]]$summary
+
+#access individual plot facets like so: 
+MWD_analysis2$plots2
 
