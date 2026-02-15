@@ -195,7 +195,7 @@ ggplot(CN_sel_summary,
 
 ## Dose-response only
 
-```{r} 
+```{r}
 #| echo: FALSE
 #| message: FALSE
 #| label: dose-response
