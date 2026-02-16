@@ -115,6 +115,20 @@ aggstab_all <- bind_rows(
 #check final df
 str(aggstab_all)
 
+# -------------------------------------------------
+# REMOVE SPECIFIC OUTLIER (set to NA)
+# -------------------------------------------------
+
+aggstab_all <- aggstab_all %>%
+  mutate(fraction = ifelse(
+    sample == 4 &
+      rep == "b" &
+      treatment == "Bolsdorfer_50" &
+      extract_type == "h2o",
+    NA,
+    fraction
+  ))
+
 # MWD comparison of extracts with figures of merit
 analyze_MWD_by_treatment <- function(df) {
   
