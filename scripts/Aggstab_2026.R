@@ -93,3 +93,42 @@ aggstab_all <- bind_rows(
 
 #check final df
 str(aggstab_all)
+
+# ----------------------------------------
+# OUTLIER VISUALIZATION PLOT
+# ----------------------------------------
+
+# Ensure fraction is numeric
+aggstab_all$fraction <- as.numeric(aggstab_all$fraction)
+
+# Basic boxplot for visual inspection
+p_outliers <- ggplot(aggstab_all,
+                     aes(x = extract_type,
+                         y = fraction)) +
+  geom_boxplot(outlier.colour = "red",
+               outlier.size = 2,
+               alpha = 0.7) +
+  facet_grid(fraction_type ~ treatment,
+             scales = "free_y") +
+  labs(title = "Outlier Check: Aggregate Stability Fractions",
+       x = "Extract Type",
+       y = "Fraction (%)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p_outliers
+
+# ----------------------------------------
+# IDENTIFY OUTLIERS USING IQR
+# ----------------------------------------
+
+library(rstatix)
+
+outliers_flagged <- aggstab_all %>%
+  group_by(treatment, extract_type, fraction_type) %>%
+  identify_outliers(fraction)
+
+# View only TRUE outliers
+outliers_only <- outliers_flagged %>%
+  filter(is.outlier == TRUE)
+
+print(outliers_only)
