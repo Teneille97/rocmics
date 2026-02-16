@@ -10,8 +10,8 @@ editor: visual
 Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>.
 
 ## Mean weight diameter - treatment effect
-Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the following mean weight diameter (MWD) plots. **For the water extract**, non-parametric (Kruskal-Wallis & Dunn) tests were run (based on Shapiro & Levene tests for normality and homogeneity of residuals distribution, respectively) to **compare MWD between treatments** (lime, basalt, control etd), thereby showing **which treatment** had the greatest aggregate stability in each extract. Water-stable aggregate is the most relevant extract for this baseline compariso; higher MWD indicates greater aggregate stability.
 
+Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the following mean weight diameter (MWD) plots. **For the water extract**, non-parametric (Kruskal-Wallis & Dunn) tests were run (based on Shapiro & Levene tests for normality and homogeneity of residuals distribution, respectively) to **compare MWD between treatments** (lime, basalt, control etd), thereby showing **which treatment** had the greatest aggregate stability in each extract. Water-stable aggregate is the most relevant extract for this baseline compariso; higher MWD indicates greater aggregate stability.
 
 ```{r}
 #| echo: false
@@ -129,6 +129,19 @@ aggstab_all <- bind_rows(
   aggstab_naoh
 )
 
+# -------------------------------------------------
+# REMOVE SPECIFIC OUTLIER (set to NA)
+# -------------------------------------------------
+
+aggstab_all <- aggstab_all %>%
+  mutate(fraction = ifelse(
+    sample == 4 &
+      rep == "b" &
+      treatment == "Bolsdorfer_50" &
+      extract_type == "h2o",
+    NA,
+    fraction
+  ))
 #function to compare mwd of tmts with figures of merit
 analyze_MWD_by_extract <- function(df) {
   
@@ -282,11 +295,9 @@ MWD_analysis2$plots2[1]
 
 ```
 
-
 ## Mean weight diameter - extract effect
 
 Here, **within each treatment group** (lime, basalt, control etc) a parametric (Anova & Tukey) or non-parametric (Kruskal-Wallis & Dunn) was run (based on Shapiro & Levene tests for normality and homogeneity of residuals distribution, respectively) to **compare MWD between extracts**. The extracts that show the greatest decrease in MWD compared to H$_2$O within each treatment, indicate which **cementing agents** were the most important driver of aggregate stability **for that treatment**. The extracts oxalate, H$_2$O$_2$ and NaOH removed amorphous Fe/Al oxides, organic matter and siliceous cementing agents, respectively.
-
 
 ```{r}
 #| echo: false
