@@ -97,6 +97,14 @@ clean_aggstab_extract <- function(filename, extract_label) {
 
 #apply to my dataframes
 aggstab_h2o      <- clean_aggstab_extract("aggstab_2026_h2o.csv", "h2o")
+# -------------------------------------------------
+# REMOVE problematic sample from h2o dataset
+# -------------------------------------------------
+
+aggstab_h2o <- aggstab_h2o %>%
+  filter(!(sample == 4 &
+             rep == "b" &
+             treatment == "Bolsdorfer_50"))
 aggstab_oxalate  <- clean_aggstab_extract("aggstab_2026_oxalate.csv", "oxalate")
 aggstab_h2o2     <- clean_aggstab_extract("aggstab_2026_h2o2.csv", "h2o2")
 aggstab_naoh     <- clean_aggstab_extract("aggstab_2026_naoh.csv", "naoh")
@@ -114,20 +122,6 @@ aggstab_all <- bind_rows(
 
 #check final df
 str(aggstab_all)
-
-# -------------------------------------------------
-# REMOVE SPECIFIC OUTLIER (set to NA)
-# -------------------------------------------------
-
-aggstab_all <- aggstab_all %>%
-  mutate(fraction = ifelse(
-    sample == 4 &
-      rep == "b" &
-      treatment == "Bolsdorfer_50" &
-      extract_type == "h2o",
-    NA,
-    fraction
-  ))
 
 # MWD comparison of extracts with figures of merit
 analyze_MWD_by_treatment <- function(df) {
