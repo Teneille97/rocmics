@@ -484,3 +484,4 @@ MWD_analysis2$results2[["h2o"]]$summary
 #access individual plot facets like so: 
 MWD_analysis2$plots2
 
+#load soil pH files

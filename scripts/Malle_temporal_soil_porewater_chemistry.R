@@ -87,6 +87,9 @@ Alldata_Soil_phEC_summary <- Alldata_Soil_phEC %>%
     .groups = "drop"
   )
 
+#write file to outputs for use in other scripts
+Alldata_Soil_phEC <- write.csv(here("outputs", "Alldata_Soil_phEC_cleaned.csv"))
+
 # Filter helper function to filter by valid treatments
 filter_valid_treatments <- function(df, date_col) {
   df %>%
