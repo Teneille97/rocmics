@@ -484,12 +484,11 @@ MWD_analysis2$results2[["h2o"]]$summary
 #access individual plot facets like so: 
 MWD_analysis2$plots2
 
-#load soil pH, EC, rhizon and xrf files
+#load soil pH, EC, rhizon and xrf files, select only oct 2025 measurements
 Alldata_Soil_phEC_summary <- read.csv(here("outputs", "Alldata_Soil_phEC_summary.csv"), header = TRUE)
 Alldata_Soil_phEC_Oct25 <- Alldata_Soil_phEC_summary %>% filter(Date == "2025-10-28")
 Alldata_Rhizon_summary <- read.csv(here("outputs", "Alldata_Rhizon_summary.csv"), header = TRUE)
-
-
+Alldata_Rhizon_Oct25 <- Alldata_Rhizon_summary %>% filter(Sampled_on == "2025-11-14")
 
 #format aggstab files to have same format as ph ec
 aggstab_h2o_formatpH <- aggstab_h2o %>%
@@ -505,8 +504,16 @@ separate(treatment, into = c("Tmt", "App_rate"), sep = "_") %>%
     .names = "{.fn}_{.col}"),
     .groups = "drop")
 
-
 cor(Alldata_Soil_phEC_Oct25$mean_EC, aggstab_h2o_formatpH$mean_MWD) #no cor
 cor(Alldata_Soil_phEC_Oct25$mean_pH, aggstab_h2o_formatpH$mean_MWD) #no cor
+cor(Alldata_Rhizon_Oct25$mean_Fe_mg_l, aggstab_h2o_formatpH$mean_MWD) #no cor
+cor(Alldata_Rhizon_Oct25$mean_Al_mg_l, aggstab_h2o_formatpH$mean_MWD) #no cor
 
-#check cor composition
+#tried mixed model
+
+chem_model <- lmer(
+  aggstab_h2o_formatpH$mean_MWD ~ Alldata_Soil_phEC_Oct25$mean_EC + Alldata_Soil_phEC_Oct25$mean_pH + Alldata_Rhizon_Oct25$mean_Fe_mg_l + Alldata_Rhizon_Oct25$mean_Al_mg_l + (1 | aggstab_h2o_formatpH$Tmt)
+)
+anova(chem_model) #showed effect of Al at 90% confidence
+
+
