@@ -485,3 +485,25 @@ MWD_analysis2$results2[["h2o"]]$summary
 MWD_analysis2$plots2
 
 #load soil pH files
+Alldata_Soil_phEC_summary <- read.csv(here("outputs", "Alldata_Soil_phEC_summary.csv"), header = TRUE)
+Alldata_Soil_phEC_Oct25 <- Alldata_Soil_phEC_summary %>% filter(Date == "2025-10-28")
+
+#format aggstab files to have same format as ph ec
+aggstab_h2o_formatpH <- aggstab_h2o %>%
+separate(treatment, into = c("Tmt", "App_rate"), sep = "_") %>%
+  mutate(
+    App_rate = replace_na(App_rate, "0"),
+    Tmt = as.factor(Tmt)) %>%
+  group_by(Tmt, App_rate, extract_type) %>%
+  summarise(across(
+    c(MWD),
+    list(mean = ~ mean(.x, na.rm = TRUE),
+         se   = ~ sd(.x, na.rm = TRUE) / sqrt(n())),
+    .names = "{.fn}_{.col}"),
+    .groups = "drop")
+
+
+cor(Alldata_Soil_phEC_Oct25$mean_EC, aggstab_h2o_formatpH$mean_MWD) #no cor
+cor(Alldata_Soil_phEC_Oct25$mean_pH, aggstab_h2o_formatpH$mean_MWD) #no cor
+
+#check cor composition
