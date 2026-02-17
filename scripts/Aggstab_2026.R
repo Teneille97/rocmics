@@ -484,9 +484,12 @@ MWD_analysis2$results2[["h2o"]]$summary
 #access individual plot facets like so: 
 MWD_analysis2$plots2
 
-#load soil pH files
+#load soil pH, EC, rhizon and xrf files
 Alldata_Soil_phEC_summary <- read.csv(here("outputs", "Alldata_Soil_phEC_summary.csv"), header = TRUE)
 Alldata_Soil_phEC_Oct25 <- Alldata_Soil_phEC_summary %>% filter(Date == "2025-10-28")
+Alldata_Rhizon_summary <- read.csv(here("outputs", "Alldata_Rhizon_summary.csv"), header = TRUE)
+
+
 
 #format aggstab files to have same format as ph ec
 aggstab_h2o_formatpH <- aggstab_h2o %>%

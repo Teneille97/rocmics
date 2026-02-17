@@ -89,6 +89,7 @@ Alldata_Soil_phEC_summary <- Alldata_Soil_phEC %>%
 
 #write file to outputs for use in other scripts
 write.csv(Alldata_Soil_phEC_summary,file=here::here("outputs","Alldata_Soil_phEC_summary.csv"), row.names=FALSE)
+write.csv(Alldata_Rhizon_summary,file=here::here("outputs","Alldata_Rhizon_summary.csv"), row.names=FALSE)
 
 # Filter helper function to filter by valid treatments
 filter_valid_treatments <- function(df, date_col) {
