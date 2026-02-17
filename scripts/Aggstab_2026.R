@@ -485,3 +485,8 @@ MWD_analysis2$results2[["h2o"]]$summary
 MWD_analysis2$plots2
 
 #load soil pH files
+Alldata_Soil_phEC_cleaned <- read.csv(here("outputs", "Alldata_Soil_phEC_cleaned.csv"), header = TRUE)
+
+#select Oct 2025 measurement date
+Alldata_Soil_phEC_Oct2025 <- Alldata_Soil_phEC_cleaned %>% filter(Date == "2025-10-28")
+
