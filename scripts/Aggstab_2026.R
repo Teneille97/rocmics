@@ -477,7 +477,6 @@ ggplot(MWD_all_summary2, aes(x = treatment, y = mean_MWD, fill = treatment)) +
     strip.text = element_text(face = "bold")
   )
 
-
 #access individual test results like so:
 MWD_analysis2$results2[["h2o"]]$summary
 
@@ -485,8 +484,8 @@ MWD_analysis2$results2[["h2o"]]$summary
 MWD_analysis2$plots2
 
 #load soil pH files
-Alldata_Soil_phEC_cleaned <- read.csv(here("outputs", "Alldata_Soil_phEC_cleaned.csv"), header = TRUE)
+Alldata_Soil_phEC_summary <- read.csv(here("outputs", "Alldata_Soil_phEC_summary.csv"), header = TRUE)
 
 #select Oct 2025 measurement date
-Alldata_Soil_phEC_Oct2025 <- Alldata_Soil_phEC_cleaned %>% filter(Date == "2025-10-28")
+Alldata_Soil_phEC_Oct2025 <- Alldata_Soil_phEC_summary %>% filter(Date == "2025-10-28")
 
