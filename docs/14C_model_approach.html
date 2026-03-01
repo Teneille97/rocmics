@@ -171,9 +171,10 @@ window.Quarto = {
 <section id="forward-simulation-3-year-history-t_0tot_1" class="level2">
 <h2 class="anchored" data-anchor-id="forward-simulation-3-year-history-t_0tot_1">Forward simulation (3-year history <span class="math inline">\(t_0~to~t_1\)</span>)</h2>
 <p><strong>Computational goal</strong></p>
-<p>Solve differential equations from known 2023 baseline to 2025 observation (constraint on parameters) - Solution (forward): <span class="math inline">\(C(t) = C(t\_{0}*e^{-kt}+(I/k)*(1-e^{-kt})\)</span></p>
+<p>Solve differential equations from known 2023 baseline to 2025 observation (constraint on parameters)</p>
 <ul>
-<li>Radiocarbon (integral): <span class="math inline">\(C(t_1)F(t_1) = C(t_0)F(t_0)e^{-(k+\lambda)T}+\int_{a}^{b} [I*F_{atm}(t)*e^{-(k+\lambda)(t_1-t)}] \mathrm{d}t\)</span></li>
+<li><p>Solution (forward): <span class="math inline">\(C(t_1) = C(t_{0})e^{-kt}+(I/k)(1-e^{-kt})\)</span></p></li>
+<li><p>Radiocarbon (integral): <span class="math inline">\(C(t_1)F(t_1) = C(t_0)F(t_0)e^{-(k+\lambda)T}+\int_{a}^{b} [I*F_{atm}(t)*e^{-(k+\lambda)(t_1-t)}] \mathrm{d}t\)</span></p></li>
 </ul>
 <p><strong>R packages and functions</strong></p>
 <ul>
