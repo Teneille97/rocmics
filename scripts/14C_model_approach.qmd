@@ -1,0 +1,35 @@
+---
+title: "Modelling strategy for estimating apparent turnover under enhanced mineral weathering (EMW)"
+author: "Teneille Nel"
+format: html
+editor: visual
+---
+
+## Overview
+
+Teneille's full project repository is available at <https://github.com/Teneille97/rocmics>.
+
+We aim to estimate treatment-induced differences in apparent soil organic matter (SOM) turnover under enhanced mineral weathering (EMW), using:
+
+• Baseline carbon stocks ($t_0 \approx 2021$, rock application)
+
+• Two measured time points ($t_1$ = Oct 2025, $t_2$ = Feb 2026)
+
+• Bulk soil + three density fractions
+
+• C stocks and $\Delta^{14}C$
+
+• 3 replicates per treatment
+
+• 3 years since initial pre-treatment C stocks measurement and latest sampling
+
+
+
+**Running Code**
+
+Code block:
+
+```{r}
+#| echo: true
+1 + 1
+```
