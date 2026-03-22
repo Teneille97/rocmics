@@ -47,11 +47,11 @@ F14C <- (delta14C / 1000) + 1
 
 **Computational goal**
 
-Solve differential equations from known 2023 baseline to 2025 observation (constraint on parameters) 
+Solve differential equations from known 2023 baseline to 2025 observation (constraint on parameters)
 
--    Solution (forward): $C(t_1) = C(t_{0})e^{-kt}+(I/k)(1-e^{-kt})$
+-   Solution (forward): $C(t_1) = C(t_{0})e^{-kt}+(I/k)(1-e^{-kt})$
 
--    Radiocarbon (integral): $C(t_1)F(t_1) = C(t_0)F(t_0)e^{-(k+\lambda)T}+\int_{a}^{b} [I*F_{atm}(t)*e^{-(k+\lambda)(t_1-t)}] \mathrm{d}t$
+-   Radiocarbon (integral): $C(t_1)F(t_1) = C(t_0)F(t_0)e^{-(k+\lambda)T}+\int_{a}^{b} [I*F_{atm}(t)*e^{-(k+\lambda)(t_1-t)}] \mathrm{d}t$
 
 **R packages and functions**
 
@@ -156,3 +156,135 @@ Check if sum of independently fitted fractions match observed bulk soil data for
 
 -   `dplyr::group_by()` and `summarise()` to aggregate fitted fraction stocks into calculated bulk stocks
 -   `hydroGOF::rmse()`: Calculate root mean square error between reconstructed bulk and measured bulk to assess model performance
+
+## Can EMW affect transfer between SOM pools?
+
+**Possibility of increased transfer from fast to slow pools** 
+
+- Increased mineral surface area (weathering products and fresh reactive surfaces) for adsorption of DOM and microbial products form MAOM, especially in coarse or mineral-limited control soils 
+
+- Nutrients released by ERW can potentially increase microbial CUE which converts more biomass into necromass, primary precursor of MAOM, especially in nutrient-limited control sols 
+
+- Higher plant productivity increases root-derived C inputs which are more accessible for microbes to process, resulting in greater transfer to MAOM 
+
+- Increased pH can enhance microbial transformation and transfer
+
+**Possibility of reduced transfer from fast to slow pools** 
+
+- If pH is too high it can reduce SOM sorption in variable-charge mineral type soils 
+
+- C is lost rapidly as CO₂ (low CUE systems) 
+
+- Weathering products & microbial activity can enhance soil aggregation and reduce interaction between oPOM and other pools
+
+**Radiocarbon implications** 
+
+- Transfer creates “young-but-stable” carbon: Slow pool receives recent carbon via transfer so it can be larger in size, but younger than expected 
+
+- Transfer coefficient \>0 improves model fit 
+
+- Transfer coefficient of treatments \> control means that ERW increased stabilization
+
+**Models** 
+
+Transfer term (fast → slow), k\_{fs} and term for fraction of fast-pool losses transferred to slow pool (\alpha).
+
+```{r}
+#| eval: false
+
+# Fast pool stocks
+#\frac{dC_f}{dt} = I_f - k_f C_f - k_{fs} C_f
+dCf = I_f - loss_fast_total
+loss_fast_total = k_f * Cf
+flux_fast_to_CO2  = (1 - alpha) * loss_fast_total
+
+# Slow pool stocks
+#\frac{dC_s}{dt} = I_s + k_{fs} C_f - k_s C_s
+dCs = I_s + flux_fast_to_slow - flux_slow_to_CO2
+flux_fast_to_slow = alpha * loss_fast_total
+flux_slow_to_CO2 = k_s * Cs
+
+# 14C tracking: transfer flux inherits fast pool signature: 
+F14C_flux_fast_to_slow = F14Cf
+d(F14Cf * Cf) = I_f * F14C_input - loss_fast_total * F14Cf
+d(F14Cs * Cs) = I_s * F14C_input +  flux_fast_to_slow * F14Cf - flux_slow_to_CO2 * F14Cs
+```
+
+**SoilR two pool system**
+
+$$\frac{dC}{dt} = I + A \cdot C(t)$$
+
+Where $A$ is the compartmental matrix.
+
+For fast-to-slow transfer:
+
+-   Diagonal elements ($a_{ii}$): Total output rate from pool $i$.
+
+-   Off-diagonal elements ($a_{ij}$): Transfer rate from pool $j$ to pool $i$.
+
+-   $a_{11} = -k_f$ (Total loss from fast pool)
+
+-   $a_{21} = \alpha \cdot k_f$ (Fraction of fast pool loss moving to slow pool)
+
+-   $a_{22} = -k_s$ (Loss from slow pool)
+
+```{r}
+#| eval: false
+# 1. Setup Time and Atmospheric 14C
+t_start <- 2023
+t_end <- 2026
+t_seq <- seq(t_start, t_end, by = 1/12) # Monthly steps for precision
+
+# 2. Define Parameters
+# p = c(k_f, k_s, alpha, I_f, I_s)
+p <- c(k_f = 0.5, k_s = 0.05, alpha = 0.2, I_f = 100, I_s = 10)
+
+# 3. Create the Compartmental Matrix A
+# Matrix format: A[row, col] -> flow from col to row
+A <- matrix(nrow = 2, ncol = 2, byrow = TRUE, c(
+  -p["k_f"],                0,          # Pool 1 (Fast)
+   p["alpha"] * p["k_f"],  -p["k_s"]    # Pool 2 (Slow) receives alpha*k_f
+))
+
+# 4. Run the Model
+model <- GeneralModel_14(
+  t = t_seq,
+  A = A,
+  ivList = c(C_f0, C_s0),  # Initial stocks from May 2023
+  initialFilters = c(F14_f0, F14_s0), # Initial 14C
+  inputFluxes = c(p["I_f"], p["I_s"]),
+  inputFc = Hua2013, # Or your preferred curve
+  pass = TRUE
+)
+
+# 5. Extract results for Fitting
+C_total <- getC(model)
+F14_total <- getF14(model)
+
+# Updating the Cost Function (FME)
+# Evaluate the fast pool, sow pool, and bulk soil simultaneously.
+
+objective_coupled <- function(p) {
+  # Constraints: alpha must be 0-1, ks < kf
+  if(p["alpha"] < 0 | p["alpha"] > 1 | p["k_s"] >= p["k_f"]) return(Inf)
+  
+  # 1. Run coupled model (as above)
+  # ... model code ...
+  
+  # 2. Extract predicted values at specific time points (Oct 25, Feb 26)
+  # preds <- ... 
+  
+  # 3. Calculate Multi-target Cost
+  cost <- modCost(model = preds, obs = obs_fast, err = "sd")
+  cost <- modCost(model = preds, obs = obs_slow, cost = cost, err = "sd")
+  return(cost)
+}
+
+fit_coupled <- modFit(f = objective_coupled, p = start_params, method = "Marq")
+```
+
+**Check if 14C data can distinguish between transfer rate and turnover rates**
+
+-   Run the optimization with $\alpha$ fixed at 0.1 or 0.2 (common literature values) to stabilize $k_f$ and $k_s$.
+-   Use FME::sensFun to see if your 14C signal is strong enough. If the sensitivity of $\alpha$ is low, data cannot support a coupled model and should revert to independent pool approach.
+-   Bayesian Prior: In brms, set a tight prior on $\alpha$ based on the expected mineral stabilization effect of EMW treatment
