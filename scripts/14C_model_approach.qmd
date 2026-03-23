@@ -35,8 +35,6 @@ Each fraction is treated as an operational single pool; this avoids underdetermi
 -   `SoilR`: Load atmospheric radiocarbon curves (e.g., IntCal20 or Hua2013) using bind.C14curves().
 -   `rcarbon::calBP()` or IntCal datasets for $F_{atm}(t)$ interpolation
 
-**Example code**
-
 ```{r}
 #| eval: false
 
@@ -60,9 +58,9 @@ Solve differential equations from known 2023 baseline to 2025 observation (const
 
 **Example code**
 
+
 ```{r}
 #| eval: false
-
 
 mod <- OnepModel(t = seq(2023, 2026, length.out = 100), In = I_vec, k = k_init)
 fit <- getFitted(mod)
@@ -87,7 +85,7 @@ Define cost function ($J$) that quantifies difference between model predictions 
 
 ```{r}
 #| eval: false
-
+#| 
 
 # Objective function
 objective <- function(p) {
@@ -162,32 +160,27 @@ Check if sum of independently fitted fractions match observed bulk soil data for
 **Possibility of increased transfer from fast to slow pools**
 
 -   Increased mineral surface area (weathering products and fresh reactive surfaces) for adsorption of DOM and microbial products form MAOM, especially in coarse or mineral-limited control soils
-
 -   Nutrients released by ERW can potentially increase microbial CUE which converts more biomass into necromass, primary precursor of MAOM, especially in nutrient-limited control sols
-
 -   Higher plant productivity increases root-derived C inputs which are more accessible for microbes to process, resulting in greater transfer to MAOM
-
 -   Increased pH can enhance microbial transformation and transfer
 
 **Possibility of reduced transfer from fast to slow pools**
 
 -   If pH is too high it can reduce SOM sorption in variable-charge mineral type soils
-
 -   C is lost rapidly as CO₂ (low CUE systems)
-
 -   Weathering products & microbial activity can enhance soil aggregation and reduce interaction between oPOM and other pools
 
 **Radiocarbon implications**
 
 -   Transfer creates “young-but-stable” carbon: Slow pool receives recent carbon via transfer so it can be larger in size, but younger than expected
-
 -   Transfer coefficient \>0 improves model fit
-
 -   Transfer coefficient of treatments \> control means that ERW increased stabilization
 
 **Models**
 
-Transfer term (fast → slow), k\_{fs} and term for fraction of fast-pool losses transferred to slow pool (\alpha).
+Transfer term (fast → slow), k\_{fs} and term for fraction of fast-pool losses transferred to slow pool ($\alpha$).
+
+**Example code**
 
 ```{r}
 #| eval: false
@@ -215,18 +208,16 @@ d(F14Cs * Cs) = I_s * F14C_input +  flux_fast_to_slow * F14Cf - flux_slow_to_CO2
 $$\frac{dC}{dt} = I + A \cdot C(t)$$
 
 Where $A$ is the compartmental matrix.
-
 For fast-to-slow transfer:
 
 -   Diagonal elements ($a_{ii}$): Total output rate from pool $i$.
-
 -   Off-diagonal elements ($a_{ij}$): Transfer rate from pool $j$ to pool $i$.
-
 -   $a_{11} = -k_f$ (Total loss from fast pool)
-
 -   $a_{21} = \alpha \cdot k_f$ (Fraction of fast pool loss moving to slow pool)
-
 -   $a_{22} = -k_s$ (Loss from slow pool)
+
+
+**Example code**
 
 ```{r}
 #| eval: false
@@ -287,7 +278,7 @@ fit_coupled <- modFit(f = objective_coupled, p = start_params, method = "Marq")
 
 -   Run the optimization with $\alpha$ fixed at 0.1 or 0.2 (common literature values) to stabilize $k_f$ and $k_s$.
 -   Use FME::sensFun to see if your 14C signal is strong enough. If the sensitivity of $\alpha$ is low, data cannot support a coupled model and should revert to independent pool approach.
--   Bayesian Prior: In brms, set a tight prior on $\alpha$ based on the expected mineral stabilization effect of EMW treatment
+-   Bayesian: In brms, set a tight prior on $\alpha$ based on the expected mineral stabilization effect of EMW treatment
 
 ## Ideas for incorporation of CUE
 
@@ -296,49 +287,49 @@ fit_coupled <- modFit(f = objective_coupled, p = start_params, method = "Marq")
 -   CUE = C (microbial growth) / C (uptake)
 -   Respiration = 1 - CUE
 -   Carbon use efficiency increases biomass production, which is a precursor to stabilized SOM
--   However not all microbial biomass is stabilized (may be recycled, respired etc) - Therefore, we could express the fraction of microbial products that is stabilized into MAOM, with a coefficient $f_stabilization$
+-   However not all microbial biomass is stabilized (may be recycled, respired etc) - Therefore, we could express the fraction of microbial products that is stabilized into MAOM, with a coefficient $f_{stabilization}$
 -   Independently constraining microbial efficiency and inferred mineral stabilization efficiency improves both identifiability and mechanistic insight
 
 **Updating the model with CUE**
 
 -   Replace the transfer fraction with a term that is a product of CUE and stabilization efficiency
 
-Option A (if build initial models without CUE and incorporate it later):
+*Option A (if build initial models without CUE and incorporate it later):*
 
 -   Instead of fitting alpha, decompose $\alpha$ into:
 
-$\alpha$ = CUE x $f_stabilization$
+$\alpha$ = CUE x $f_{stabilization}$
 
-where:
+where: CUE = measured $f_{stabilization}$ = fitted stabilization efficiency 
 
-CUE = measured
+```{r}
+#| eval: false
+alpha = CUE * $f_{stab}$
+```
 
-f_stabilization = fitted stabilization efficiency
+*Option B (if we wait until we have CUE data):*
 
-alpha = CUE \* f_stab
+-   Fast-pool loss becomes: 
 
-Option B (if we wait until we have CUE data):
-
-Fast-pool loss becomes: C_loss = k \* C
-
-C_to_growth = CUE \* C_loss C_to_resp = (1 - CUE) \* C_loss
-
-C_to_slow = f_stab \* C_to_growth
+```{r}
+#| eval: false
+C_loss = k * C
+C_to_growth = CUE * C_loss
+C_to_resp = (1 - CUE) * C_loss
+C_to_slow = $f_{stab}$ * C_to_growth
+```
 
 -   Since CUE is measured in short-term incubation, it is safer to be treated as a process constraint in the time-integrated model, not as a direct flux
--   Therefore, Option A probably better (only controls capacity for transfer, letting $f_stat$ include temporal variability) than Option B (flux partitioning of short-term CUE is applied uniformly over long-term)
+-   Therefore, Option A probably better (only controls capacity for transfer, letting $f_{stat}$ include temporal variability) than Option B (flux partitioning of short-term CUE is applied uniformly over long-term)
 
 **How data could be interpreted**
 
 -   If CUE ↑ but no increase in MAOM formation: stabilization limited
-
 -   If MAOM ↑ but CUE unchanged: mineral control dominates
-
 -   If both ↑: strong coupling
 
 **Considerations**
 
 -   CUE is measured from bulk soil, but transfer mostly feeds MAOM, so may need to make assumptions about where growth occurs
--   Assuming realistic ranges of CUE (0.2-0.6) and alpha (0.02-0.3), $f_stab$ can vary an order of magnitude (0.05-0.5), therefore alpha is much more sensitive to $f_stab$ than to CUE
+-   Assuming realistic ranges of CUE (0.2-0.6) and alpha (0.02-0.3), $f_{stab}$ can vary an order of magnitude (0.05-0.5), therefore alpha is much more sensitive to $f_{stab}$ than to CUE
 -   Incubation conditions: we are modelling dynamics of decomposed SOM, not added substrate, so avoid strong priming conditions (use field moisture and temperature, and not high glucose additions) unless signal is not detectable, and avoid longer incubation (community shifts), also measure respiration and microbial biomass
-
