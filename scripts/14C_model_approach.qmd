@@ -338,3 +338,58 @@ C_to_slow = $f_{stab}$ * C_to_growth
 -   Scenario 2: CUE ↑, respiration ↓, biomass unchanged, growth occurs but turnover is fast → limited stabilization
 
 -   Scenario 3: CUE unchanged, biomass ↑, MAOM ↑, stabilization efficiency ↑ → f stab effect
+
+**Three-pool model with CUE**
+
+fPOM → oPOM → MAOM
+
+↘────────────→
+
+$\alpha$ -\> {$a_{fo}$, $a_{fm}$, $a_{om}$} 
+
+and 
+
+$a_{fo}$ + $a_{fm}$ = CUE 
+
+where fo, fm and om represent transfer from fPOM to oPOM, fPOM to MAOM and oPOM to MAOM
+
+For each pool i, assimilated = $CUE * k_iC_i$ 
+and respiration = $(1-CUE)k_iC_i$
+
+Introduce partitioning coefficient $p$ (fraction of fPOM -> MAOM): 
+
+$p_{fo}$ + $p_{fm}$ = 1
+
+$transfer_{i->j} = CUE * p_{ij} * k_i C_i$
+
+$a_{fm}$ = CUE * $p$
+
+$a_{fo}$ = CUE * $(1-p)$
+
+$a_{om}$ = CUE * $p_{om}$ 
+
+where $p_{om}$ is estimated (fitted?)
+
+Link back $\alpha$ = CUE * $f_stab$
+with
+$f_stab$ = p + (1-p) * $p_{om}$ 
+
+**SoilR matrix**
+
+$$C = \begin{bmatrix}
+   C_f \\
+   C_o \\
+   C_m
+   \end{bmatrix}$$
+
+$$A = \begin{bmatrix}
+   -k_f & 0 & 0 \\
+   CUE(1-p)k_f & -k_o & 0 \\
+   CUEpk_f & CUEp_{om}k_o & -k_m
+   \end{bmatrix}$$
+
+Row 1: $-k_fC_f$ = total fPOM loss via decomposition
+Row 2: $CUE(1-p)k_fC_f$ = fraction of fPOM routed to oPOM
+Row 3: $CUE*pk_fC_f$ = fraction of fPOM stabilized as MAOM, $CUE*p_om*k_oC_o$ = fraction of oPOM stabilized as MAOM
+
+Note MAOM has very small or negligible $k_m$, could set as zero
