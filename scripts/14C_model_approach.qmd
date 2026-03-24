@@ -291,7 +291,7 @@ fit_coupled <- modFit(f = objective_coupled, p = start_params, method = "Marq")
 
 -   Replace the transfer fraction with a term that is a product of CUE and stabilization efficiency
 
-*Option A (if build initial models without CUE and incorporate it later):*
+*Option A:*
 
 -   Instead of fitting alpha, decompose $\alpha$ into:
 
@@ -304,7 +304,7 @@ where: CUE = measured $f_{stabilization}$ = fitted stabilization efficiency
 alpha = CUE * $f_{stab}$
 ```
 
-*Option B (if we wait until we have CUE data):*
+*Option B:*
 
 -   Fast-pool loss becomes:
 
@@ -318,6 +318,7 @@ C_to_slow = $f_{stab}$ * C_to_growth
 
 -   Since CUE is measured in short-term incubation, it is safer to be treated as a process constraint in the time-integrated model, not as a direct flux
 -   Therefore, Option A probably better (only controls capacity for transfer, letting $f_{stat}$ include temporal variability) than Option B (flux partitioning of short-term CUE is applied uniformly over long-term)
+-   Option A also allows initial models to be built without CUE, and easier incorporation of CUE later
 
 **How data could be interpreted**
 
@@ -343,7 +344,7 @@ C_to_slow = $f_{stab}$ * C_to_growth
 
 fPOM → oPOM → MAOM
 
-↘────────────→
+↘ MAOM
 
 $\alpha$ -\> {$a_{fo}$, $a_{fm}$, $a_{om}$} 
 
@@ -389,7 +390,9 @@ $$A = \begin{bmatrix}
    \end{bmatrix}$$
 
 Row 1: $-k_fC_f$ = total fPOM loss via decomposition
+
 Row 2: $CUE(1-p)k_fC_f$ = fraction of fPOM routed to oPOM
+
 Row 3: $CUE*pk_fC_f$ = fraction of fPOM stabilized as MAOM, $CUE*p_om*k_oC_o$ = fraction of oPOM stabilized as MAOM
 
-Note MAOM has very small or negligible $k_m$, could set as zero
+-   MAOM has very small or negligible $k_m$, could set as zero
