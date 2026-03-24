@@ -391,7 +391,7 @@ window.Quarto = {
 <ul>
 <li>Replace the transfer fraction with a term that is a product of CUE and stabilization efficiency</li>
 </ul>
-<p><em>Option A (if build initial models without CUE and incorporate it later):</em></p>
+<p><em>Option A:</em></p>
 <ul>
 <li>Instead of fitting alpha, decompose <span class="math inline">\(\alpha\)</span> into:</li>
 </ul>
@@ -400,7 +400,7 @@ window.Quarto = {
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>alpha <span class="ot">=</span> CUE <span class="sc">*</span> <span class="er">$</span>f_{stab}<span class="sc">$</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p><em>Option B (if we wait until we have CUE data):</em></p>
+<p><em>Option B:</em></p>
 <ul>
 <li>Fast-pool loss becomes:</li>
 </ul>
@@ -413,6 +413,7 @@ window.Quarto = {
 <ul>
 <li>Since CUE is measured in short-term incubation, it is safer to be treated as a process constraint in the time-integrated model, not as a direct flux</li>
 <li>Therefore, Option A probably better (only controls capacity for transfer, letting <span class="math inline">\(f_{stat}\)</span> include temporal variability) than Option B (flux partitioning of short-term CUE is applied uniformly over long-term)</li>
+<li>Option A also allows initial models to be built without CUE, and easier incorporation of CUE later</li>
 </ul>
 <p><strong>How data could be interpreted</strong></p>
 <ul>
@@ -431,6 +432,39 @@ window.Quarto = {
 <li><p>Scenario 1: CUE ↑, respiration ↓, biomass ↑, more C retained in microbial products → higher transfer potential</p></li>
 <li><p>Scenario 2: CUE ↑, respiration ↓, biomass unchanged, growth occurs but turnover is fast → limited stabilization</p></li>
 <li><p>Scenario 3: CUE unchanged, biomass ↑, MAOM ↑, stabilization efficiency ↑ → f stab effect</p></li>
+</ul>
+<p><strong>Three-pool model with CUE</strong></p>
+<p>fPOM → oPOM → MAOM</p>
+<p>↘ MAOM</p>
+<p><span class="math inline">\(\alpha\)</span> -&gt; {<span class="math inline">\(a_{fo}\)</span>, <span class="math inline">\(a_{fm}\)</span>, <span class="math inline">\(a_{om}\)</span>}</p>
+<p>and</p>
+<p><span class="math inline">\(a_{fo}\)</span> + <span class="math inline">\(a_{fm}\)</span> = CUE</p>
+<p>where fo, fm and om represent transfer from fPOM to oPOM, fPOM to MAOM and oPOM to MAOM</p>
+<p>For each pool i, assimilated = <span class="math inline">\(CUE * k_iC_i\)</span> and respiration = <span class="math inline">\((1-CUE)k_iC_i\)</span></p>
+<p>Introduce partitioning coefficient <span class="math inline">\(p\)</span> (fraction of fPOM -&gt; MAOM):</p>
+<p><span class="math inline">\(p_{fo}\)</span> + <span class="math inline">\(p_{fm}\)</span> = 1</p>
+<p><span class="math inline">\(transfer_{i-&gt;j} = CUE * p_{ij} * k_i C_i\)</span></p>
+<p><span class="math inline">\(a_{fm}\)</span> = CUE * <span class="math inline">\(p\)</span></p>
+<p><span class="math inline">\(a_{fo}\)</span> = CUE * <span class="math inline">\((1-p)\)</span></p>
+<p><span class="math inline">\(a_{om}\)</span> = CUE * <span class="math inline">\(p_{om}\)</span></p>
+<p>where <span class="math inline">\(p_{om}\)</span> is estimated (fitted?)</p>
+<p>Link back <span class="math inline">\(\alpha\)</span> = CUE * <span class="math inline">\(f_stab\)</span> with <span class="math inline">\(f_stab\)</span> = p + (1-p) * <span class="math inline">\(p_{om}\)</span></p>
+<p><strong>SoilR matrix</strong></p>
+<p><span class="math display">\[C = \begin{bmatrix}
+   C_f \\
+   C_o \\
+   C_m
+   \end{bmatrix}\]</span></p>
+<p><span class="math display">\[A = \begin{bmatrix}
+   -k_f &amp; 0 &amp; 0 \\
+   CUE(1-p)k_f &amp; -k_o &amp; 0 \\
+   CUEpk_f &amp; CUEp_{om}k_o &amp; -k_m
+   \end{bmatrix}\]</span></p>
+<p>Row 1: <span class="math inline">\(-k_fC_f\)</span> = total fPOM loss via decomposition</p>
+<p>Row 2: <span class="math inline">\(CUE(1-p)k_fC_f\)</span> = fraction of fPOM routed to oPOM</p>
+<p>Row 3: <span class="math inline">\(CUE*pk_fC_f\)</span> = fraction of fPOM stabilized as MAOM, <span class="math inline">\(CUE*p_om*k_oC_o\)</span> = fraction of oPOM stabilized as MAOM</p>
+<ul>
+<li>MAOM has very small or negligible <span class="math inline">\(k_m\)</span>, could set as zero</li>
 </ul>
 </section>
 
