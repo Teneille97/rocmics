@@ -394,5 +394,3 @@ Row 1: $-k_fC_f$ = total fPOM loss via decomposition
 Row 2: $CUE(1-p)k_fC_f$ = fraction of fPOM routed to oPOM
 
 Row 3: $CUE*pk_fC_f$ = fraction of fPOM stabilized as MAOM, $CUE*p_om*k_oC_o$ = fraction of oPOM stabilized as MAOM
-
--   MAOM has very small or negligible $k_m$, could set as zero
