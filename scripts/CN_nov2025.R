@@ -18,7 +18,7 @@ library(here)
 CN_data <- read.csv(here("csv_files", "CN_nov2025.csv"), header = TRUE)
 
 #remove NA
-CN_data <- CN_data[1:63,-8]
+CN_data <- CN_data[1:63,]
 
 # Helper vector for filtering treatments
 valid_treatments <- tribble(

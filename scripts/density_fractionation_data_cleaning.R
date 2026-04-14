@@ -6,7 +6,7 @@ library(ggrepel)
 
 
 # import
-density_fractionation <- read.csv(here("csv_files", "density_fractionation_data.csv"))
+density_fractionation <- read.csv(here("csv_files", "density_fractionation_data_final.csv")) #replace with final csv version after replacing originals with redo's
 moisture_content <- read.csv(here("csv_files", "moisture_content_density_fractionation.csv"))
 rbf_masses <- read.csv(here("csv_files", "rbf_masses_density_fractionation.csv"))
 treatment_names <- read.csv(here("csv_files", "treatment_names.csv"))
@@ -115,17 +115,8 @@ ggplot(plot_data, aes(x = factor(Sampling_year), y = recovery_percent)) +
        y = "Mass Recovery (%)") +
   theme_minimal()
 
-#exclude 3 outliers until better data:
-density_fractionation_clean <- density_fractionation %>%
-  filter(
-    # Keep everything EXCEPT these specific combinations:
-    !(Plot == 3 & Sampling_year == 2025) &
-      !(Plot == 5 & Sampling_year == 2025) &
-      !(Plot == 17 & Sampling_year == 2026)
-  )
-
 # Calculate the proportion of each fraction within its own sample
-df_proportions <- density_fractionation_clean %>%
+df_proportions <- density_fractionation %>%
   mutate(
     fraction_prop = (mass.som.fraction / total.mass.som.fractions) * 100
   )
@@ -145,7 +136,7 @@ print(replicate_summary, n = 63)
 
 #visualize
 # 1. Prepare data (filter for replicates and ensure proportions are calculated)
-plot_data_faceted <- density_fractionation_clean %>%
+plot_data_faceted <- density_fractionation %>%
   mutate(fraction_prop = 100 * (mass.som.fraction / total.mass.som.fractions)) %>%
   group_by(Sampling_year, Tmt, App_rate) %>%
   filter(n_distinct(Plot) > 1) %>%
