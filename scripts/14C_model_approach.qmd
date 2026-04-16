@@ -12,147 +12,25 @@ Teneille's full project repository is available at <https://github.com/Teneille9
 We aim to estimate treatment-induced differences in apparent soil organic matter (SOM) turnover under enhanced mineral weathering (EMW), using:
 
 -   Baseline carbon stocks ($t_0$ = May 2023, rock application)
--   Two measured time points ($t_1$ = Oct 2025, $t_2$ = Feb 2026)
+-   Two more measured time points ($t_1$ = Oct 2025, $t_2$ = Feb 2026)
 -   Bulk soil + three density fractions
 -   C stocks and $\Delta^{14}C$
 -   3 replicates per treatment
--   3 years since initial pre-treatment C stocks measurement and latest sampling
 
-By treating density fractions as operational pools, fitting transient 1-pool models, and validating against bulk radiocarbon mass balance, we can estimate treatment-induced differences in apparent turnover time without over-parameterizing a multi-pool system. The 3-year divergence window provides the radiocarbon signal necessary to constrain turnover differences for parameter identifiability, while the Oct 2025 → Feb 2026 sampling interval constrains short-term dynamics.
+By treating density fractions as operational pools and fitting 3-pool models, we can estimate treatment-induced differences in mean transit time.
 
 ## Conceptual framework & data preparation
 
-**Computational goal**
-
-Each fraction is treated as an operational single pool; this avoids underdetermined multi-pool parameterization.
+**Background**
 
 -   Change in C stocks: $dC/dt = I - kC$
 -   Radiocarbon mass balance (Fraction Modern): $d(CF)/dt = I*F~atm~(t) - k*C*F - \lambda *C*F$
 
-**R packages and functions**
-
--   `Base R/ dplyr`: Use mutate() to convert measured $\Delta^{14}C$ to Fraction Modern ($F$) and structure data (long format): $F = (\Delta^{14}C/1000) + 1$
--   `SoilR`: Load atmospheric radiocarbon curves (e.g., IntCal20 or Hua2013) using bind.C14curves().
--   `rcarbon::calBP()` or IntCal datasets for $F_{atm}(t)$ interpolation
-
-```{r}
-#| eval: false
-
-F14C <- (delta14C / 1000) + 1
-```
-
-## Forward simulation (3-year history $t_0~to~t_1$)
-
-**Computational goal**
-
-Solve differential equations from known 2023 baseline to 2025 observation (constraint on parameters)
+Solve differential equations from unknown starting point carbon content (with known pre-bomb atmospheric carbon) through to known observation times
 
 -   Solution (forward): $C(t_1) = C(t_{0})e^{-kt}+(I/k)(1-e^{-kt})$
 
 -   Radiocarbon (integral): $C(t_1)F(t_1) = C(t_0)F(t_0)e^{-(k+\lambda)T}+\int_{a}^{b} [I*F_{atm}(t)*e^{-(k+\lambda)(t_1-t)}] \mathrm{d}t$
-
-**R packages and functions**
-
--   `SoilR::OnepModel14()`: Create one-pool model object that tracks $^{14}C$ and handles atmospheric input curve $F_{atm}(t)$
--   `SoilR::getC()` and `getF14()`: Extracts carbon stock and radiocarbon values from model object at specific time steps
-
-**Example code**
-
-```{r}
-#| eval: false
-
-mod <- OnepModel(t = seq(2023, 2026, length.out = 100), In = I_vec, k = k_init)
-fit <- getFitted(mod)
-sim_C <- getC(mod)
-```
-
-## Cost function to fit k (and possibly I)
-
-**Computational goal**
-
-Define cost function ($J$) that quantifies difference between model predictions and observations at sampling $t_1$ (Oct) and $t_2$ (Feb). Minimize $J$ to find optimal turnover rate ($k$) and input ($I$) for each fraction.
-
--   Cost function: $J = w_1(C_{t1}^{obs}-C_{t1}^{mod})^2+w_2(C_{t1}^{obs}-C_{t1}^{mod})^2+w_3(C_{t2}^{obs}-C_{t2}^{mod})^2+w_4(C_{t2}^{obs}-C_{t2}^{mod})^2$
-
-**R packages and functions**
-
--   `FME::modFit()`: Fits models, wraps optimization algorithms e.g. Nelder-Mead, Levenberg-Marquardt, objective J (sum squared residuals for C and F at time $t_1/t_2$); include weights with 'wt' argument
--   `FME::modCost()`: Calculates goodness of fit (weighted sum of squared residuals) between model output and observed df
--   `FME::sensFun()`: Calculates sensitivity of model output to parameters $k$ and $I$ to check for collinearity or identifiability issues before fitting; if I is fixed, bound k \> 0. Use optim() from base R for simpler cases
-
-**Example code**
-
-```{r}
-#| eval: false
-#| 
-
-# Objective function
-objective <- function(p) {
-  k <- p["k"]; I <- p["I"]
-  # Run forward sim (from step 3) to get C_mod, F_mod at t1/t2
-  #...
-  sum(c(w1 * (C_t1_obs - C_t1_mod)^2, w2 * (F_t1_obs - F_t1_mod)^2,
-             w3 * (C_t2_obs - C_t2_mod)^2, w4 * (F_t2_obs - F_t2_mod)^2))
-}
-
-fit <- modFit(f = objective, p = c(k = 0.1, I = 1), 
-                   lower = c(k = 0, I = 0), method = "Marq")
-     summary(fit)  # Get fitted k and SE
-```
-
-## Derive turnover and statistical analysis
-
-**Computational goal**
-
-Convert $k$ to turnover time ($\tau$) and analyze treatment effects across replicates. Account for replicate variability $\epsilon_{ij}$ and treatment means ($\mu_{treatment}$)
-
--   Treatment effect: $\tau = 1/k_{ij} = \mu_{treatment} + \epsilon_{ij}$
-
-**R packages and functions**
-
--   `lme4::lmer()`: Fits linear mixed-effects models to estimate frequentist mixed-effects of treatment on $\tau$ while treating replicates as random effects ($1 | replicate$)
--   `brms::brm()`: Bayesian analysis recommended if sample size is small; allows fitting hierarchical model with priors (e.g., Half-Cauchy for $\sigma$, lognormal for $k$) to get credible intervals for treatment differences
--   `emmeans::emmeans()`: Calculates estimated marginal means and performs pairwise contrasts between treatments based on mixed model objects
--   `propagate::propagate()`: Propagate uncertainty
-
-**Example code**
-
-```{r}
-#| eval: false
-
-
-k_est <- coef(fit)["k"]
-tau <- 1 / k_est
-#error propagation
-propagate(expr = 1/k, data = list(k = coef(fit)))
-# Delta method approximation
-tau_se <- tau * (se_k / k_est)  
-
-#mixed effects on estimated \tau
-# Data frame: tau_df with columns tau, treatment, replicate
-mod_hier <- lmer(tau ~ treatment + (1 | replicate), data = tau_df)
-summary(mod_hier)
-
-#Bayesian fits with priors
-prior_k <- prior(exponential(0.1), class = "b", coef = "treatmentControl")
-mod_bayes <- brm(k ~ treatment + (1 | replicate), data = k_df, prior = prior_k)  
-posterior_summary(mod_bayes)
-
-```
-
-## Validation (bulk reconstruction)
-
-**Computational goal**
-
-Check if sum of independently fitted fractions match observed bulk soil data for both stocks and radiocarbon abundance
-
--   Validation: $C_{bulk} = \Sigma C_i$
--   Weighted mean $F_{bulk}$ = $\Sigma (C_i*F_i)/\Sigma C_i$
-
-**R packages and functions**
-
--   `dplyr::group_by()` and `summarise()` to aggregate fitted fraction stocks into calculated bulk stocks
--   `hydroGOF::rmse()`: Calculate root mean square error between reconstructed bulk and measured bulk to assess model performance
 
 ## Can EMW affect transfer between SOM pools?
 
@@ -175,33 +53,6 @@ Check if sum of independently fitted fractions match observed bulk soil data for
 -   Transfer coefficient \>0 improves model fit
 -   Transfer coefficient of treatments \> control means that ERW increased stabilization
 
-**Models**
-
-Transfer term (fast → slow), k\_{fs} and term for fraction of fast-pool losses transferred to slow pool ($\alpha$).
-
-**Example code**
-
-```{r}
-#| eval: false
-
-# Fast pool stocks
-#\frac{dC_f}{dt} = I_f - k_f C_f - k_{fs} C_f
-dCf = I_f - loss_fast_total
-loss_fast_total = k_f * Cf
-flux_fast_to_CO2  = (1 - alpha) * loss_fast_total
-
-# Slow pool stocks
-#\frac{dC_s}{dt} = I_s + k_{fs} C_f - k_s C_s
-dCs = I_s + flux_fast_to_slow - flux_slow_to_CO2
-flux_fast_to_slow = alpha * loss_fast_total
-flux_slow_to_CO2 = k_s * Cs
-
-# 14C tracking: transfer flux inherits fast pool signature: 
-F14C_flux_fast_to_slow = F14Cf
-d(F14Cf * Cf) = I_f * F14C_input - loss_fast_total * F14Cf
-d(F14Cs * Cs) = I_s * F14C_input +  flux_fast_to_slow * F14Cf - flux_slow_to_CO2 * F14Cs
-```
-
 **SoilR two pool system**
 
 $$\frac{dC}{dt} = I + A \cdot C(t)$$
@@ -214,68 +65,160 @@ Where $A$ is the compartmental matrix. For fast-to-slow transfer:
 -   $a_{21} = \alpha \cdot k_f$ (Fraction of fast pool loss moving to slow pool)
 -   $a_{22} = -k_s$ (Loss from slow pool)
 
+**Example code for two-pool model**
+
+```{r}
+#| eval: false
+dt=read.csv("path_to_data.csv")
+
+BD=1.3 # g/cm3
+depth=20 #  cm
+
+Cobs=data.frame(Year=dt[,1],  Ct=dt[,9]*BD*depth*10) # C stock units = g kg-1 since *10 000 (cm2 m-2)/1000 (g kg-1) 
+C14obs=data.frame(Year=dt[,1],C14t=dt[,7])
+
+#initial C and Delta14C
+C0<-mean(Cobs[1:2,2])
+F0<-mean(C14obs[1:2,2])
+mean_C_inputs<-c(230, 0, 0) #in series can provide single scalar value that enters fast pool only; parallel models can take vector of values per pool
+
+# Model
+yr=seq(1968,2021,by=1/12)
+Atm14C=Hua2021$NHZone1[,1:2]
+fAtm14C=read.csv("path_to_forecast.csv")
+Atm14C<-rbind(Atm14C, data.frame(Year=fAtm14C$time, mean.Delta14C=Delta14C_from_AbsoluteFractionModern(fAtm14C$F14C)))
+
+mf=function(pars){
+  md=TwopSeriesModel14(t=yr,ks=pars[1:2],C0=C0*c(pars[5], 1-pars[5]), # C0 multiplied by Beta (par[5] that allocated a proportion of bulk to fast pool
+                       F0_Delta14C = c(F0 * pars[6], -200), #par[6] is the modeled proportion of initial Delta14C of bulk distributed in fast pool and -200 is assigned initial 14C in slow pool
+                       In=mean_C_inputs,
+                       a21=pars[1]*pars[3], inputFc = Atm14C) #where pars[1] = kf and pars[3] = alpha sf
+  Ct=getC(md)
+  C14t=getF14C(md)
+  
+  return(data.frame(Year=yr,Ct=rowSums(Ct),C14t=C14t)) #tnel: rowSums here compute the total of 2 pools
+}
+```
+
+## Cost function to fit k (and possibly I)
+
+**Computational goal**
+
+Define cost function ($J$) that quantifies difference between model predictions and observations at sampling $t_1$ (Oct) and $t_2$ (Feb). Minimize $J$ to find optimal turnover rate ($k$) and input ($I$) for each fraction.
+
+-   Cost function: $J = w_1(C_{t1}^{obs}-C_{t1}^{mod})^2+w_2(C_{t1}^{obs}-C_{t1}^{mod})^2+w_3(C_{t2}^{obs}-C_{t2}^{mod})^2+w_4(C_{t2}^{obs}-C_{t2}^{mod})^2$
+
 **Example code**
 
 ```{r}
 #| eval: false
-# 1. Setup Time and Atmospheric 14C
-t_start <- 2023
-t_end <- 2026
-t_seq <- seq(t_start, t_end, by = 1/12) # Monthly steps for precision
 
-# 2. Define Parameters
-# p = c(k_f, k_s, alpha, I_f, I_s)
-p <- c(k_f = 0.5, k_s = 0.05, alpha = 0.2, I_f = 100, I_s = 10)
+mc1=function(pars){ 
+  out=mf1(pars) #out = df of Year, Ct and C14t from mf output 
+  Cost1 = modCost(model = out, obs = Cobs_bulk, # C bulk
+                  x = "Year")
+  Cost2 = modCost(model = out, obs = M2_C14obs_bulk, # Delta14C bulk
+                  x = "Year", cost = Cost1)
+  Cost3 = modCost(model = out, obs = M2_Cobs_slow, # C slow pool
+                  x = "Year", cost = Cost2)
+  Cost4 = modCost(model = out, obs = M2_C14obs_slow, # Delta14C slow pool
+                  x = "Year", cost = Cost3)
+  Cost5 = modCost(model = out, obs = M2_Cobs_fast, # C fast pool
+                 x = "Year", cost = Cost4)
+  return(Cost5)
+} 
 
-# 3. Create the Compartmental Matrix A
-# Matrix format: A[row, col] -> flow from col to row
-A <- matrix(nrow = 2, ncol = 2, byrow = TRUE, c(
-  -p["k_f"],                0,          # Pool 1 (Fast)
-   p["alpha"] * p["k_f"],  -p["k_s"]    # Pool 2 (Slow) receives alpha*k_f
-))
+inipars1=c(0.05,0.001,0.01, 2) #pars[1:5] = kf, ks, alpha sf, I
 
-# 4. Run the Model
-model <- GeneralModel_14(
-  t = t_seq,
-  A = A,
-  ivList = c(C_f0, C_s0),  # Initial stocks from May 2023
-  initialFilters = c(F14_f0, F14_s0), # Initial 14C
-  inputFluxes = c(p["I_f"], p["I_s"]),
-  inputFc = Hua2013, # Or your preferred curve
-  pass = TRUE
-)
+yr <- as.numeric(seq(1957,2019, by = 1/12))
 
-# 5. Extract results for Fitting
-C_total <- getC(model)
-F14_total <- getF14(model)
+### Run model
 
-# Updating the Cost Function (FME)
-# Evaluate the fast pool, sow pool, and bulk soil simultaneously.
+mFit1_M2=modFit(f=mc1,p=inipars1,method="Nelder-Mead",upper=c(1,0.5,1,mean_C_inputs*0.3),lower=c(0,0,0,0))
+bestpars1_M2=mFit1_M2$par
 
-objective_coupled <- function(p) {
-  # Constraints: alpha must be 0-1, ks < kf
-  if(p["alpha"] < 0 | p["alpha"] > 1 | p["k_s"] >= p["k_f"]) return(Inf)
-  
-  # 1. Run coupled model (as above)
-  # ... model code ...
-  
-  # 2. Extract predicted values at specific time points (Oct 25, Feb 26)
-  # preds <- ... 
-  
-  # 3. Calculate Multi-target Cost
-  cost <- modCost(model = preds, obs = obs_fast, err = "sd")
-  cost <- modCost(model = preds, obs = obs_slow, cost = cost, err = "sd")
-  return(cost)
-}
+bestModel1_M2<-TwopSeriesModel14(t=yr,ks=bestpars1_M2[1:2],C0=c(C0_M2_inter, C0_M2_slow), 
+                  F0_Delta14C = c(-100, -140),
+                  In=bestpars1_M2[4], 
+                  a21=bestpars1_M2[1]*bestpars1_M2[3], inputFc = Atm14C) 
 
-fit_coupled <- modFit(f = objective_coupled, p = start_params, method = "Marq")
+mod1_C14t_MF2_pools=data.frame(Year = yr, 
+                          "C14t_fast"=getF14(bestModel1_M2)[,1], 
+                          "C14t_slow" =getF14(bestModel1_M2)[,2]) # Delta14C for both pools
+mod1_C14t_MF2_325=data.frame(Year = yr, 
+                         "C14t_bulk" = getF14C(bestModel1_M2)) # Delta14C for bulk
+mod1_Ct_MF2_pools=data.frame(Year = yr,
+                       "Ct_fast" = getC(bestModel1_M2)[,1],
+                       "Ct_slow" = getC(bestModel1_M2)[,2]) # C for both pools
+mod1_Ct_MF2_325=data.frame(Year = yr, 
+                      "Ct_bulk" = rowSums(getC(bestModel1_M2))) # C for bulk
+
 ```
 
-**Check if 14C data can distinguish between transfer rate and turnover rates**
+## Derive decay, transfer and transit times with uncertainties
 
--   Run the optimization with $\alpha$ fixed at 0.1 or 0.2 (common literature values) to stabilize $k_f$ and $k_s$.
--   Use FME::sensFun to see if your 14C signal is strong enough. If the sensitivity of $\alpha$ is low, data cannot support a coupled model and should revert to independent pool approach.
--   Bayesian: In brms, set a tight prior on $\alpha$ based on the expected mineral stabilization effect of EMW treatment
+**Example code**
+
+```{r}
+#| eval: false
+### MCMC optimization
+var0_M2 <- mFit_M2$var_ms_unweighted
+cov0_M2 <- summary(mFit_M2)$cov.scaled # The covariance matrix can be used for the jump 
+
+MCMC <- modMCMC(f=mc, p = bestpars_M2, niter = 2500, jump = NULL, var0 = var0_M2, wvar0 = 1) #tnel: jump default is 10% of par value; what is wvar and why is it zero?
+
+# mean model
+parsMCMC<-summary(MCMC)
+sR=sensRange(func=mf, parInput=MCMC_M2$par) 
+summarysR<-summary(sR_M2) 
+nx2<-attributes(summarysR)$nx
+CtR2<-as.data.frame(summarysR[1:nx2,]) # mean is the Ct (g m-2) predicted
+C14tR2<-as.data.frame(summarysR_M2[(nx2+1):(2*nx2),])#mean is the Delta_C14t (per mille) predicted
+pairs(MCMC,nsample=500) #check inter-dependence of parameters using 500 MCMC runs
+
+meanpars<-as.numeric(parsMCMC[1,1:5])
+meanModel<-TwopSeriesModel14(t=yr,ks=meanpars2[1:2],C0=C0*c(meanpars[4], 1-meanpars[4]),
+                              F0_Delta14C = c(F0*meanpars[5], -200), 
+                              #In=mean(BolinderIn)*1000, 
+                              In=mean(avgYld[,2], na.rm = TRUE)*1.5,
+                              a21=meanpars[1]*meanpars[3], inputFc = Atm14C)
+meanF14C2=getF14(meanModel)
+meanC2=getC(meanModel)
+
+# Age and transit time
+tau=seq(0,500)
+A1=meanModel@mat@map(1970) #tnel: matrix created using arbitrary year, since it remains the same for all years
+A2=meanModel2@mat@map(1970)
+
+
+#tnel: testing scenarios of min and max turnover rates
+A1min<- -1*diag(parsMCMC[3,1:2]) #tnel: constructs a diag matrix of decomp rates using min p1 and p2
+A1min[2,1]<- abs(parsMCMC[3,3])*parsMCMC[3,2] #tnel: alpha21 was neg.ve - even though we provided restrictions in SoilR model, the MCMC optimization gives a mean from distribution
+A1max<- -1*diag(parsMCMC[4,1:2]) 
+A1max[2,1]<- parsMCMC[4,3]*parsMCMC[4,2] 
+A2min<- -1*diag(parsMCMC2[3,1:2])
+A2min[2,1]<- parsMCMC2[3,3]*parsMCMC2[3,2] 
+A2max<- -1*diag(parsMCMC2[4,1:2])
+A2max[2,1]<- parsMCMC2[4,3]*parsMCMC2[4,2] 
+
+
+SA1=systemAge(A=A1,u=c(1,0),a=tau) #here u are normalized inputs i.e. simply divided among pools according to system e.g. 0.5, 0.5 could be parallel
+TT1=transitTime(A=A1,u=c(1,0), a=tau, q=c(0.1,0.5,0.9))
+TT1min<-transitTime(A=A1min,u=c(1,0),q=c(0.1,0.5,0.9))
+TT1max<-transitTime(A=A1max,u=c(1,0),q=c(0.1,0.5,0.9))
+
+SA2=systemAge(A=A2,u=c(1,0),a=tau)
+TT2=transitTime(A=A2,u=c(1,0), a=tau, q=c(0.1,0.5,0.9))
+TT2min<-transitTime(A=A2min,u=c(1,0),q=c(0.1,0.5,0.9))
+TT2max<-transitTime(A=A2max,u=c(1,0),q=c(0.1,0.5,0.9))
+
+
+#Bayesian fits with priors
+prior_k <- prior(exponential(0.1), class = "b", coef = "treatmentControl")
+mod_bayes <- brm(k ~ treatment + (1 | replicate), data = k_df, prior = prior_k)  
+posterior_summary(mod_bayes)
+
+```
 
 ## Ideas for incorporation of CUE
 
@@ -346,34 +289,31 @@ fPOM → oPOM → MAOM
 
 ↘ MAOM
 
-$\alpha$ -\> {$a_{fo}$, $a_{fm}$, $a_{om}$} 
+$\alpha$ -\> {$a_{fo}$, $a_{fm}$, $a_{om}$}
 
-and 
+and
 
-$a_{fo}$ + $a_{fm}$ = CUE 
+$a_{fo}$ + $a_{fm}$ = CUE
 
 where fo, fm and om represent transfer from fPOM to oPOM, fPOM to MAOM and oPOM to MAOM
 
-For each pool i, assimilated = $CUE * k_iC_i$ 
-and respiration = $(1-CUE)k_iC_i$
+For each pool i, assimilated = $CUE * k_iC_i$ and respiration = $(1-CUE)k_iC_i$
 
-Introduce partitioning coefficient $p$ (fraction of fPOM -> MAOM): 
+Introduce partitioning coefficient $p$ (fraction of fPOM -\> MAOM):
 
 $p_{fo}$ + $p_{fm}$ = 1
 
 $transfer_{i->j} = CUE * p_{ij} * k_i C_i$
 
-$a_{fm}$ = CUE * $p$
+$a_{fm}$ = CUE \* $p$
 
-$a_{fo}$ = CUE * $(1-p)$
+$a_{fo}$ = CUE \* $(1-p)$
 
-$a_{om}$ = CUE * $p_{om}$ 
+$a_{om}$ = CUE \* $p_{om}$
 
 where $p_{om}$ is estimated (fitted?)
 
-Link back $\alpha$ = CUE * $f_stab$
-with
-$f_stab$ = p + (1-p) * $p_{om}$ 
+Link back $\alpha$ = CUE \* $f_stab$ with $f_stab$ = p + (1-p) \* $p_{om}$
 
 **SoilR matrix**
 
