@@ -1,0 +1,336 @@
+---
+title: "Modelling strategy for estimating apparent turnover under enhanced mineral weathering (EMW)"
+author: "Teneille Nel"
+format: html
+editor: visual
+---
+
+## Overview
+
+Teneille's full project repository is available at <https://github.com/Teneille97/rocmics>.
+
+We aim to estimate treatment-induced differences in apparent soil organic matter (SOM) turnover under enhanced mineral weathering (EMW), using:
+
+-   Baseline carbon stocks ($t_0$ = May 2023, rock application)
+-   Two more measured time points ($t_1$ = Oct 2025, $t_2$ = Feb 2026)
+-   Bulk soil + three density fractions
+-   C stocks and $\Delta^{14}C$
+-   3 replicates per treatment
+
+By treating density fractions as operational pools and fitting 3-pool models, we can estimate treatment-induced differences in mean transit time.
+
+## Conceptual framework & data preparation
+
+**Background**
+
+-   Change in C stocks: $dC/dt = I - kC$
+-   Radiocarbon mass balance (Fraction Modern): $d(CF)/dt = I*F~atm~(t) - k*C*F - \lambda *C*F$
+
+Solve differential equations from unknown starting point carbon content (with known pre-bomb atmospheric carbon) through to known observation times
+
+-   Solution (forward): $C(t_1) = C(t_{0})e^{-kt}+(I/k)(1-e^{-kt})$
+
+-   Radiocarbon (integral): $C(t_1)F(t_1) = C(t_0)F(t_0)e^{-(k+\lambda)T}+\int_{a}^{b} [I*F_{atm}(t)*e^{-(k+\lambda)(t_1-t)}] \mathrm{d}t$
+
+## Can EMW affect transfer between SOM pools?
+
+**Possibility of increased transfer from fast to slow pools**
+
+-   Increased mineral surface area (weathering products and fresh reactive surfaces) for adsorption of DOM and microbial products form MAOM, especially in coarse or mineral-limited control soils
+-   Nutrients released by ERW can potentially increase microbial CUE which converts more biomass into necromass, primary precursor of MAOM, especially in nutrient-limited control sols
+-   Higher plant productivity increases root-derived C inputs which are more accessible for microbes to process, resulting in greater transfer to MAOM
+-   Increased pH can enhance microbial transformation and transfer
+
+**Possibility of reduced transfer from fast to slow pools**
+
+-   If pH is too high it can reduce SOM sorption in variable-charge mineral type soils
+-   C is lost rapidly as CO₂ (low CUE systems)
+-   Weathering products & microbial activity can enhance soil aggregation and reduce interaction between oPOM and other pools
+
+**Radiocarbon implications**
+
+-   Transfer creates “young-but-stable” carbon: Slow pool receives recent carbon via transfer so it can be larger in size, but younger than expected
+-   Transfer coefficient \>0 improves model fit
+-   Transfer coefficient of treatments \> control means that ERW increased stabilization
+
+**SoilR two pool system**
+
+$$\frac{dC}{dt} = I + A \cdot C(t)$$
+
+Where $A$ is the compartmental matrix. For fast-to-slow transfer:
+
+-   Diagonal elements ($a_{ii}$): Total output rate from pool $i$.
+-   Off-diagonal elements ($a_{ij}$): Transfer rate from pool $j$ to pool $i$.
+-   $a_{11} = -k_f$ (Total loss from fast pool)
+-   $a_{21} = \alpha \cdot k_f$ (Fraction of fast pool loss moving to slow pool)
+-   $a_{22} = -k_s$ (Loss from slow pool)
+
+**Example code for two-pool model**
+
+```{r}
+#| eval: false
+dt=read.csv("path_to_data.csv")
+
+BD=1.3 # g/cm3
+depth=20 #  cm
+
+Cobs=data.frame(Year=dt[,1],  Ct=dt[,9]*BD*depth*10) # C stock units = g kg-1 since *10 000 (cm2 m-2)/1000 (g kg-1) 
+C14obs=data.frame(Year=dt[,1],C14t=dt[,7])
+
+#initial C and Delta14C
+C0<-mean(Cobs[1:2,2])
+F0<-mean(C14obs[1:2,2])
+mean_C_inputs<-c(230, 0, 0) #in series can provide single scalar value that enters fast pool only; parallel models can take vector of values per pool
+
+# Model
+yr=seq(1968,2021,by=1/12)
+Atm14C=Hua2021$NHZone1[,1:2]
+fAtm14C=read.csv("path_to_forecast.csv")
+Atm14C<-rbind(Atm14C, data.frame(Year=fAtm14C$time, mean.Delta14C=Delta14C_from_AbsoluteFractionModern(fAtm14C$F14C)))
+
+mf=function(pars){
+  md=TwopSeriesModel14(t=yr,ks=pars[1:2],C0=C0*c(pars[5], 1-pars[5]), # C0 multiplied by Beta (par[5] that allocated a proportion of bulk to fast pool
+                       F0_Delta14C = c(F0 * pars[6], -200), #par[6] is the modeled proportion of initial Delta14C of bulk distributed in fast pool and -200 is assigned initial 14C in slow pool
+                       In=mean_C_inputs,
+                       a21=pars[1]*pars[3], inputFc = Atm14C) #where pars[1] = kf and pars[3] = alpha sf
+  Ct=getC(md)
+  C14t=getF14C(md)
+  
+  return(data.frame(Year=yr,Ct=rowSums(Ct),C14t=C14t)) #tnel: rowSums here compute the total of 2 pools
+}
+```
+
+## Cost function to fit k (and possibly I)
+
+**Computational goal**
+
+Define cost function ($J$) that quantifies difference between model predictions and observations at sampling $t_1$ (Oct) and $t_2$ (Feb). Minimize $J$ to find optimal turnover rate ($k$) and input ($I$) for each fraction.
+
+-   Cost function: $J = w_1(C_{t1}^{obs}-C_{t1}^{mod})^2+w_2(C_{t1}^{obs}-C_{t1}^{mod})^2+w_3(C_{t2}^{obs}-C_{t2}^{mod})^2+w_4(C_{t2}^{obs}-C_{t2}^{mod})^2$
+
+**Example code**
+
+```{r}
+#| eval: false
+
+mc1=function(pars){ 
+  out=mf1(pars) #out = df of Year, Ct and C14t from mf output 
+  Cost1 = modCost(model = out, obs = Cobs_bulk, # C bulk
+                  x = "Year")
+  Cost2 = modCost(model = out, obs = M2_C14obs_bulk, # Delta14C bulk
+                  x = "Year", cost = Cost1)
+  Cost3 = modCost(model = out, obs = M2_Cobs_slow, # C slow pool
+                  x = "Year", cost = Cost2)
+  Cost4 = modCost(model = out, obs = M2_C14obs_slow, # Delta14C slow pool
+                  x = "Year", cost = Cost3)
+  Cost5 = modCost(model = out, obs = M2_Cobs_fast, # C fast pool
+                 x = "Year", cost = Cost4)
+  return(Cost5)
+} 
+
+inipars1=c(0.05,0.001,0.01, 2) #pars[1:5] = kf, ks, alpha sf, I
+
+yr <- as.numeric(seq(1957,2019, by = 1/12))
+
+### Run model
+
+mFit1_M2=modFit(f=mc1,p=inipars1,method="Nelder-Mead",upper=c(1,0.5,1,mean_C_inputs*0.3),lower=c(0,0,0,0))
+bestpars1_M2=mFit1_M2$par
+
+bestModel1_M2<-TwopSeriesModel14(t=yr,ks=bestpars1_M2[1:2],C0=c(C0_M2_inter, C0_M2_slow), 
+                  F0_Delta14C = c(-100, -140),
+                  In=bestpars1_M2[4], 
+                  a21=bestpars1_M2[1]*bestpars1_M2[3], inputFc = Atm14C) 
+
+mod1_C14t_MF2_pools=data.frame(Year = yr, 
+                          "C14t_fast"=getF14(bestModel1_M2)[,1], 
+                          "C14t_slow" =getF14(bestModel1_M2)[,2]) # Delta14C for both pools
+mod1_C14t_MF2_325=data.frame(Year = yr, 
+                         "C14t_bulk" = getF14C(bestModel1_M2)) # Delta14C for bulk
+mod1_Ct_MF2_pools=data.frame(Year = yr,
+                       "Ct_fast" = getC(bestModel1_M2)[,1],
+                       "Ct_slow" = getC(bestModel1_M2)[,2]) # C for both pools
+mod1_Ct_MF2_325=data.frame(Year = yr, 
+                      "Ct_bulk" = rowSums(getC(bestModel1_M2))) # C for bulk
+
+```
+
+## Derive decay, transfer and transit times with uncertainties
+
+**Example code**
+
+```{r}
+#| eval: false
+### MCMC optimization
+var0_M2 <- mFit_M2$var_ms_unweighted
+cov0_M2 <- summary(mFit_M2)$cov.scaled # The covariance matrix can be used for the jump 
+
+MCMC <- modMCMC(f=mc, p = bestpars_M2, niter = 2500, jump = NULL, var0 = var0_M2, wvar0 = 1) #tnel: jump default is 10% of par value; what is wvar and why is it zero?
+
+# mean model
+parsMCMC<-summary(MCMC)
+sR=sensRange(func=mf, parInput=MCMC_M2$par) 
+summarysR<-summary(sR_M2) 
+nx2<-attributes(summarysR)$nx
+CtR2<-as.data.frame(summarysR[1:nx2,]) # mean is the Ct (g m-2) predicted
+C14tR2<-as.data.frame(summarysR_M2[(nx2+1):(2*nx2),])#mean is the Delta_C14t (per mille) predicted
+pairs(MCMC,nsample=500) #check inter-dependence of parameters using 500 MCMC runs
+
+meanpars<-as.numeric(parsMCMC[1,1:5])
+meanModel<-TwopSeriesModel14(t=yr,ks=meanpars2[1:2],C0=C0*c(meanpars[4], 1-meanpars[4]),
+                              F0_Delta14C = c(F0*meanpars[5], -200), 
+                              #In=mean(BolinderIn)*1000, 
+                              In=mean(avgYld[,2], na.rm = TRUE)*1.5,
+                              a21=meanpars[1]*meanpars[3], inputFc = Atm14C)
+meanF14C2=getF14(meanModel)
+meanC2=getC(meanModel)
+
+# Age and transit time
+tau=seq(0,500)
+A1=meanModel@mat@map(1970) #tnel: matrix created using arbitrary year, since it remains the same for all years
+A2=meanModel2@mat@map(1970)
+
+
+#tnel: testing scenarios of min and max turnover rates
+A1min<- -1*diag(parsMCMC[3,1:2]) #tnel: constructs a diag matrix of decomp rates using min p1 and p2
+A1min[2,1]<- abs(parsMCMC[3,3])*parsMCMC[3,2] #tnel: alpha21 was neg.ve - even though we provided restrictions in SoilR model, the MCMC optimization gives a mean from distribution
+A1max<- -1*diag(parsMCMC[4,1:2]) 
+A1max[2,1]<- parsMCMC[4,3]*parsMCMC[4,2] 
+A2min<- -1*diag(parsMCMC2[3,1:2])
+A2min[2,1]<- parsMCMC2[3,3]*parsMCMC2[3,2] 
+A2max<- -1*diag(parsMCMC2[4,1:2])
+A2max[2,1]<- parsMCMC2[4,3]*parsMCMC2[4,2] 
+
+
+SA1=systemAge(A=A1,u=c(1,0),a=tau) #here u are normalized inputs i.e. simply divided among pools according to system e.g. 0.5, 0.5 could be parallel
+TT1=transitTime(A=A1,u=c(1,0), a=tau, q=c(0.1,0.5,0.9))
+TT1min<-transitTime(A=A1min,u=c(1,0),q=c(0.1,0.5,0.9))
+TT1max<-transitTime(A=A1max,u=c(1,0),q=c(0.1,0.5,0.9))
+
+SA2=systemAge(A=A2,u=c(1,0),a=tau)
+TT2=transitTime(A=A2,u=c(1,0), a=tau, q=c(0.1,0.5,0.9))
+TT2min<-transitTime(A=A2min,u=c(1,0),q=c(0.1,0.5,0.9))
+TT2max<-transitTime(A=A2max,u=c(1,0),q=c(0.1,0.5,0.9))
+
+
+#Bayesian fits with priors
+prior_k <- prior(exponential(0.1), class = "b", coef = "treatmentControl")
+mod_bayes <- brm(k ~ treatment + (1 | replicate), data = k_df, prior = prior_k)  
+posterior_summary(mod_bayes)
+
+```
+
+## Ideas for incorporation of CUE
+
+**How can carbon use efficiency data be incorporated**
+
+-   CUE = C (microbial growth) / C (uptake)
+-   Respiration = 1 - CUE
+-   Carbon use efficiency increases biomass production, which is a precursor to stabilized SOM
+-   However not all microbial biomass is stabilized (may be recycled, respired etc) - Therefore, we could express the fraction of microbial products that is stabilized into MAOM, with a coefficient $f_{stabilization}$
+-   Independently constraining microbial efficiency and inferred mineral stabilization efficiency improves both identifiability and mechanistic insight
+
+**Updating the model with CUE**
+
+-   Replace the transfer fraction with a term that is a product of CUE and stabilization efficiency
+
+*Option A:*
+
+-   Instead of fitting alpha, decompose $\alpha$ into:
+
+$\alpha$ = CUE x $f_{stabilization}$
+
+where: CUE = measured $f_{stabilization}$ = fitted stabilization efficiency
+
+```{r}
+#| eval: false
+alpha = CUE * $f_{stab}$
+```
+
+*Option B:*
+
+-   Fast-pool loss becomes:
+
+```{r}
+#| eval: false
+C_loss = k * C
+C_to_growth = CUE * C_loss
+C_to_resp = (1 - CUE) * C_loss
+C_to_slow = $f_{stab}$ * C_to_growth
+```
+
+-   Since CUE is measured in short-term incubation, it is safer to be treated as a process constraint in the time-integrated model, not as a direct flux
+-   Therefore, Option A probably better (only controls capacity for transfer, letting $f_{stat}$ include temporal variability) than Option B (flux partitioning of short-term CUE is applied uniformly over long-term)
+-   Option A also allows initial models to be built without CUE, and easier incorporation of CUE later
+
+**How data could be interpreted**
+
+-   If CUE ↑ but no increase in MAOM formation: stabilization limited
+-   If MAOM ↑ but CUE unchanged: mineral control dominates
+-   If both ↑: strong coupling
+
+**Considerations**
+
+-   CUE is measured from bulk soil, but transfer mostly feeds MAOM, so may need to make assumptions about where growth occurs
+-   Assuming realistic ranges of CUE (0.2-0.6) and alpha (0.02-0.3), $f_{stab}$ can vary an order of magnitude (0.05-0.5), therefore alpha is much more sensitive to $f_{stab}$ than to CUE
+-   Incubation conditions: we are modelling dynamics of decomposed SOM, not added substrate, so avoid strong priming conditions (use field moisture and temperature, and not high glucose additions) unless signal is not detectable, and avoid longer incubation (community shifts)
+
+**Measure respiration and microbial biomass for validation and interpretation**
+
+-   Scenario 1: CUE ↑, respiration ↓, biomass ↑, more C retained in microbial products → higher transfer potential
+
+-   Scenario 2: CUE ↑, respiration ↓, biomass unchanged, growth occurs but turnover is fast → limited stabilization
+
+-   Scenario 3: CUE unchanged, biomass ↑, MAOM ↑, stabilization efficiency ↑ → f stab effect
+
+**Three-pool model with CUE**
+
+fPOM → oPOM → MAOM
+
+↘ MAOM
+
+$\alpha$ -\> {$a_{fo}$, $a_{fm}$, $a_{om}$}
+
+and
+
+$a_{fo}$ + $a_{fm}$ = CUE
+
+where fo, fm and om represent transfer from fPOM to oPOM, fPOM to MAOM and oPOM to MAOM
+
+For each pool i, assimilated = $CUE * k_iC_i$ and respiration = $(1-CUE)k_iC_i$
+
+Introduce partitioning coefficient $p$ (fraction of fPOM -\> MAOM):
+
+$p_{fo}$ + $p_{fm}$ = 1
+
+$transfer_{i->j} = CUE * p_{ij} * k_i C_i$
+
+$a_{fm}$ = CUE \* $p$
+
+$a_{fo}$ = CUE \* $(1-p)$
+
+$a_{om}$ = CUE \* $p_{om}$
+
+where $p_{om}$ is estimated (fitted?)
+
+Link back $\alpha$ = CUE \* $f_stab$ with $f_stab$ = p + (1-p) \* $p_{om}$
+
+**SoilR matrix**
+
+$$C = \begin{bmatrix}
+   C_f \\
+   C_o \\
+   C_m
+   \end{bmatrix}$$
+
+$$A = \begin{bmatrix}
+   -k_f & 0 & 0 \\
+   CUE(1-p)k_f & -k_o & 0 \\
+   CUEpk_f & CUEp_{om}k_o & -k_m
+   \end{bmatrix}$$
+
+Row 1: $-k_fC_f$ = total fPOM loss via decomposition
+
+Row 2: $CUE(1-p)k_fC_f$ = fraction of fPOM routed to oPOM
+
+Row 3: $CUE*pk_fC_f$ = fraction of fPOM stabilized as MAOM, $CUE*p_om*k_oC_o$ = fraction of oPOM stabilized as MAOM
