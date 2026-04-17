@@ -141,127 +141,24 @@ window.Quarto = {
 <p>We aim to estimate treatment-induced differences in apparent soil organic matter (SOM) turnover under enhanced mineral weathering (EMW), using:</p>
 <ul>
 <li>Baseline carbon stocks (<span class="math inline">\(t_0\)</span> = May 2023, rock application)</li>
-<li>Two measured time points (<span class="math inline">\(t_1\)</span> = Oct 2025, <span class="math inline">\(t_2\)</span> = Feb 2026)</li>
+<li>Two more measured time points (<span class="math inline">\(t_1\)</span> = Oct 2025, <span class="math inline">\(t_2\)</span> = Feb 2026)</li>
 <li>Bulk soil + three density fractions</li>
 <li>C stocks and <span class="math inline">\(\Delta^{14}C\)</span></li>
 <li>3 replicates per treatment</li>
-<li>3 years since initial pre-treatment C stocks measurement and latest sampling</li>
 </ul>
-<p>By treating density fractions as operational pools, fitting transient 1-pool models, and validating against bulk radiocarbon mass balance, we can estimate treatment-induced differences in apparent turnover time without over-parameterizing a multi-pool system. The 3-year divergence window provides the radiocarbon signal necessary to constrain turnover differences for parameter identifiability, while the Oct 2025 → Feb 2026 sampling interval constrains short-term dynamics.</p>
+<p>By treating density fractions as operational pools and fitting 3-pool models, we can estimate treatment-induced differences in mean transit time.</p>
 </section>
 <section id="conceptual-framework-data-preparation" class="level2">
 <h2 class="anchored" data-anchor-id="conceptual-framework-data-preparation">Conceptual framework &amp; data preparation</h2>
-<p><strong>Computational goal</strong></p>
-<p>Each fraction is treated as an operational single pool; this avoids underdetermined multi-pool parameterization.</p>
+<p><strong>Background</strong></p>
 <ul>
 <li>Change in C stocks: <span class="math inline">\(dC/dt = I - kC\)</span></li>
 <li>Radiocarbon mass balance (Fraction Modern): <span class="math inline">\(d(CF)/dt = I*F~atm~(t) - k*C*F - \lambda *C*F\)</span></li>
 </ul>
-<p><strong>R packages and functions</strong></p>
-<ul>
-<li><code>Base R/ dplyr</code>: Use mutate() to convert measured <span class="math inline">\(\Delta^{14}C\)</span> to Fraction Modern (<span class="math inline">\(F\)</span>) and structure data (long format): <span class="math inline">\(F = (\Delta^{14}C/1000) + 1\)</span></li>
-<li><code>SoilR</code>: Load atmospheric radiocarbon curves (e.g., IntCal20 or Hua2013) using bind.C14curves().</li>
-<li><code>rcarbon::calBP()</code> or IntCal datasets for <span class="math inline">\(F_{atm}(t)\)</span> interpolation</li>
-</ul>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>F14C <span class="ot">&lt;-</span> (delta14C <span class="sc">/</span> <span class="dv">1000</span>) <span class="sc">+</span> <span class="dv">1</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-</section>
-<section id="forward-simulation-3-year-history-t_0tot_1" class="level2">
-<h2 class="anchored" data-anchor-id="forward-simulation-3-year-history-t_0tot_1">Forward simulation (3-year history <span class="math inline">\(t_0~to~t_1\)</span>)</h2>
-<p><strong>Computational goal</strong></p>
-<p>Solve differential equations from known 2023 baseline to 2025 observation (constraint on parameters)</p>
+<p>Solve differential equations from unknown starting point carbon content (with known pre-bomb atmospheric carbon) through to known observation times</p>
 <ul>
 <li><p>Solution (forward): <span class="math inline">\(C(t_1) = C(t_{0})e^{-kt}+(I/k)(1-e^{-kt})\)</span></p></li>
 <li><p>Radiocarbon (integral): <span class="math inline">\(C(t_1)F(t_1) = C(t_0)F(t_0)e^{-(k+\lambda)T}+\int_{a}^{b} [I*F_{atm}(t)*e^{-(k+\lambda)(t_1-t)}] \mathrm{d}t\)</span></p></li>
-</ul>
-<p><strong>R packages and functions</strong></p>
-<ul>
-<li><code>SoilR::OnepModel14()</code>: Create one-pool model object that tracks <span class="math inline">\(^{14}C\)</span> and handles atmospheric input curve <span class="math inline">\(F_{atm}(t)\)</span></li>
-<li><code>SoilR::getC()</code> and <code>getF14()</code>: Extracts carbon stock and radiocarbon values from model object at specific time steps</li>
-</ul>
-<p><strong>Example code</strong></p>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>mod <span class="ot">&lt;-</span> <span class="fu">OnepModel</span>(<span class="at">t =</span> <span class="fu">seq</span>(<span class="dv">2023</span>, <span class="dv">2026</span>, <span class="at">length.out =</span> <span class="dv">100</span>), <span class="at">In =</span> I_vec, <span class="at">k =</span> k_init)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>fit <span class="ot">&lt;-</span> <span class="fu">getFitted</span>(mod)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>sim_C <span class="ot">&lt;-</span> <span class="fu">getC</span>(mod)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-</section>
-<section id="cost-function-to-fit-k-and-possibly-i" class="level2">
-<h2 class="anchored" data-anchor-id="cost-function-to-fit-k-and-possibly-i">Cost function to fit k (and possibly I)</h2>
-<p><strong>Computational goal</strong></p>
-<p>Define cost function (<span class="math inline">\(J\)</span>) that quantifies difference between model predictions and observations at sampling <span class="math inline">\(t_1\)</span> (Oct) and <span class="math inline">\(t_2\)</span> (Feb). Minimize <span class="math inline">\(J\)</span> to find optimal turnover rate (<span class="math inline">\(k\)</span>) and input (<span class="math inline">\(I\)</span>) for each fraction.</p>
-<ul>
-<li>Cost function: <span class="math inline">\(J = w_1(C_{t1}^{obs}-C_{t1}^{mod})^2+w_2(C_{t1}^{obs}-C_{t1}^{mod})^2+w_3(C_{t2}^{obs}-C_{t2}^{mod})^2+w_4(C_{t2}^{obs}-C_{t2}^{mod})^2\)</span></li>
-</ul>
-<p><strong>R packages and functions</strong></p>
-<ul>
-<li><code>FME::modFit()</code>: Fits models, wraps optimization algorithms e.g.&nbsp;Nelder-Mead, Levenberg-Marquardt, objective J (sum squared residuals for C and F at time <span class="math inline">\(t_1/t_2\)</span>); include weights with ‘wt’ argument</li>
-<li><code>FME::modCost()</code>: Calculates goodness of fit (weighted sum of squared residuals) between model output and observed df</li>
-<li><code>FME::sensFun()</code>: Calculates sensitivity of model output to parameters <span class="math inline">\(k\)</span> and <span class="math inline">\(I\)</span> to check for collinearity or identifiability issues before fitting; if I is fixed, bound k &gt; 0. Use optim() from base R for simpler cases</li>
-</ul>
-<p><strong>Example code</strong></p>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Objective function</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>objective <span class="ot">&lt;-</span> <span class="cf">function</span>(p) {</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  k <span class="ot">&lt;-</span> p[<span class="st">"k"</span>]; I <span class="ot">&lt;-</span> p[<span class="st">"I"</span>]</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Run forward sim (from step 3) to get C_mod, F_mod at t1/t2</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="co">#...</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">sum</span>(<span class="fu">c</span>(w1 <span class="sc">*</span> (C_t1_obs <span class="sc">-</span> C_t1_mod)<span class="sc">^</span><span class="dv">2</span>, w2 <span class="sc">*</span> (F_t1_obs <span class="sc">-</span> F_t1_mod)<span class="sc">^</span><span class="dv">2</span>,</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>             w3 <span class="sc">*</span> (C_t2_obs <span class="sc">-</span> C_t2_mod)<span class="sc">^</span><span class="dv">2</span>, w4 <span class="sc">*</span> (F_t2_obs <span class="sc">-</span> F_t2_mod)<span class="sc">^</span><span class="dv">2</span>))</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>fit <span class="ot">&lt;-</span> <span class="fu">modFit</span>(<span class="at">f =</span> objective, <span class="at">p =</span> <span class="fu">c</span>(<span class="at">k =</span> <span class="fl">0.1</span>, <span class="at">I =</span> <span class="dv">1</span>), </span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>                   <span class="at">lower =</span> <span class="fu">c</span>(<span class="at">k =</span> <span class="dv">0</span>, <span class="at">I =</span> <span class="dv">0</span>), <span class="at">method =</span> <span class="st">"Marq"</span>)</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>     <span class="fu">summary</span>(fit)  <span class="co"># Get fitted k and SE</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-</section>
-<section id="derive-turnover-and-statistical-analysis" class="level2">
-<h2 class="anchored" data-anchor-id="derive-turnover-and-statistical-analysis">Derive turnover and statistical analysis</h2>
-<p><strong>Computational goal</strong></p>
-<p>Convert <span class="math inline">\(k\)</span> to turnover time (<span class="math inline">\(\tau\)</span>) and analyze treatment effects across replicates. Account for replicate variability <span class="math inline">\(\epsilon_{ij}\)</span> and treatment means (<span class="math inline">\(\mu_{treatment}\)</span>)</p>
-<ul>
-<li>Treatment effect: <span class="math inline">\(\tau = 1/k_{ij} = \mu_{treatment} + \epsilon_{ij}\)</span></li>
-</ul>
-<p><strong>R packages and functions</strong></p>
-<ul>
-<li><code>lme4::lmer()</code>: Fits linear mixed-effects models to estimate frequentist mixed-effects of treatment on <span class="math inline">\(\tau\)</span> while treating replicates as random effects (<span class="math inline">\(1 | replicate\)</span>)</li>
-<li><code>brms::brm()</code>: Bayesian analysis recommended if sample size is small; allows fitting hierarchical model with priors (e.g., Half-Cauchy for <span class="math inline">\(\sigma\)</span>, lognormal for <span class="math inline">\(k\)</span>) to get credible intervals for treatment differences</li>
-<li><code>emmeans::emmeans()</code>: Calculates estimated marginal means and performs pairwise contrasts between treatments based on mixed model objects</li>
-<li><code>propagate::propagate()</code>: Propagate uncertainty</li>
-</ul>
-<p><strong>Example code</strong></p>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>k_est <span class="ot">&lt;-</span> <span class="fu">coef</span>(fit)[<span class="st">"k"</span>]</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>tau <span class="ot">&lt;-</span> <span class="dv">1</span> <span class="sc">/</span> k_est</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co">#error propagation</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="fu">propagate</span>(<span class="at">expr =</span> <span class="dv">1</span><span class="sc">/</span>k, <span class="at">data =</span> <span class="fu">list</span>(<span class="at">k =</span> <span class="fu">coef</span>(fit)))</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Delta method approximation</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>tau_se <span class="ot">&lt;-</span> tau <span class="sc">*</span> (se_k <span class="sc">/</span> k_est)  </span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co">#mixed effects on estimated \tau</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Data frame: tau_df with columns tau, treatment, replicate</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>mod_hier <span class="ot">&lt;-</span> <span class="fu">lmer</span>(tau <span class="sc">~</span> treatment <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">|</span> replicate), <span class="at">data =</span> tau_df)</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mod_hier)</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co">#Bayesian fits with priors</span></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>prior_k <span class="ot">&lt;-</span> <span class="fu">prior</span>(<span class="fu">exponential</span>(<span class="fl">0.1</span>), <span class="at">class =</span> <span class="st">"b"</span>, <span class="at">coef =</span> <span class="st">"treatmentControl"</span>)</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>mod_bayes <span class="ot">&lt;-</span> <span class="fu">brm</span>(k <span class="sc">~</span> treatment <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">|</span> replicate), <span class="at">data =</span> k_df, <span class="at">prior =</span> prior_k)  </span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="fu">posterior_summary</span>(mod_bayes)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-</section>
-<section id="validation-bulk-reconstruction" class="level2">
-<h2 class="anchored" data-anchor-id="validation-bulk-reconstruction">Validation (bulk reconstruction)</h2>
-<p><strong>Computational goal</strong></p>
-<p>Check if sum of independently fitted fractions match observed bulk soil data for both stocks and radiocarbon abundance</p>
-<ul>
-<li>Validation: <span class="math inline">\(C_{bulk} = \Sigma C_i\)</span></li>
-<li>Weighted mean <span class="math inline">\(F_{bulk}\)</span> = <span class="math inline">\(\Sigma (C_i*F_i)/\Sigma C_i\)</span></li>
-</ul>
-<p><strong>R packages and functions</strong></p>
-<ul>
-<li><code>dplyr::group_by()</code> and <code>summarise()</code> to aggregate fitted fraction stocks into calculated bulk stocks</li>
-<li><code>hydroGOF::rmse()</code>: Calculate root mean square error between reconstructed bulk and measured bulk to assess model performance</li>
 </ul>
 </section>
 <section id="can-emw-affect-transfer-between-som-pools" class="level2">
@@ -285,27 +182,6 @@ window.Quarto = {
 <li>Transfer coefficient &gt;0 improves model fit</li>
 <li>Transfer coefficient of treatments &gt; control means that ERW increased stabilization</li>
 </ul>
-<p><strong>Models</strong></p>
-<p>Transfer term (fast → slow), k_{fs} and term for fraction of fast-pool losses transferred to slow pool (<span class="math inline">\(\alpha\)</span>).</p>
-<p><strong>Example code</strong></p>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Fast pool stocks</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co">#\frac{dC_f}{dt} = I_f - k_f C_f - k_{fs} C_f</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>dCf <span class="ot">=</span> I_f <span class="sc">-</span> loss_fast_total</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>loss_fast_total <span class="ot">=</span> k_f <span class="sc">*</span> Cf</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>flux_fast_to_CO2  <span class="ot">=</span> (<span class="dv">1</span> <span class="sc">-</span> alpha) <span class="sc">*</span> loss_fast_total</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Slow pool stocks</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co">#\frac{dC_s}{dt} = I_s + k_{fs} C_f - k_s C_s</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>dCs <span class="ot">=</span> I_s <span class="sc">+</span> flux_fast_to_slow <span class="sc">-</span> flux_slow_to_CO2</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>flux_fast_to_slow <span class="ot">=</span> alpha <span class="sc">*</span> loss_fast_total</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>flux_slow_to_CO2 <span class="ot">=</span> k_s <span class="sc">*</span> Cs</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 14C tracking: transfer flux inherits fast pool signature: </span></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>F14C_flux_fast_to_slow <span class="ot">=</span> F14Cf</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="fu">d</span>(F14Cf <span class="sc">*</span> Cf) <span class="ot">=</span> I_f <span class="sc">*</span> F14C_input <span class="sc">-</span> loss_fast_total <span class="sc">*</span> F14Cf</span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="fu">d</span>(F14Cs <span class="sc">*</span> Cs) <span class="ot">=</span> I_s <span class="sc">*</span> F14C_input <span class="sc">+</span>  flux_fast_to_slow <span class="sc">*</span> F14Cf <span class="sc">-</span> flux_slow_to_CO2 <span class="sc">*</span> F14Cs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
 <p><strong>SoilR two pool system</strong></p>
 <p><span class="math display">\[\frac{dC}{dt} = I + A \cdot C(t)\]</span></p>
 <p>Where <span class="math inline">\(A\)</span> is the compartmental matrix. For fast-to-slow transfer:</p>
@@ -316,66 +192,150 @@ window.Quarto = {
 <li><span class="math inline">\(a_{21} = \alpha \cdot k_f\)</span> (Fraction of fast pool loss moving to slow pool)</li>
 <li><span class="math inline">\(a_{22} = -k_s\)</span> (Loss from slow pool)</li>
 </ul>
+<p><strong>Example code for two-pool model</strong></p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>dt<span class="ot">=</span><span class="fu">read.csv</span>(<span class="st">"path_to_data.csv"</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>BD<span class="ot">=</span><span class="fl">1.3</span> <span class="co"># g/cm3</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>depth<span class="ot">=</span><span class="dv">20</span> <span class="co">#  cm</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>Cobs<span class="ot">=</span><span class="fu">data.frame</span>(<span class="at">Year=</span>dt[,<span class="dv">1</span>],  <span class="at">Ct=</span>dt[,<span class="dv">9</span>]<span class="sc">*</span>BD<span class="sc">*</span>depth<span class="sc">*</span><span class="dv">10</span>) <span class="co"># C stock units = g kg-1 since *10 000 (cm2 m-2)/1000 (g kg-1) </span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>C14obs<span class="ot">=</span><span class="fu">data.frame</span>(<span class="at">Year=</span>dt[,<span class="dv">1</span>],<span class="at">C14t=</span>dt[,<span class="dv">7</span>])</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co">#initial C and Delta14C</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>C0<span class="ot">&lt;-</span><span class="fu">mean</span>(Cobs[<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>,<span class="dv">2</span>])</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>F0<span class="ot">&lt;-</span><span class="fu">mean</span>(C14obs[<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>,<span class="dv">2</span>])</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>mean_C_inputs<span class="ot">&lt;-</span><span class="fu">c</span>(<span class="dv">230</span>, <span class="dv">0</span>, <span class="dv">0</span>) <span class="co">#in series can provide single scalar value that enters fast pool only; parallel models can take vector of values per pool</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Model</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>yr<span class="ot">=</span><span class="fu">seq</span>(<span class="dv">1968</span>,<span class="dv">2021</span>,<span class="at">by=</span><span class="dv">1</span><span class="sc">/</span><span class="dv">12</span>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>Atm14C<span class="ot">=</span>Hua2021<span class="sc">$</span>NHZone1[,<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>]</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>fAtm14C<span class="ot">=</span><span class="fu">read.csv</span>(<span class="st">"path_to_forecast.csv"</span>)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>Atm14C<span class="ot">&lt;-</span><span class="fu">rbind</span>(Atm14C, <span class="fu">data.frame</span>(<span class="at">Year=</span>fAtm14C<span class="sc">$</span>time, <span class="at">mean.Delta14C=</span><span class="fu">Delta14C_from_AbsoluteFractionModern</span>(fAtm14C<span class="sc">$</span>F14C)))</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>mf<span class="ot">=</span><span class="cf">function</span>(pars){</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>  md<span class="ot">=</span><span class="fu">TwopSeriesModel14</span>(<span class="at">t=</span>yr,<span class="at">ks=</span>pars[<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>],<span class="at">C0=</span>C0<span class="sc">*</span><span class="fu">c</span>(pars[<span class="dv">5</span>], <span class="dv">1</span><span class="sc">-</span>pars[<span class="dv">5</span>]), <span class="co"># C0 multiplied by Beta (par[5] that allocated a proportion of bulk to fast pool</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>                       <span class="at">F0_Delta14C =</span> <span class="fu">c</span>(F0 <span class="sc">*</span> pars[<span class="dv">6</span>], <span class="sc">-</span><span class="dv">200</span>), <span class="co">#par[6] is the modeled proportion of initial Delta14C of bulk distributed in fast pool and -200 is assigned initial 14C in slow pool</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>                       <span class="at">In=</span>mean_C_inputs,</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>                       <span class="at">a21=</span>pars[<span class="dv">1</span>]<span class="sc">*</span>pars[<span class="dv">3</span>], <span class="at">inputFc =</span> Atm14C) <span class="co">#where pars[1] = kf and pars[3] = alpha sf</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>  Ct<span class="ot">=</span><span class="fu">getC</span>(md)</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>  C14t<span class="ot">=</span><span class="fu">getF14C</span>(md)</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(<span class="fu">data.frame</span>(<span class="at">Year=</span>yr,<span class="at">Ct=</span><span class="fu">rowSums</span>(Ct),<span class="at">C14t=</span>C14t)) <span class="co">#tnel: rowSums here compute the total of 2 pools</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="cost-function-to-fit-k-and-possibly-i" class="level2">
+<h2 class="anchored" data-anchor-id="cost-function-to-fit-k-and-possibly-i">Cost function to fit k (and possibly I)</h2>
+<p><strong>Computational goal</strong></p>
+<p>Define cost function (<span class="math inline">\(J\)</span>) that quantifies difference between model predictions and observations at sampling <span class="math inline">\(t_1\)</span> (Oct) and <span class="math inline">\(t_2\)</span> (Feb). Minimize <span class="math inline">\(J\)</span> to find optimal turnover rate (<span class="math inline">\(k\)</span>) and input (<span class="math inline">\(I\)</span>) for each fraction.</p>
+<ul>
+<li>Cost function: <span class="math inline">\(J = w_1(C_{t1}^{obs}-C_{t1}^{mod})^2+w_2(C_{t1}^{obs}-C_{t1}^{mod})^2+w_3(C_{t2}^{obs}-C_{t2}^{mod})^2+w_4(C_{t2}^{obs}-C_{t2}^{mod})^2\)</span></li>
+</ul>
 <p><strong>Example code</strong></p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Setup Time and Atmospheric 14C</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>t_start <span class="ot">&lt;-</span> <span class="dv">2023</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>t_end <span class="ot">&lt;-</span> <span class="dv">2026</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>t_seq <span class="ot">&lt;-</span> <span class="fu">seq</span>(t_start, t_end, <span class="at">by =</span> <span class="dv">1</span><span class="sc">/</span><span class="dv">12</span>) <span class="co"># Monthly steps for precision</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Define Parameters</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co"># p = c(k_f, k_s, alpha, I_f, I_s)</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="at">k_f =</span> <span class="fl">0.5</span>, <span class="at">k_s =</span> <span class="fl">0.05</span>, <span class="at">alpha =</span> <span class="fl">0.2</span>, <span class="at">I_f =</span> <span class="dv">100</span>, <span class="at">I_s =</span> <span class="dv">10</span>)</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Create the Compartmental Matrix A</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Matrix format: A[row, col] -&gt; flow from col to row</span></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>A <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="at">nrow =</span> <span class="dv">2</span>, <span class="at">ncol =</span> <span class="dv">2</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>, <span class="fu">c</span>(</span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="sc">-</span>p[<span class="st">"k_f"</span>],                <span class="dv">0</span>,          <span class="co"># Pool 1 (Fast)</span></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>   p[<span class="st">"alpha"</span>] <span class="sc">*</span> p[<span class="st">"k_f"</span>],  <span class="sc">-</span>p[<span class="st">"k_s"</span>]    <span class="co"># Pool 2 (Slow) receives alpha*k_f</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>))</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Run the Model</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>model <span class="ot">&lt;-</span> <span class="fu">GeneralModel_14</span>(</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>  <span class="at">t =</span> t_seq,</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">A =</span> A,</span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">ivList =</span> <span class="fu">c</span>(C_f0, C_s0),  <span class="co"># Initial stocks from May 2023</span></span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">initialFilters =</span> <span class="fu">c</span>(F14_f0, F14_s0), <span class="co"># Initial 14C</span></span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">inputFluxes =</span> <span class="fu">c</span>(p[<span class="st">"I_f"</span>], p[<span class="st">"I_s"</span>]),</span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">inputFc =</span> Hua2013, <span class="co"># Or your preferred curve</span></span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">pass =</span> <span class="cn">TRUE</span></span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Extract results for Fitting</span></span>
-<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>C_total <span class="ot">&lt;-</span> <span class="fu">getC</span>(model)</span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>F14_total <span class="ot">&lt;-</span> <span class="fu">getF14</span>(model)</span>
-<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a><span class="co"># Updating the Cost Function (FME)</span></span>
-<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate the fast pool, sow pool, and bulk soil simultaneously.</span></span>
-<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>objective_coupled <span class="ot">&lt;-</span> <span class="cf">function</span>(p) {</span>
-<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>  <span class="co"># Constraints: alpha must be 0-1, ks &lt; kf</span></span>
-<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(p[<span class="st">"alpha"</span>] <span class="sc">&lt;</span> <span class="dv">0</span> <span class="sc">|</span> p[<span class="st">"alpha"</span>] <span class="sc">&gt;</span> <span class="dv">1</span> <span class="sc">|</span> p[<span class="st">"k_s"</span>] <span class="sc">&gt;=</span> p[<span class="st">"k_f"</span>]) <span class="fu">return</span>(<span class="cn">Inf</span>)</span>
-<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 1. Run coupled model (as above)</span></span>
-<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>  <span class="co"># ... model code ...</span></span>
-<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 2. Extract predicted values at specific time points (Oct 25, Feb 26)</span></span>
-<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>  <span class="co"># preds &lt;- ... </span></span>
-<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 3. Calculate Multi-target Cost</span></span>
-<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>  cost <span class="ot">&lt;-</span> <span class="fu">modCost</span>(<span class="at">model =</span> preds, <span class="at">obs =</span> obs_fast, <span class="at">err =</span> <span class="st">"sd"</span>)</span>
-<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>  cost <span class="ot">&lt;-</span> <span class="fu">modCost</span>(<span class="at">model =</span> preds, <span class="at">obs =</span> obs_slow, <span class="at">cost =</span> cost, <span class="at">err =</span> <span class="st">"sd"</span>)</span>
-<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(cost)</span>
-<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>fit_coupled <span class="ot">&lt;-</span> <span class="fu">modFit</span>(<span class="at">f =</span> objective_coupled, <span class="at">p =</span> start_params, <span class="at">method =</span> <span class="st">"Marq"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>mc1<span class="ot">=</span><span class="cf">function</span>(pars){ </span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  out<span class="ot">=</span><span class="fu">mf1</span>(pars) <span class="co">#out = df of Year, Ct and C14t from mf output </span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  Cost1 <span class="ot">=</span> <span class="fu">modCost</span>(<span class="at">model =</span> out, <span class="at">obs =</span> Cobs_bulk, <span class="co"># C bulk</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                  <span class="at">x =</span> <span class="st">"Year"</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  Cost2 <span class="ot">=</span> <span class="fu">modCost</span>(<span class="at">model =</span> out, <span class="at">obs =</span> M2_C14obs_bulk, <span class="co"># Delta14C bulk</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>                  <span class="at">x =</span> <span class="st">"Year"</span>, <span class="at">cost =</span> Cost1)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  Cost3 <span class="ot">=</span> <span class="fu">modCost</span>(<span class="at">model =</span> out, <span class="at">obs =</span> M2_Cobs_slow, <span class="co"># C slow pool</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>                  <span class="at">x =</span> <span class="st">"Year"</span>, <span class="at">cost =</span> Cost2)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>  Cost4 <span class="ot">=</span> <span class="fu">modCost</span>(<span class="at">model =</span> out, <span class="at">obs =</span> M2_C14obs_slow, <span class="co"># Delta14C slow pool</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>                  <span class="at">x =</span> <span class="st">"Year"</span>, <span class="at">cost =</span> Cost3)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  Cost5 <span class="ot">=</span> <span class="fu">modCost</span>(<span class="at">model =</span> out, <span class="at">obs =</span> M2_Cobs_fast, <span class="co"># C fast pool</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>                 <span class="at">x =</span> <span class="st">"Year"</span>, <span class="at">cost =</span> Cost4)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(Cost5)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>} </span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>inipars1<span class="ot">=</span><span class="fu">c</span>(<span class="fl">0.05</span>,<span class="fl">0.001</span>,<span class="fl">0.01</span>, <span class="dv">2</span>) <span class="co">#pars[1:5] = kf, ks, alpha sf, I</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>yr <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">seq</span>(<span class="dv">1957</span>,<span class="dv">2019</span>, <span class="at">by =</span> <span class="dv">1</span><span class="sc">/</span><span class="dv">12</span>))</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="do">### Run model</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>mFit1_M2<span class="ot">=</span><span class="fu">modFit</span>(<span class="at">f=</span>mc1,<span class="at">p=</span>inipars1,<span class="at">method=</span><span class="st">"Nelder-Mead"</span>,<span class="at">upper=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="fl">0.5</span>,<span class="dv">1</span>,mean_C_inputs<span class="sc">*</span><span class="fl">0.3</span>),<span class="at">lower=</span><span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>))</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>bestpars1_M2<span class="ot">=</span>mFit1_M2<span class="sc">$</span>par</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>bestModel1_M2<span class="ot">&lt;-</span><span class="fu">TwopSeriesModel14</span>(<span class="at">t=</span>yr,<span class="at">ks=</span>bestpars1_M2[<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>],<span class="at">C0=</span><span class="fu">c</span>(C0_M2_inter, C0_M2_slow), </span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>                  <span class="at">F0_Delta14C =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">100</span>, <span class="sc">-</span><span class="dv">140</span>),</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>                  <span class="at">In=</span>bestpars1_M2[<span class="dv">4</span>], </span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>                  <span class="at">a21=</span>bestpars1_M2[<span class="dv">1</span>]<span class="sc">*</span>bestpars1_M2[<span class="dv">3</span>], <span class="at">inputFc =</span> Atm14C) </span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>mod1_C14t_MF2_pools<span class="ot">=</span><span class="fu">data.frame</span>(<span class="at">Year =</span> yr, </span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>                          <span class="st">"C14t_fast"</span><span class="ot">=</span><span class="fu">getF14</span>(bestModel1_M2)[,<span class="dv">1</span>], </span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>                          <span class="st">"C14t_slow"</span> <span class="ot">=</span><span class="fu">getF14</span>(bestModel1_M2)[,<span class="dv">2</span>]) <span class="co"># Delta14C for both pools</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>mod1_C14t_MF2_325<span class="ot">=</span><span class="fu">data.frame</span>(<span class="at">Year =</span> yr, </span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>                         <span class="st">"C14t_bulk"</span> <span class="ot">=</span> <span class="fu">getF14C</span>(bestModel1_M2)) <span class="co"># Delta14C for bulk</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>mod1_Ct_MF2_pools<span class="ot">=</span><span class="fu">data.frame</span>(<span class="at">Year =</span> yr,</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>                       <span class="st">"Ct_fast"</span> <span class="ot">=</span> <span class="fu">getC</span>(bestModel1_M2)[,<span class="dv">1</span>],</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>                       <span class="st">"Ct_slow"</span> <span class="ot">=</span> <span class="fu">getC</span>(bestModel1_M2)[,<span class="dv">2</span>]) <span class="co"># C for both pools</span></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>mod1_Ct_MF2_325<span class="ot">=</span><span class="fu">data.frame</span>(<span class="at">Year =</span> yr, </span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>                      <span class="st">"Ct_bulk"</span> <span class="ot">=</span> <span class="fu">rowSums</span>(<span class="fu">getC</span>(bestModel1_M2))) <span class="co"># C for bulk</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<p><strong>Check if 14C data can distinguish between transfer rate and turnover rates</strong></p>
-<ul>
-<li>Run the optimization with <span class="math inline">\(\alpha\)</span> fixed at 0.1 or 0.2 (common literature values) to stabilize <span class="math inline">\(k_f\)</span> and <span class="math inline">\(k_s\)</span>.</li>
-<li>Use FME::sensFun to see if your 14C signal is strong enough. If the sensitivity of <span class="math inline">\(\alpha\)</span> is low, data cannot support a coupled model and should revert to independent pool approach.</li>
-<li>Bayesian: In brms, set a tight prior on <span class="math inline">\(\alpha\)</span> based on the expected mineral stabilization effect of EMW treatment</li>
-</ul>
+</section>
+<section id="derive-decay-transfer-and-transit-times-with-uncertainties" class="level2">
+<h2 class="anchored" data-anchor-id="derive-decay-transfer-and-transit-times-with-uncertainties">Derive decay, transfer and transit times with uncertainties</h2>
+<p><strong>Example code</strong></p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="do">### MCMC optimization</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>var0_M2 <span class="ot">&lt;-</span> mFit_M2<span class="sc">$</span>var_ms_unweighted</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>cov0_M2 <span class="ot">&lt;-</span> <span class="fu">summary</span>(mFit_M2)<span class="sc">$</span>cov.scaled <span class="co"># The covariance matrix can be used for the jump </span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>MCMC <span class="ot">&lt;-</span> <span class="fu">modMCMC</span>(<span class="at">f=</span>mc, <span class="at">p =</span> bestpars_M2, <span class="at">niter =</span> <span class="dv">2500</span>, <span class="at">jump =</span> <span class="cn">NULL</span>, <span class="at">var0 =</span> var0_M2, <span class="at">wvar0 =</span> <span class="dv">1</span>) <span class="co">#tnel: jump default is 10% of par value; what is wvar and why is it zero?</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co"># mean model</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>parsMCMC<span class="ot">&lt;-</span><span class="fu">summary</span>(MCMC)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>sR<span class="ot">=</span><span class="fu">sensRange</span>(<span class="at">func=</span>mf, <span class="at">parInput=</span>MCMC_M2<span class="sc">$</span>par) </span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>summarysR<span class="ot">&lt;-</span><span class="fu">summary</span>(sR_M2) </span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>nx2<span class="ot">&lt;-</span><span class="fu">attributes</span>(summarysR)<span class="sc">$</span>nx</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>CtR2<span class="ot">&lt;-</span><span class="fu">as.data.frame</span>(summarysR[<span class="dv">1</span><span class="sc">:</span>nx2,]) <span class="co"># mean is the Ct (g m-2) predicted</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>C14tR2<span class="ot">&lt;-</span><span class="fu">as.data.frame</span>(summarysR_M2[(nx2<span class="sc">+</span><span class="dv">1</span>)<span class="sc">:</span>(<span class="dv">2</span><span class="sc">*</span>nx2),])<span class="co">#mean is the Delta_C14t (per mille) predicted</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="fu">pairs</span>(MCMC,<span class="at">nsample=</span><span class="dv">500</span>) <span class="co">#check inter-dependence of parameters using 500 MCMC runs</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>meanpars<span class="ot">&lt;-</span><span class="fu">as.numeric</span>(parsMCMC[<span class="dv">1</span>,<span class="dv">1</span><span class="sc">:</span><span class="dv">5</span>])</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>meanModel<span class="ot">&lt;-</span><span class="fu">TwopSeriesModel14</span>(<span class="at">t=</span>yr,<span class="at">ks=</span>meanpars2[<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>],<span class="at">C0=</span>C0<span class="sc">*</span><span class="fu">c</span>(meanpars[<span class="dv">4</span>], <span class="dv">1</span><span class="sc">-</span>meanpars[<span class="dv">4</span>]),</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>                              <span class="at">F0_Delta14C =</span> <span class="fu">c</span>(F0<span class="sc">*</span>meanpars[<span class="dv">5</span>], <span class="sc">-</span><span class="dv">200</span>), </span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>                              <span class="co">#In=mean(BolinderIn)*1000, </span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>                              <span class="at">In=</span><span class="fu">mean</span>(avgYld[,<span class="dv">2</span>], <span class="at">na.rm =</span> <span class="cn">TRUE</span>)<span class="sc">*</span><span class="fl">1.5</span>,</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>                              <span class="at">a21=</span>meanpars[<span class="dv">1</span>]<span class="sc">*</span>meanpars[<span class="dv">3</span>], <span class="at">inputFc =</span> Atm14C)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>meanF14C2<span class="ot">=</span><span class="fu">getF14</span>(meanModel)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>meanC2<span class="ot">=</span><span class="fu">getC</span>(meanModel)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Age and transit time</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>tau<span class="ot">=</span><span class="fu">seq</span>(<span class="dv">0</span>,<span class="dv">500</span>)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>A1<span class="ot">=</span>meanModel<span class="sc">@</span>mat<span class="sc">@</span><span class="fu">map</span>(<span class="dv">1970</span>) <span class="co">#tnel: matrix created using arbitrary year, since it remains the same for all years</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>A2<span class="ot">=</span>meanModel2<span class="sc">@</span>mat<span class="sc">@</span><span class="fu">map</span>(<span class="dv">1970</span>)</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="co">#tnel: testing scenarios of min and max turnover rates</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>A1min<span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">*</span><span class="fu">diag</span>(parsMCMC[<span class="dv">3</span>,<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>]) <span class="co">#tnel: constructs a diag matrix of decomp rates using min p1 and p2</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>A1min[<span class="dv">2</span>,<span class="dv">1</span>]<span class="ot">&lt;-</span> <span class="fu">abs</span>(parsMCMC[<span class="dv">3</span>,<span class="dv">3</span>])<span class="sc">*</span>parsMCMC[<span class="dv">3</span>,<span class="dv">2</span>] <span class="co">#tnel: alpha21 was neg.ve - even though we provided restrictions in SoilR model, the MCMC optimization gives a mean from distribution</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>A1max<span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">*</span><span class="fu">diag</span>(parsMCMC[<span class="dv">4</span>,<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>]) </span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>A1max[<span class="dv">2</span>,<span class="dv">1</span>]<span class="ot">&lt;-</span> parsMCMC[<span class="dv">4</span>,<span class="dv">3</span>]<span class="sc">*</span>parsMCMC[<span class="dv">4</span>,<span class="dv">2</span>] </span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>A2min<span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">*</span><span class="fu">diag</span>(parsMCMC2[<span class="dv">3</span>,<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>])</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>A2min[<span class="dv">2</span>,<span class="dv">1</span>]<span class="ot">&lt;-</span> parsMCMC2[<span class="dv">3</span>,<span class="dv">3</span>]<span class="sc">*</span>parsMCMC2[<span class="dv">3</span>,<span class="dv">2</span>] </span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>A2max<span class="ot">&lt;-</span> <span class="sc">-</span><span class="dv">1</span><span class="sc">*</span><span class="fu">diag</span>(parsMCMC2[<span class="dv">4</span>,<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>])</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>A2max[<span class="dv">2</span>,<span class="dv">1</span>]<span class="ot">&lt;-</span> parsMCMC2[<span class="dv">4</span>,<span class="dv">3</span>]<span class="sc">*</span>parsMCMC2[<span class="dv">4</span>,<span class="dv">2</span>] </span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>SA1<span class="ot">=</span><span class="fu">systemAge</span>(<span class="at">A=</span>A1,<span class="at">u=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>),<span class="at">a=</span>tau) <span class="co">#here u are normalized inputs i.e. simply divided among pools according to system e.g. 0.5, 0.5 could be parallel</span></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>TT1<span class="ot">=</span><span class="fu">transitTime</span>(<span class="at">A=</span>A1,<span class="at">u=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>), <span class="at">a=</span>tau, <span class="at">q=</span><span class="fu">c</span>(<span class="fl">0.1</span>,<span class="fl">0.5</span>,<span class="fl">0.9</span>))</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>TT1min<span class="ot">&lt;-</span><span class="fu">transitTime</span>(<span class="at">A=</span>A1min,<span class="at">u=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>),<span class="at">q=</span><span class="fu">c</span>(<span class="fl">0.1</span>,<span class="fl">0.5</span>,<span class="fl">0.9</span>))</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>TT1max<span class="ot">&lt;-</span><span class="fu">transitTime</span>(<span class="at">A=</span>A1max,<span class="at">u=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>),<span class="at">q=</span><span class="fu">c</span>(<span class="fl">0.1</span>,<span class="fl">0.5</span>,<span class="fl">0.9</span>))</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>SA2<span class="ot">=</span><span class="fu">systemAge</span>(<span class="at">A=</span>A2,<span class="at">u=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>),<span class="at">a=</span>tau)</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>TT2<span class="ot">=</span><span class="fu">transitTime</span>(<span class="at">A=</span>A2,<span class="at">u=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>), <span class="at">a=</span>tau, <span class="at">q=</span><span class="fu">c</span>(<span class="fl">0.1</span>,<span class="fl">0.5</span>,<span class="fl">0.9</span>))</span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>TT2min<span class="ot">&lt;-</span><span class="fu">transitTime</span>(<span class="at">A=</span>A2min,<span class="at">u=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>),<span class="at">q=</span><span class="fu">c</span>(<span class="fl">0.1</span>,<span class="fl">0.5</span>,<span class="fl">0.9</span>))</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>TT2max<span class="ot">&lt;-</span><span class="fu">transitTime</span>(<span class="at">A=</span>A2max,<span class="at">u=</span><span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>),<span class="at">q=</span><span class="fu">c</span>(<span class="fl">0.1</span>,<span class="fl">0.5</span>,<span class="fl">0.9</span>))</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a><span class="co">#Bayesian fits with priors</span></span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>prior_k <span class="ot">&lt;-</span> <span class="fu">prior</span>(<span class="fu">exponential</span>(<span class="fl">0.1</span>), <span class="at">class =</span> <span class="st">"b"</span>, <span class="at">coef =</span> <span class="st">"treatmentControl"</span>)</span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>mod_bayes <span class="ot">&lt;-</span> <span class="fu">brm</span>(k <span class="sc">~</span> treatment <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">|</span> replicate), <span class="at">data =</span> k_df, <span class="at">prior =</span> prior_k)  </span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a><span class="fu">posterior_summary</span>(mod_bayes)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
 </section>
 <section id="ideas-for-incorporation-of-cue" class="level2">
 <h2 class="anchored" data-anchor-id="ideas-for-incorporation-of-cue">Ideas for incorporation of CUE</h2>
@@ -398,17 +358,17 @@ window.Quarto = {
 <p><span class="math inline">\(\alpha\)</span> = CUE x <span class="math inline">\(f_{stabilization}\)</span></p>
 <p>where: CUE = measured <span class="math inline">\(f_{stabilization}\)</span> = fitted stabilization efficiency</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>alpha <span class="ot">=</span> CUE <span class="sc">*</span> <span class="er">$</span>f_{stab}<span class="sc">$</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>alpha <span class="ot">=</span> CUE <span class="sc">*</span> <span class="er">$</span>f_{stab}<span class="sc">$</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p><em>Option B:</em></p>
 <ul>
 <li>Fast-pool loss becomes:</li>
 </ul>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>C_loss <span class="ot">=</span> k <span class="sc">*</span> C</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>C_to_growth <span class="ot">=</span> CUE <span class="sc">*</span> C_loss</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>C_to_resp <span class="ot">=</span> (<span class="dv">1</span> <span class="sc">-</span> CUE) <span class="sc">*</span> C_loss</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>C_to_slow <span class="ot">=</span> <span class="er">$</span>f_{stab}<span class="sc">$</span> <span class="er">*</span> C_to_growth</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>C_loss <span class="ot">=</span> k <span class="sc">*</span> C</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>C_to_growth <span class="ot">=</span> CUE <span class="sc">*</span> C_loss</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>C_to_resp <span class="ot">=</span> (<span class="dv">1</span> <span class="sc">-</span> CUE) <span class="sc">*</span> C_loss</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>C_to_slow <span class="ot">=</span> <span class="er">$</span>f_{stab}<span class="sc">$</span> <span class="er">*</span> C_to_growth</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <ul>
 <li>Since CUE is measured in short-term incubation, it is safer to be treated as a process constraint in the time-integrated model, not as a direct flux</li>
