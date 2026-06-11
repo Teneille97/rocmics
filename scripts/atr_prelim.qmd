@@ -14,7 +14,7 @@ This document summarizes the preliminary ATR-FTIR spectral findings following ch
 
 ## Preliminary Spectral Visualizations
 
-The code generates plots comparing the pre- and post-extraction spectral changes for the Control vs. Bolsdorfer rock powder treatments.
+The code generates plots comparing the pre- and post-extraction spectral changes for the Control (sample 1 and 18) vs. Bolsdorfer rock powder treatments (sample 4 and 20).
 
 ```{r}
 #| echo: false
