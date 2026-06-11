@@ -1,0 +1,11 @@
+﻿Sample name,SN2,SN3,SN4,SN5,BoxNo,BoxPos,Sample year,Number,Parameter,Result,Error,Unit,Instrument,Meas.date,Weight (mg),Muffle furnace,Comment
+6_2026_Bulk_mfl,Lime,N,,,1,A1,2026,4027,Cinorg,under range,,%,Elementaranalyse VarioMAX cube,2026/04/15,240.61,Y,C under range
+17_2026_Bulk_mfl,Lime,N,,,1,A2,2026,4028,Cinorg,0.02,,%,Elementaranalyse VarioMAX cube,2026/04/15,255.90,Y,
+10_2026_Bulk_mfl,Lime,N,,,1,A3,2026,4029,Cinorg,under range,,%,Elementaranalyse VarioMAX cube,2026/04/15,240.73,Y,C under range
+10_2025_MAOM_mfl,Lime,N,,,1,A4,2026,4030,Cinorg,under range,,%,Elementaranalyse VarioMAX cube,2026/04/15,256.22,Y,C under range
+17_2026_MAOM_mfl,Lime,N,,,1,A5,2026,4031,Cinorg,0.04,,%,Elementaranalyse VarioMAX cube,2026/04/15,252.22,Y,
+6_2025_MAOM_mfl,Lime,N,,,1,A6,2026,4032,Cinorg,under range,,%,Elementaranalyse VarioMAX cube,2026/04/15,251.51,Y,C under range
+17_2025_MAOM_mfl,Lime,N,,,1,A7,2026,4033,Cinorg,under range,,%,Elementaranalyse VarioMAX cube,2026/04/15,250.19,Y,C under range
+6_2026_MAOM_mfl,Lime,N,,,1,A8,2026,4034,Cinorg,under range,,%,Elementaranalyse VarioMAX cube,2026/04/15,242.51,Y,C under range
+17_2026_MAOM_redo_mfl,Lime,N,,,1,A9,2026,4035,Cinorg,under range,,%,Elementaranalyse VarioMAX cube,2026/04/15,249.28,Y,C under range
+10_2026_MAOM_redo_mfl,Lime,N,,,1,A10,2026,4036,Cinorg,under range,,%,Elementaranalyse VarioMAX cube,2026/04/15,253.17,Y,C under range
