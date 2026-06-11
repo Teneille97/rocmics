@@ -1,3 +1,5 @@
+library(tidyverse)
+
 process_plot <- function(folder_name) {
   
   folder_path <- file.path(base_dir, folder_name)

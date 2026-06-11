@@ -1,0 +1,489 @@
+---
+title: "ATR-FTIR Preliminary Analysis Update"
+author: "Teneille Nel"
+date: "`r Sys.Date()`"
+format: html
+editor: visual
+---
+
+## Overview: ATR Preliminary Findings
+
+This document summarizes the preliminary ATR-FTIR spectral findings following chemical extractions to evaluate changes in organo-mineral environments between the control and rock powder treatments.
+
+------------------------------------------------------------------------
+
+## Preliminary Spectral Visualizations
+
+The code generates plots comparing the pre- and post-extraction spectral changes for the Control vs. Bolsdorfer rock powder treatments.
+
+```{r}
+#| echo: false
+#| message: false
+#| label: ATR comparison results
+#| warning: FALSE
+
+library(stringr)
+library(reshape)
+library(data.table)
+library(nc)
+library(baseline)
+library(ggplot2)
+library(tidyr)
+library(pracma)
+library(dplyr)
+library(prospectr)
+
+
+# ---------------------------------------------------------
+# PROCESS SPECTRA
+# ---------------------------------------------------------
+
+process_spectra <- function(path){
+  
+  # ---- import ----
+  long_table <- data.table(
+    filename = Sys.glob(path)
+  )[by = filename,
+    j = fread(filename, col.names = c("wavenumber", "absorbance"))
+  ]
+  
+  # ---- metadata ----
+  meta <- nc::capture_first_vec(
+    long_table$filename,
+    sample_no = "\\d{1,2}",
+    rep_no = "[a|b|c]{1,2}",
+    nomatch.error = FALSE
+  )
+  
+  meta_long <- cbind(long_table, meta)
+  
+  meta_long <- meta_long %>%
+    mutate(
+      wavenumber = round(wavenumber, 0),
+      sample_rep = paste(sample_no, rep_no, sep = "_")
+    ) %>%
+    rename(
+      wave = wavenumber,
+      abs = absorbance,
+      sample = filename
+    )
+  
+  # ---------------------------------------------------------
+  # BUILD WIDE MATRIX (raw)
+  # ---------------------------------------------------------
+  spec_wide <- dcast(meta_long, sample_rep ~ wave, value.var = "abs")
+  
+  ids <- spec_wide$sample_rep
+  spec_mat <- as.matrix(spec_wide[, -1, with = FALSE])
+  waves <- as.numeric(colnames(spec_wide)[-1])
+  
+  # ---------------------------------------------------------
+  # BASELINE CORRECTION
+  # ---------------------------------------------------------
+  bl <- baseline::baseline(spec_mat, method = "als")
+  spec_corr <- getCorrected(bl)
+  
+  corr_mat <- as.data.frame(spec_corr)
+  corr_mat$sample_rep <- ids
+  
+  corr_long <- data.table::melt(
+    setDT(corr_mat),
+    id.vars = "sample_rep",
+    variable.name = "wave",
+    value.name = "abs_corr"
+  )
+  
+  corr_long[, wave := as.numeric(as.character(wave))]
+  
+  # ---------------------------------------------------------
+  # DEFINE COMMON GRID HERE
+  # ---------------------------------------------------------
+  common_grid <- sort(unique(corr_long$wave))
+  
+  # force consistent grid ordering
+  corr_long <- corr_long %>%
+    filter(wave %in% common_grid)
+  
+  # ---------------------------------------------------------
+  # PEAK DETECTION (raw derivative space)
+  # ---------------------------------------------------------
+  
+  spec_deriv <- prospectr::savitzkyGolay(
+    X = spec_mat,
+    p = 2,
+    w = 11,
+    m = 1
+  )
+  
+  detect_peaks <- function(x, y, threshold = 0.0005){
+    
+    dy <- diff(y)
+    peak_idx <- which(diff(sign(dy)) == -2) + 1
+    peak_idx <- peak_idx[abs(y[peak_idx]) > threshold]
+    
+    data.frame(
+      wave = x[peak_idx],
+      intensity = y[peak_idx],
+      index = peak_idx
+    )
+  }
+  
+  x <- waves
+  
+  peak_list <- lapply(seq_len(nrow(spec_deriv)), function(i){
+    
+    res <- detect_peaks(x, spec_deriv[i, ])
+    
+    if(is.null(res) || nrow(res) == 0) return(NULL)
+    
+    data.frame(
+      sample_rep = ids[i],
+      res
+    )
+  })
+  
+  peaks <- bind_rows(peak_list)
+  
+  list(
+    raw = meta_long,
+    corrected = corr_long,
+    peaks = peaks,
+    grid = common_grid
+  )
+}
+
+# ---------------------------------------------------------
+# RUN
+# ---------------------------------------------------------
+
+before <- process_spectra("C:/Users/tnel/OneDrive - Universiteit Antwerpen/Documents/rocmics/dpt_files/prelim_before/*.dpt")
+after  <- process_spectra("C:/Users/tnel/OneDrive - Universiteit Antwerpen/Documents/rocmics/dpt_files/prelim_after/*.dpt")
+
+# ---------------------------------------------------------
+# FILTER REGION
+# ---------------------------------------------------------
+
+before_filt <- before$corrected %>%
+  filter(wave >= 800, wave <= 3000)
+
+after_filt <- after$corrected %>%
+  filter(wave >= 800, wave <= 3000)
+
+# ---------------------------------------------------------
+# NORMALIZATION
+# ---------------------------------------------------------
+
+normalize_spectra <- function(df){
+  
+  df %>%
+    group_by(sample_rep) %>%
+    mutate(
+      abs_norm = abs_corr / sqrt(sum(abs_corr^2, na.rm = TRUE))
+    ) %>%
+    ungroup()
+}
+
+before_filt <- normalize_spectra(before_filt)
+after_filt  <- normalize_spectra(after_filt)
+
+# ---------------------------------------------------------
+# AVERAGING 
+# ---------------------------------------------------------
+
+before_avg <- before_filt %>%
+  mutate(sample = sub("_[a-z]+$", "", sample_rep)) %>%
+  group_by(sample, wave) %>%
+  summarise(abs_corr = mean(abs_norm), .groups = "drop")
+
+after_avg <- after_filt %>%
+  mutate(sample = sub("_[a-z]+$", "", sample_rep)) %>%
+  group_by(sample, wave) %>%
+  summarise(abs_corr = mean(abs_norm), .groups = "drop")
+
+# ---------------------------------------------------------
+# SECOND DERIVATIVE
+# ---------------------------------------------------------
+
+compute_second_derivative <- function(df){
+  
+  samples <- unique(df$sample)
+  grid <- sort(unique(df$wave))
+  n <- length(grid)
+  
+  out <- list()
+  
+  for(s in samples){
+    
+    tmp <- df %>%
+      filter(sample == s) %>%
+      arrange(wave)
+    
+    y <- tmp$abs_corr
+    
+    y2 <- savitzkyGolay(
+      matrix(y, nrow = 1),
+      p = 3,
+      w = 11,
+      m = 2
+    )[1, ]
+    
+    # -------------------------------------------------------
+    # ALIGNMENT FIX: PAD TO FULL LENGTH
+    # -------------------------------------------------------
+    
+    if(length(y2) != n){
+      
+      pad <- rep(NA, n)
+      
+      offset <- floor((n - length(y2)) / 2)
+      
+      pad[(offset + 1):(offset + length(y2))] <- y2
+      
+      y2 <- pad
+    }
+    
+    out[[s]] <- data.frame(
+      sample = s,
+      wave = grid,
+      deriv2 = as.numeric(y2)
+    )
+  }
+  
+  bind_rows(out)
+}
+before_deriv2 <- compute_second_derivative(before_avg)
+after_deriv2  <- compute_second_derivative(after_avg)
+
+# plot overlaid sample spectra
+
+samples <- unique(before_avg$sample)
+
+for(s in samples){
+  
+  overlay <- bind_rows(
+    before_avg %>%
+      filter(sample == s) %>%
+      mutate(dataset = "Before"),
+    
+    after_avg %>%
+      filter(sample == s) %>%
+      mutate(dataset = "After")
+  )
+  
+  p <- ggplot(overlay,
+              aes(wave,
+                  abs_corr,
+                  colour = dataset)) +
+    geom_line(size = 1) +
+    scale_x_reverse() +
+    theme_bw() +
+    coord_cartesian(xlim = c(3000, 800)) +
+    labs(
+      title = paste("Sample", s),
+      x = "Wavenumber (cm-1)",
+      y = "Corrected absorbance"
+    )
+  
+  print(p)
+  
+}
+
+# --------------------------------------------------
+# Difference spectra
+# after - before
+# --------------------------------------------------
+
+diff_spec <- before_avg %>%
+  rename(before = abs_corr) %>%
+  left_join(
+    after_avg %>%
+      rename(after = abs_corr),
+    by = c("sample", "wave")
+  ) %>%
+  mutate(diff = after - before)
+
+# --------------------------------------------------
+# Plot all samples
+# --------------------------------------------------
+
+ggplot(diff_spec,
+       aes(wave, diff, colour = factor(sample))) +
+  
+  geom_hline(yintercept = 0,
+             linetype = "dashed") +
+  
+  geom_line(size = 0.8) +
+  
+  scale_x_reverse() +
+  
+  theme_bw() +
+  
+  labs(
+    title = "Difference spectra (After − Before)",
+    x = expression(Wavenumber~(cm^{-1})),
+    y = "Difference absorbance",
+    colour = "Sample"
+  ) +
+  
+  coord_cartesian(
+    xlim = c(1800, 800)
+  )
+
+ggplot(diff_spec,
+       aes(wave, diff)) +
+  
+  geom_hline(yintercept = 0,
+             linetype = "dashed") +
+  
+  geom_line(size = 0.8) +
+  
+  scale_x_reverse() +
+  
+  facet_wrap(~sample,
+             ncol = 2,
+             scales = "free_y") +
+  
+  theme_bw() +
+  
+  labs(
+    title = "Difference spectra (After − Before)",
+    x = expression(Wavenumber~(cm^{-1})),
+    y = "Difference absorbance"
+  ) +
+  
+  coord_cartesian(
+    xlim = c(1800, 800)
+  )
+```
+## Band region integrations
+
+The code generates changes in areas under absorbance spectra associated with functional groups involved in interactions with cations.
+
+```{r}
+#| echo: false
+#| message: false
+#| label: ATR integration results
+#| warning: FALSE
+
+# ---------------------------------------------------------
+# Function to integrate spectral regions
+# ---------------------------------------------------------
+
+integrate_bands <- function(df){
+  
+  bands <- list(
+    COO_sym  = c(1380,1425),   # COO- symmetric stretch
+    COO_asym = c(1580,1650),   # COO- asymmetric stretch
+    Silicate = c(1000,1120),   # silicates
+    Carbonate_bend = c(870,880),     # carbonate bend
+    carbonate_stretch = c(1415,1480),
+    double_bond = c(1510,1580), #aromatic & amide
+    polysaccharide = c(1030-1080) # C-O and mineral-bound carbohydrates
+  )
+  
+  results <- lapply(unique(df$sample), function(s){
+    
+    sub <- df %>% filter(sample == s)
+    
+    out <- data.frame(sample = s)
+    
+    for(b in names(bands)){
+      
+      rng <- bands[[b]]
+      
+      tmp <- sub %>%
+        filter(wave >= rng[1],
+               wave <= rng[2]) %>%
+        arrange(wave)
+      
+      area <- trapz(tmp$wave, tmp$abs_corr)
+      
+      out[[b]] <- area
+    }
+    
+    out
+  })
+  
+  bind_rows(results)
+}
+
+# ---------------------------------------------------------
+# Calculate integrated areas
+# ---------------------------------------------------------
+
+before_areas <- integrate_bands(before_avg) %>%
+  mutate(dataset = "before")
+
+after_areas <- integrate_bands(after_avg) %>%
+  mutate(dataset = "after")
+
+# ---------------------------------------------------------
+# Combine and calculate extraction effect
+# ---------------------------------------------------------
+
+band_compare <- before_areas %>%
+  select(-dataset) %>%
+  rename_with(~paste0(.x,"_before"), -sample) %>%
+  left_join(
+    after_areas %>%
+      select(-dataset) %>%
+      rename_with(~paste0(.x,"_after"), -sample),
+    by = "sample"
+  ) %>%
+  mutate(
+    COO_sym_change =
+      100*(COO_sym_after - COO_sym_before)/COO_sym_before,
+    
+    COO_asym_change =
+      100*(COO_asym_after - COO_asym_before)/COO_asym_before,
+    
+    Silicate_change =
+      100*(Silicate_after - Silicate_before)/Silicate_before,
+    
+    Carbonate_bend_change =
+      100*(Carbonate_bend_after - Carbonate_bend_before)/Carbonate_bend_before,
+    
+    carbonate_stretch_change =
+      100*(carbonate_stretch_after - carbonate_stretch_before)/carbonate_stretch_before,
+    
+    double_bond_change =
+      100*(double_bond_after - double_bond_before)/double_bond_before,
+    
+    polysaccharide_change =
+      100*(polysaccharide_after - polysaccharide_before)/polysaccharide_before  
+    )
+
+# inspect
+band_compare
+
+```
+
+------------------------------------------------------------------------
+
+## Key Results
+
+- **Control Treatment Dynamics:**
+  - Demonstrated a higher abundance of **labile cation-organic associations**.
+  - Extraction induced a highly consistent shift in the carboxylate environment, characterized by a **decrease in the** $COO^-$ asymmetric stretching region and a corresponding **increase in the** $COO^-$ symmetric stretching region.
+- **Rock Powder Treatment Stability:**
+  - Significantly **reduced the sensitivity of the carboxylate environment** to chemical extraction.
+  - Indicates the formation of **more stable, less extractable organo-mineral complexes**.
+- **Mineral Matrix Preservation:**
+  - The **silicate region remained largely stable** across extractions, confirming that the underlying mineral matrix was conserved.
+
+## Interpretations & Next Steps
+
+### Primary Interpretation: Enhanced Organo-Mineral Passivation
+
+If the rock powder successfully weathered and released structural cations ($\text{Ca}^{2+}$, $\text{Mg}^{2+}$, $\text{Fe}^{3+}$, or $\text{Al}^{3+}$), organic matter likely became tightly associated with newly formed mineral surfaces or precipitated mineral phases. Because these bonds are no longer primarily held together by easily exchangeable ions, removing the exchangeable cation pool did not drastically disrupt the carboxylate spectral environment.
+
+### Alternative Hypotheses & Experimental Verification
+
+1.  **Cation Saturation/Incomplete Extraction**
+    - *Hypothesis:* Weathering may have released a pool of structural $\text{Ca}^{2+}$ or $\text{Mg}^{2+}$ so large that the current extraction protocol could not completely deplete it, resulting in a deceptively small net spectral change.
+    - *Validation:* We can rule this out by running a **longer extraction time** for the full sample set (the preliminary test only used a 30-minute extraction window).
+2.  **Physical Aggregation & Mass Transfer Limitations**
+    - *Hypothesis:* The rock powder treatment may promote physical aggregation, physically shielding reactive surfaces from interacting with the extraction solution.
+    - *Validation:* We will explicitly test this physical stabilization mechanism via the upcoming **sonication experiment**.
+
+------------------------------------------------------------------------
