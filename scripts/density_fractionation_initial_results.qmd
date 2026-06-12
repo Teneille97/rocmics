@@ -1,3 +1,27 @@
+---
+title: "density_fractionation_initial_results"
+format: html
+author: "Teneille Nel"
+date: "`r Sys.Date()`"
+editor: visual
+---
+
+## Density fractionation procedure
+
+This script is available at <https://quarto.org> 
+I performed density fractionation using method...
+
+## SOM pools as proportions of bulk
+
+Mass-based pools recovered from density fractionation were as follows:
+
+```{r}
+
+#| echo: false
+#| message: false
+#| label: Proportions of SOM pools
+#| warning: FALSE
+
 library(tidyverse)
 library(here)
 library(dplyr)
@@ -87,43 +111,11 @@ density_fractionation <- density_fractionation %>%
 #calculate recovery
 density_fractionation$recovery_percent<-100*density_fractionation$total.mass.som.fractions/density_fractionation$mass.soil.corr
 
-#plot outliers
-
-# 1. Ensure recovery_percent is calculated
-density_fractionation$recovery_percent <- 100 * (density_fractionation$total.mass.som.fractions / density_fractionation$mass.soil.corr)
-
-# 2. Filter to one row per sample and identify outliers
-# We define outliers as points outside 1.5 * IQR
-plot_data <- density_fractionation %>%
-  distinct(Sampling_year, Plot, recovery_percent) %>%
-  mutate(
-    # Logical check for outliers
-    is_outlier = recovery_percent < (quantile(recovery_percent, 0.25, na.rm=T) - 1.5 * IQR(recovery_percent, na.rm=T)) | 
-      recovery_percent > (quantile(recovery_percent, 0.75, na.rm=T) + 1.5 * IQR(recovery_percent, na.rm=T)),
-    # Create the label only for outliers
-    outlier_label = ifelse(is_outlier, paste0("Plot ", Plot, " (", Sampling_year, ")"), NA)
-  )
-
-# 3. Generate the plot
-ggplot(plot_data, aes(x = factor(Sampling_year), y = recovery_percent)) +
-  geom_boxplot(outlier.shape = NA) + # Hide default outliers to avoid double-plotting
-  geom_jitter(width = 0.1, alpha = 0.4, color = "blue") + # Show individual data points
-  geom_text_repel(aes(label = outlier_label), 
-                  na.rm = TRUE, 
-                  box.padding = 0.5, 
-                  segment.color = 'grey50') +
-  labs(title = "SOM Fraction Recovery Percentage",
-       subtitle = "Outliers labeled by Plot number and Sampling Year",
-       x = "Sampling Year",
-       y = "Mass Recovery (%)") +
-  theme_minimal()
-
 # Calculate the proportion of each fraction within its own sample
 df_proportions <- density_fractionation %>%
   mutate(
     fraction_prop = (mass.som.fraction / total.mass.som.fractions) * 100
   )
-
 # add CN data - bulk 2026 & MAOM
 
 # Convert CN data from long to wide format
@@ -218,20 +210,6 @@ df_proportions <- df_proportions %>%
 df_proportions$Cprop<-(df_proportions$Ctotal*df_proportions$fraction_prop)/(df_proportions$C_bulk)
 df_proportions$Nprop<-(df_proportions$Ntotal*df_proportions$fraction_prop)/(df_proportions$N_bulk)
 
-
-# Do the replicates look similar?
-# We'll group by the factors that define a "replicate"
-replicate_summary <- df_proportions %>%
-  group_by(Tmt, App_rate, Sampling_year, SOM_fraction) %>%
-  summarise(
-    mean_prop = mean(fraction_prop, na.rm = TRUE),
-    sd_prop = sd(fraction_prop, na.rm = TRUE),
-    cv = (sd_prop / mean_prop) * 100, # Coefficient of Variation
-    .groups = "drop"
-  )
-
-print(replicate_summary, n = 63)
-
 #visualize SOM proportions (mass-based)
 # 1. Prepare data (filter for replicates and ensure proportions are calculated)
 plot_data_faceted <- df_proportions %>%
@@ -259,6 +237,18 @@ ggplot(plot_data_faceted, aes(x = factor(Tmt), y = fraction_prop, fill = Tmt)) +
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "none" # Hide legend since X-axis labels cover it
   )
+
+```
+
+We measured C content by combustion and multiplied the %C of each pool by the proportion of that pool as a fraction of the bulk to determine the distribution of bulk soil C among pools:
+
+```{r}
+#| echo: false
+#| message: false
+#| label: Distribution of C among pools
+#| warning: FALSE
+
+
 
 # plot C and N in SOM fraction as proportion of bulk 
 
@@ -297,6 +287,19 @@ ggplot(plot_data_faceted, aes(x = factor(Tmt), y = Nprop, fill = Tmt)) +
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "none" # Hide legend since X-axis labels cover it
   )
+
+
+
+```
+
+We also normalized the % change to the control as (treatment-control)/control x 100%
+
+```{r}
+#| echo: false
+#| message: false
+#| label: Normalized to control
+#| warning: FALSE
+
 
 # normalize by control in that year (z-score effect)
 control_baseline <- df_proportions %>%
@@ -355,3 +358,4 @@ ggplot(plot_data_pct, aes(x = factor(Tmt), y = Nprop_pct, fill = Tmt)) +
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
