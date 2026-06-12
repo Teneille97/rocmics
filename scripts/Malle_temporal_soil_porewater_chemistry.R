@@ -158,7 +158,7 @@ make_lab <- function(element) {
   )
 }
 
-elements <- c("Ca","Mg","K","Fe","Mn","Cu","Zn","B","S","Cd","Pb")
+elements <- c("Ca","Mg","K","Fe","Mn","Cu","Zn","B","S","Pb")
 labels   <- setNames(lapply(elements, make_lab), elements)
 
 # Common filter 
@@ -194,18 +194,386 @@ names(PRS_plots) <- elements
 plots <- list(soilpH_plot, soilEC_plot, rhizon_pH_plot, rhizon_EC_plot, rhizon_DIC_plot, rhizon_DOC_plot, rhizon_alkalinity_plot, rhizon_Ca_plot, rhizon_Mg_plot, rhizon_Na_plot, rhizon_K_plot, rhizon_Al_plot, rhizon_Fe_plot,
               PRS_plots$Ca, PRS_plots$Mg, PRS_plots$K, PRS_plots$Fe, PRS_plots$Mn, PRS_plots$Cu, PRS_plots$Zn, PRS_plots$B, PRS_plots$S, PRS_plots$Pb)  
 
-#print in console
-#for (p in plots) print(p)
+# ============================================================
+# CONTROL-NORMALIZED PLOTS
+# (% change relative to Control at each sampling date)
+# pH uses absolute difference because pH is logarithmic
+# ============================================================
 
-#render with quarto
-#multi_page <- marrangeGrob(
-  #grobs = plots,
-  #nrow = 1,
-  #ncol = 1,
-  #top = NULL,      # removes “page x” title inside gridExtra
-  #layout_matrix = matrix(1) # ensures full-page plot
-#)
-#multi_page
+# helper function for % change variables
+plot_time_series_norm <- function(df, date_col, yvar_mean,
+                                  y_label, plot_title,
+                                  ylim = NULL) {
+  
+  control <- df %>%
+    filter(Tmt == "Control", App_rate == "0") %>%
+    select(
+      !!sym(date_col),
+      control_value = all_of(yvar_mean)
+    )
+  
+  df_norm <- df %>%
+    left_join(control, by = date_col) %>%
+    mutate(
+      norm_value = ifelse(
+        is.na(control_value) | control_value == 0,
+        NA_real_,
+        100 * ((.data[[yvar_mean]] - control_value) /
+                 control_value)
+      )
+    )
+  
+  ggplot(
+    filter_valid_treatments(df_norm, date_col),
+    aes_string(
+      x = date_col,
+      y = "norm_value",
+      colour = "Tmt"
+    )
+  ) +
+    geom_hline(yintercept = 0,
+               linetype = 2,
+               colour = "grey70") +
+    geom_point(size = 4) +
+    scale_x_date(
+      breaks = "3 months",
+      date_labels = "%b %Y"
+    ) +
+    theme(
+      axis.text.x =
+        element_text(angle = 45,
+                     hjust = 1,
+                     vjust = 1)
+    ) +
+    labs(
+      y = paste0(y_label, " (% change vs Control)"),
+      title = paste0(plot_title,
+                     " (Control-normalized)"),
+      colour = "Treatment"
+    ) +
+    {if (!is.null(ylim)) ylim(ylim)}
+}
+
+
+# helper function for pH
+plot_time_series_norm_pH <- function(df, date_col, yvar_mean,
+                                     y_label, plot_title) {
+  
+  control <- df %>%
+    filter(Tmt == "Control", App_rate == "0") %>%
+    select(
+      !!sym(date_col),
+      control_value = all_of(yvar_mean)
+    )
+  
+  df_norm <- df %>%
+    left_join(control, by = date_col) %>%
+    mutate(
+      norm_value = ifelse(
+        is.na(control_value) | control_value == 0,
+        NA_real_,
+        100 * ((.data[[yvar_mean]] - control_value) /
+                 control_value)
+      )
+    )
+  ggplot(
+    filter_valid_treatments(df_norm, date_col),
+    aes_string(
+      x = date_col,
+      y = "norm_value",
+      colour = "Tmt"
+    )
+  ) +
+    geom_hline(yintercept = 0,
+               linetype = 2,
+               colour = "grey70") +
+    geom_point(size = 4) +
+    scale_x_date(
+      breaks = "3 months",
+      date_labels = "%b %Y"
+    ) +
+    theme(
+      axis.text.x =
+        element_text(angle = 45,
+                     hjust = 1,
+                     vjust = 1)
+    ) +
+    labs(
+      y = paste0(y_label, " (Δ vs Control)"),
+      title = paste0(plot_title,
+                     " (Control-normalized)"),
+      colour = "Treatment"
+    )
+}
+
+
+# ============================================================
+# SOIL pH / EC
+# ============================================================
+
+soilpH_plot_norm <- plot_time_series_norm_pH(
+  Alldata_Soil_phEC_summary,
+  "Date",
+  "mean_pH",
+  "Soil pH",
+  "Soil pH over time"
+)
+
+soilEC_plot_norm <- plot_time_series_norm(
+  Alldata_Soil_phEC_summary,
+  "Date",
+  "mean_EC",
+  "Soil EC (uS/cm)",
+  "Soil EC over time"
+)
+
+
+# ============================================================
+# RHIZON
+# ============================================================
+
+rhizon_pH_plot_norm <- plot_time_series_norm_pH(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_pH",
+  "Porewater pH",
+  "Porewater pH over time"
+)
+
+rhizon_EC_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_EC_µS_cm",
+  "Porewater EC (uS/cm)",
+  "Porewater EC over time"
+)
+
+rhizon_DIC_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_DIC",
+  "Porewater DIC (ppm)",
+  "Porewater DIC over time"
+)
+
+rhizon_DOC_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_DOC",
+  "Porewater DOC (ppm)",
+  "Porewater DOC over time"
+)
+
+rhizon_alkalinity_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_Alkalinity_meq_l",
+  "Porewater alkalinity (meq/L)",
+  "Porewater alkalinity over time"
+)
+
+rhizon_Ca_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_Ca_mg_l",
+  "Porewater Ca (mg/L)",
+  "Porewater Ca over time"
+)
+
+rhizon_Mg_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_Mg_mg_l",
+  "Porewater Mg (mg/L)",
+  "Porewater Mg over time"
+)
+
+rhizon_Na_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_Na_mg_l",
+  "Porewater Na (mg/L)",
+  "Porewater Na over time"
+)
+
+rhizon_K_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_K_mg_l",
+  "Porewater K (mg/L)",
+  "Porewater K over time"
+)
+
+rhizon_Al_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_Al_mg_l",
+  "Porewater Al (mg/L)",
+  "Porewater Al over time"
+)
+
+rhizon_Fe_plot_norm <- plot_time_series_norm(
+  Alldata_Rhizon_summary,
+  "Sampled_on",
+  "mean_Fe_mg_l",
+  "Porewater Fe (mg/L)",
+  "Porewater Fe over time"
+)
+
+
+# ============================================================
+# PRS NORMALIZED PLOTS
+# ============================================================
+
+make_prs_plot_norm <- function(df, element) {
+  
+  control <- df %>%
+    filter(Tmt == "Control", App_rate == "0") %>%
+    select(
+      Retrieval.Date,
+      control_value = all_of(element)
+    )
+  
+  df_norm <- df %>%
+    left_join(control,
+              by = "Retrieval.Date") %>%
+    mutate(
+      norm_value = ifelse(
+        is.na(control_value) | control_value == 0,
+        NA_real_,
+        100 * ((.data[[element]] - control_value) /
+                 control_value)
+      )
+    )
+  
+  ggplot(
+    df_norm,
+    aes(
+      x = Retrieval.Date,
+      y = norm_value,
+      colour = Tmt
+    )
+  ) +
+    geom_hline(
+      yintercept = 0,
+      linetype = 2,
+      colour = "grey70"
+    ) +
+    geom_point(size = 4) +
+    scale_x_date(
+      breaks = "3 months",
+      date_labels = "%b %Y"
+    ) +
+    theme(
+      axis.text.x =
+        element_text(angle = 45,
+                     hjust = 1,
+                     vjust = 1)
+    ) +
+    labs(
+      y = paste0(element,
+                 " (% change vs Control)"),
+      title = paste0(
+        element,
+        " supply rate over time (Control-normalized)"
+      ),
+      colour = "Treatment"
+    )
+}
+
+PRS_plots_norm <- lapply(
+  elements,
+  function(el) make_prs_plot_norm(PRS_filtered, el)
+)
+
+names(PRS_plots_norm) <- elements
+
+# ============================================================
+# COMBINE ORIGINAL + NORMALIZED PLOTS
+# ============================================================
+
+plots_all <- list(
+  
+  # Soil chemistry
+  soilpH_plot,
+  soilpH_plot_norm,
+  
+  soilEC_plot,
+  soilEC_plot_norm,
+  
+  # Rhizon chemistry
+  rhizon_pH_plot,
+  rhizon_pH_plot_norm,
+  
+  rhizon_EC_plot,
+  rhizon_EC_plot_norm,
+  
+  rhizon_DIC_plot,
+  rhizon_DIC_plot_norm,
+  
+  rhizon_DOC_plot,
+  rhizon_DOC_plot_norm,
+  
+  rhizon_alkalinity_plot,
+  rhizon_alkalinity_plot_norm,
+  
+  rhizon_Ca_plot,
+  rhizon_Ca_plot_norm,
+  
+  rhizon_Mg_plot,
+  rhizon_Mg_plot_norm,
+  
+  rhizon_Na_plot,
+  rhizon_Na_plot_norm,
+  
+  rhizon_K_plot,
+  rhizon_K_plot_norm,
+  
+  rhizon_Al_plot,
+  rhizon_Al_plot_norm,
+  
+  rhizon_Fe_plot,
+  rhizon_Fe_plot_norm,
+  
+  # PRS nutrients
+  PRS_plots$Ca,
+  PRS_plots_norm$Ca,
+  
+  PRS_plots$Mg,
+  PRS_plots_norm$Mg,
+  
+  PRS_plots$K,
+  PRS_plots_norm$K,
+  
+  PRS_plots$Fe,
+  PRS_plots_norm$Fe,
+  
+  PRS_plots$Mn,
+  PRS_plots_norm$Mn,
+  
+  PRS_plots$Cu,
+  PRS_plots_norm$Cu,
+  
+  PRS_plots$Zn,
+  PRS_plots_norm$Zn,
+  
+  PRS_plots$B,
+  PRS_plots_norm$B,
+  
+  PRS_plots$S,
+  PRS_plots_norm$S,
+  
+  PRS_plots$Pb,
+  PRS_plots_norm$Pb
+)
+multi_page <- marrangeGrob(
+  grobs = plots_all,
+  nrow = 1,
+  ncol = 1,
+  top = NULL
+)
+
+print(multi_page)
 
 ### --- animate plots --------------------------------------------------------
 # Normalize function 

@@ -1,5 +1,5 @@
 ---
-title: "density_fractionation_initial_results"
+title: "Density fractionation initial results"
 format: html
 author: "Teneille Nel"
 date: "`r Sys.Date()`"
@@ -8,15 +8,14 @@ editor: visual
 
 ## Density fractionation procedure
 
-This script is available at <https://quarto.org> 
-I performed density fractionation using method...
+Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>.
+I performed density fractionation by density fractionation using SPT and ca. 10 g soil at Max Planck Institute for Biogeochemistry.
 
 ## SOM pools as proportions of bulk
 
 Mass-based pools recovered from density fractionation were as follows:
 
 ```{r}
-
 #| echo: false
 #| message: false
 #| label: Proportions of SOM pools
@@ -240,7 +239,7 @@ ggplot(plot_data_faceted, aes(x = factor(Tmt), y = fraction_prop, fill = Tmt)) +
 
 ```
 
-We measured C content by combustion and multiplied the %C of each pool by the proportion of that pool as a fraction of the bulk to determine the distribution of bulk soil C among pools:
+The total C and N content of bulk soil and SOM fractions was measured by combustion. The %C of each pool was multiplied by the proportion of that pool as a fraction of the bulk to determine the distribution of bulk soil C among pools:
 
 ```{r}
 #| echo: false
@@ -292,7 +291,7 @@ ggplot(plot_data_faceted, aes(x = factor(Tmt), y = Nprop, fill = Tmt)) +
 
 ```
 
-We also normalized the % change to the control as (treatment-control)/control x 100%
+The % change of C distribution was normalized to the control as (treatment-control)/control x 100%.
 
 ```{r}
 #| echo: false

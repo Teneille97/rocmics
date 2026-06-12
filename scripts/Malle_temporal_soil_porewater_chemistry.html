@@ -7,9 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Teneille Nel">
-<meta name="dcterms.date" content="2026-06-12">
 
-<title>Density fractionation initial results</title>
+<title>Malle temporal soil porewater chemistry</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -28,17 +27,17 @@ ul.task-list li input[type="checkbox"] {
 </style>
 
 
-<script src="density_fractionation_initial_results_files/libs/clipboard/clipboard.min.js"></script>
-<script src="density_fractionation_initial_results_files/libs/quarto-html/quarto.js" type="module"></script>
-<script src="density_fractionation_initial_results_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="density_fractionation_initial_results_files/libs/quarto-html/popper.min.js"></script>
-<script src="density_fractionation_initial_results_files/libs/quarto-html/tippy.umd.min.js"></script>
-<script src="density_fractionation_initial_results_files/libs/quarto-html/anchor.min.js"></script>
-<link href="density_fractionation_initial_results_files/libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="density_fractionation_initial_results_files/libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="density_fractionation_initial_results_files/libs/bootstrap/bootstrap.min.js"></script>
-<link href="density_fractionation_initial_results_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="density_fractionation_initial_results_files/libs/bootstrap/bootstrap-efbb37e9afcc02144ebbc7afd12a776f.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="Malle_temporal_soil_porewater_chemistry_files/libs/clipboard/clipboard.min.js"></script>
+<script src="Malle_temporal_soil_porewater_chemistry_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="Malle_temporal_soil_porewater_chemistry_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="Malle_temporal_soil_porewater_chemistry_files/libs/quarto-html/popper.min.js"></script>
+<script src="Malle_temporal_soil_porewater_chemistry_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="Malle_temporal_soil_porewater_chemistry_files/libs/quarto-html/anchor.min.js"></script>
+<link href="Malle_temporal_soil_porewater_chemistry_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="Malle_temporal_soil_porewater_chemistry_files/libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="Malle_temporal_soil_porewater_chemistry_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="Malle_temporal_soil_porewater_chemistry_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="Malle_temporal_soil_porewater_chemistry_files/libs/bootstrap/bootstrap-efbb37e9afcc02144ebbc7afd12a776f.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 
 
 </head>
@@ -51,7 +50,7 @@ ul.task-list li input[type="checkbox"] {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Density fractionation initial results</h1>
+<h1 class="title">Malle temporal soil porewater chemistry</h1>
 </div>
 
 
@@ -65,12 +64,6 @@ ul.task-list li input[type="checkbox"] {
           </div>
   </div>
     
-    <div>
-    <div class="quarto-title-meta-heading">Published</div>
-    <div class="quarto-title-meta-contents">
-      <p class="date">June 12, 2026</p>
-    </div>
-  </div>
   
     
   </div>
@@ -80,54 +73,474 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<section id="density-fractionation-procedure" class="level2">
-<h2 class="anchored" data-anchor-id="density-fractionation-procedure">Density fractionation procedure</h2>
-<p>Teneille’s data analysis repository is available at <a href="https://github.com/Teneille97/rocmics" class="uri">https://github.com/Teneille97/rocmics</a>. I performed density fractionation by density fractionation using SPT and ca. 10 g soil at Max Planck Institute for Biogeochemistry.</p>
+<section id="rocmics" class="level2">
+<h2 class="anchored" data-anchor-id="rocmics">ROCMICS</h2>
+<p>Teneille’s data analysis repository is available at <a href="https://github.com/Teneille97/rocmics" class="uri">https://github.com/Teneille97/rocmics</a>.</p>
 </section>
-<section id="som-pools-as-proportions-of-bulk" class="level2">
-<h2 class="anchored" data-anchor-id="som-pools-as-proportions-of-bulk">SOM pools as proportions of bulk</h2>
-<p>Mass-based pools recovered from density fractionation were as follows:</p>
+<section id="malle-soil-and-porewater-chemistry" class="level2">
+<h2 class="anchored" data-anchor-id="malle-soil-and-porewater-chemistry">Malle soil and porewater chemistry</h2>
+<p>Summarising over plot replicates, considering <strong>no dose-response treatments</strong> except control, and rendering with <code>ggthemr('flat dark')</code>, displays these plots (note <strong>still awaiting</strong> porewater elements, nutrients and alkalinity data):</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="density_fractionation_initial_results_files/figure-html/Proportions%20of%20SOM%20pools-1.png" class="img-fluid figure-img" width="672"></p>
-</figure>
-</div>
-</div>
-</div>
-<p>The total C and N content of bulk soil and SOM fractions was measured by combustion. The %C of each pool was multiplied by the proportion of that pool as a fraction of the bulk to determine the distribution of bulk soil C among pools:</p>
-<div class="cell">
-<div class="cell-output-display">
-<div>
-<figure class="figure">
-<p><img src="density_fractionation_initial_results_files/figure-html/Distribution%20of%20C%20among%20pools-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-1.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="density_fractionation_initial_results_files/figure-html/Distribution%20of%20C%20among%20pools-2.png" class="img-fluid figure-img" width="672"></p>
-</figure>
-</div>
-</div>
-</div>
-<p>The % change of C distribution was normalized to the control as (treatment-control)/control x 100%.</p>
-<div class="cell">
-<div class="cell-output-display">
-<div>
-<figure class="figure">
-<p><img src="density_fractionation_initial_results_files/figure-html/Normalized%20to%20control-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-2.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="density_fractionation_initial_results_files/figure-html/Normalized%20to%20control-2.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-3.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-4.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-5.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-6.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-7.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-8.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-9.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-10.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-11.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-12.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-13.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-14.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-15.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-16.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-17.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-18.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-19.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-20.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-21.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-22.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-23.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-24.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-25.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-26.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-27.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-28.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-29.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-30.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-31.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-32.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-33.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-34.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-35.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-36.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-37.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-38.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-39.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-40.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-41.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-42.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-43.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-44.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-45.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_temporal_soil_porewater_chemistry_files/figure-html/soil%20and%20porewater%20chemistry%20plots-46.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[[1]]
+NULL
+
+[[2]]
+NULL
+
+[[3]]
+NULL
+
+[[4]]
+NULL
+
+[[5]]
+NULL
+
+[[6]]
+NULL
+
+[[7]]
+NULL
+
+[[8]]
+NULL
+
+[[9]]
+NULL
+
+[[10]]
+NULL
+
+[[11]]
+NULL
+
+[[12]]
+NULL
+
+[[13]]
+NULL
+
+[[14]]
+NULL
+
+[[15]]
+NULL
+
+[[16]]
+NULL
+
+[[17]]
+NULL
+
+[[18]]
+NULL
+
+[[19]]
+NULL
+
+[[20]]
+NULL
+
+[[21]]
+NULL
+
+[[22]]
+NULL
+
+[[23]]
+NULL
+
+[[24]]
+NULL
+
+[[25]]
+NULL
+
+[[26]]
+NULL
+
+[[27]]
+NULL
+
+[[28]]
+NULL
+
+[[29]]
+NULL
+
+[[30]]
+NULL
+
+[[31]]
+NULL
+
+[[32]]
+NULL
+
+[[33]]
+NULL
+
+[[34]]
+NULL
+
+[[35]]
+NULL
+
+[[36]]
+NULL
+
+[[37]]
+NULL
+
+[[38]]
+NULL
+
+[[39]]
+NULL
+
+[[40]]
+NULL
+
+[[41]]
+NULL
+
+[[42]]
+NULL
+
+[[43]]
+NULL
+
+[[44]]
+NULL
+
+[[45]]
+NULL
+
+[[46]]
+NULL</code></pre>
 </div>
 </div>
 </section>
