@@ -260,6 +260,70 @@ ggplot(plot_data_faceted, aes(x = factor(Tmt), y = fraction_prop, fill = Tmt)) +
     legend.position = "none" # Hide legend since X-axis labels cover it
   )
 
+# normalize to control
+
+control_baseline <- df_proportions %>%
+  mutate(fraction_prop = 100 * (mass.som.fraction / total.mass.som.fractions)) %>%
+  filter(Tmt == "Control", App_rate == "0") %>%
+  group_by(Sampling_year, SOM_fraction) %>%
+  summarise(
+    control_fraction_prop = mean(fraction_prop, na.rm = TRUE),
+    control_Cprop = mean(Cprop, na.rm = TRUE),
+    control_Nprop = mean(Nprop, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+plot_data_pct <- df_proportions %>%
+  mutate(fraction_prop = 100 * (mass.som.fraction / total.mass.som.fractions)) %>%
+  
+  filter(
+    (Tmt == "Control"     & App_rate == "0") |
+      (Tmt == "Lime"       & App_rate == "2") |
+      (Tmt == "Bolsdorfer" & App_rate == "50") |
+      (Tmt == "Eifelgold"  & App_rate == "50") |
+      (Tmt == "Huhnerberg" & App_rate == "50")
+  ) %>%
+  
+  left_join(control_baseline,
+            by = c("Sampling_year", "SOM_fraction")) %>%
+  
+  mutate(
+    fraction_prop_pct =
+      ((fraction_prop - control_fraction_prop) /
+         control_fraction_prop) * 100,
+    
+    Cprop_pct =
+      ((Cprop - control_Cprop) /
+         control_Cprop) * 100,
+    
+    Nprop_pct =
+      ((Nprop - control_Nprop) /
+         control_Nprop) * 100
+  ) %>%
+  
+  group_by(Sampling_year, Tmt, App_rate) %>%
+  filter(n_distinct(Plot) > 1) %>%
+  ungroup()
+
+ggplot(plot_data_pct,
+       aes(x = factor(Tmt),
+           y = fraction_prop_pct,
+           fill = Tmt)) +
+  geom_boxplot(alpha = 0.3, outlier.shape = NA) +
+  geom_jitter(width = 0.1, alpha = 0.7) +
+  facet_grid(SOM_fraction ~ Sampling_year,
+             scales = "free_y") +
+  labs(
+    title = "SOM Fraction Mass (% change vs control)",
+    subtitle = "Control-normalised within year and SOM fraction",
+    x = "Treatment",
+    y = "% change in fraction mass proportion"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
 # plot C and N in SOM fraction as proportion of bulk 
 
 #first C

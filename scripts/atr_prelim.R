@@ -502,6 +502,7 @@ integrate_bands <- function(df){
     COO_sym  = c(1380,1425),   # COO- symmetric stretch
     COO_asym = c(1580,1650),   # COO- asymmetric stretch
     Silicate = c(1000,1120),   # silicates
+    poorly_crystalline = c(950,1050), # poorly crystalline silicates 
     Carbonate_bend = c(870,880),     # carbonate bend
     carbonate_stretch = c(1415,1480),
     double_bond = c(1510,1580), #aromatic & amide
@@ -566,6 +567,9 @@ band_compare <- before_areas %>%
     
     Silicate_change =
       100*(Silicate_after - Silicate_before)/Silicate_before,
+    
+    poorly_crystalline_change =
+      100*(poorly_crystalline_after - poorly_crystalline_before)/poorly_crystalline_before,
     
     Carbonate_bend_change =
       100*(Carbonate_bend_after - Carbonate_bend_before)/Carbonate_bend_before,
