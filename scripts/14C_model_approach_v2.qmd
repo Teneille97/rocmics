@@ -1,0 +1,82 @@
+---
+title: "Modelling strategy for estimating apparent turnover under enhanced mineral weathering (EMW)"
+author: "Teneille Nel"
+format: html
+editor: visual
+---
+
+## Overview
+
+Teneille's full project repository is available at <https://github.com/Teneille97/rocmics>.
+
+We aim to estimate treatment-induced differences in apparent soil organic matter (SOM) turnover under enhanced mineral weathering (EMW), using:
+
+- Baseline carbon stocks ($t_0$ = May 2023, rock application)
+- Two more measured time points ($t_1$ = Oct 2025, $t_2$ = Feb 2026)
+- Bulk soil + three density fractions
+- C stocks and $\Delta^{14}C$
+- 3 replicates per treatment
+
+By treating density fractions as operational pools and fitting 3-pool models, we can estimate treatment-induced differences in mean transit time.
+
+## Conceptual framework & data preparation
+
+**Background**
+
+- Change in C stocks: $dC/dt = I - kC$
+- Radiocarbon mass balance (Fraction Modern): $d(CF)/dt = I*F~atm~(t) - k*C*F - \lambda *C*F$
+
+Solve differential equations from unknown starting point carbon content (with known pre-bomb atmospheric carbon) through to known observation times
+
+- Solution (forward): $C(t_1) = C(t_{0})e^{-kt}+(I/k)(1-e^{-kt})$
+
+- Radiocarbon (integral): $C(t_1)F(t_1) = C(t_0)F(t_0)e^{-(k+\lambda)T}+\int_{a}^{b} [I*F_{atm}(t)*e^{-(k+\lambda)(t_1-t)}] \mathrm{d}t$
+
+## Can EMW affect transfer between SOM pools?
+
+**Possibility of increased transfer from fast to slow pools**
+
+- Increased mineral surface area (weathering products and fresh reactive surfaces) for adsorption of DOM and microbial products form MAOM, especially in coarse or mineral-limited control soils
+- Nutrients released by ERW can potentially increase microbial CUE which converts more biomass into necromass, primary precursor of MAOM, especially in nutrient-limited control sols
+- Higher plant productivity increases root-derived C inputs which are more accessible for microbes to process, resulting in greater transfer to MAOM
+- Increased pH can enhance microbial transformation and transfer
+
+**Possibility of reduced transfer from fast to slow pools**
+
+- If pH is too high it can reduce SOM sorption in variable-charge mineral type soils
+- C is lost rapidly as CO₂ (low CUE systems)
+- Weathering products & microbial activity can enhance soil aggregation and reduce interaction between oPOM and other pools
+
+**Radiocarbon implications**
+
+- Transfer creates “young-but-stable” carbon: Slow pool receives recent carbon via transfer so it can be larger in size, but younger than expected
+- Transfer coefficient \>0 improves model fit
+- Transfer coefficient of treatments \> control means that ERW increased stabilization
+
+**SoilR two pool system**
+
+$$\frac{dC}{dt} = I + A \cdot C(t)$$
+
+Where $A$ is the compartmental matrix. For fast-to-slow transfer:
+
+- Diagonal elements ($a_{ii}$): Total output rate from pool $i$.
+- Off-diagonal elements ($a_{ij}$): Transfer rate from pool $j$ to pool $i$.
+- $a_{11} = -k_f$ (Total loss from fast pool)
+- $a_{21} = \alpha \cdot k_f$ (Fraction of fast pool loss moving to slow pool)
+- $a_{22} = -k_s$ (Loss from slow pool)
+
+## Cost function to fit k, I, transfer and other model parameters
+
+**Computational goal**
+
+Define cost function ($J$) that quantifies difference between model predictions and observations at sampling $t_1$ (Oct) and $t_2$ (Feb). Minimize $J$ to find optimal turnover rate ($k$) and input ($I$) for each fraction.
+
+-   Cost function: $J = w_1(C_{t1}^{obs}-C_{t1}^{mod})^2+w_2(C_{t1}^{obs}-C_{t1}^{mod})^2+w_3(C_{t2}^{obs}-C_{t2}^{mod})^2+w_4(C_{t2}^{obs}-C_{t2}^{mod})^2$
+
+## Calculate uncertainties by Bayesian statistics
+Parameter uncertainty and identifiability can be assessed using a Markov Chain Monte Carlo (MCMC) approach to obtain parameter probability distribution curves. 
+
+## Derive decay, transfer, transit times and age-weighted carbon and nitrogen stock distributions 
+The age and transit time distribution of bulk SOC as well as pool-specific transit time distributions may be derived from the calibrated compartmental model using SoilR functions (systemAge and transitTime) that operate on compartmental matrices constructed using decomposition rate constants, transfer coefficients and C inputs. 
+
+Age distributions of SOM may be derived by combining age density functions with pool-specific SOC stocks.
