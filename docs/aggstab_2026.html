@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.36">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -34,7 +34,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="aggstab_2026_files/libs/quarto-html/tippy.umd.min.js"></script>
 <script src="aggstab_2026_files/libs/quarto-html/anchor.min.js"></script>
 <link href="aggstab_2026_files/libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="aggstab_2026_files/libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="aggstab_2026_files/libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="aggstab_2026_files/libs/bootstrap/bootstrap.min.js"></script>
 <link href="aggstab_2026_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="aggstab_2026_files/libs/bootstrap/bootstrap-efbb37e9afcc02144ebbc7afd12a776f.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -106,13 +106,20 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="rocmics">ROCMICS</h2>
 <p>Teneille’s data analysis repository is available at <a href="https://github.com/Teneille97/rocmics" class="uri">https://github.com/Teneille97/rocmics</a>.</p>
 </section>
-<section id="mean-weight-diameter---treatment-effect" class="level2">
-<h2 class="anchored" data-anchor-id="mean-weight-diameter---treatment-effect">Mean weight diameter - treatment effect</h2>
-<p>Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the following mean weight diameter (MWD) plots. <strong>For the water extract</strong>, non-parametric (Kruskal-Wallis &amp; Dunn) tests were run (based on Shapiro &amp; Levene tests for normality and homogeneity of residuals distribution, respectively) to <strong>compare MWD between treatments</strong> (lime, basalt, control etd), thereby showing <strong>which treatment</strong> had the greatest aggregate stability in each extract. Water-stable aggregate is the most relevant extract for this baseline compariso; higher MWD indicates greater aggregate stability.</p>
+<section id="aggregate-stability-tests" class="level2">
+<h2 class="anchored" data-anchor-id="aggregate-stability-tests">Aggregate stability tests</h2>
+<p><strong>ERW can influence aggregation via</strong>:</p>
+<ul>
+<li><p>Cation bridging</p></li>
+<li><p>Microbial EPS production</p></li>
+<li><p>Secondary mineral formation e.g.&nbsp;amorphous sesquioxides, silicates</p></li>
+<li><p>Salt-induced flocculation</p></li>
+</ul>
+</section>
+<section id="treatment-effect" class="level2">
+<h2 class="anchored" data-anchor-id="treatment-effect">Treatment effect</h2>
+<p>Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the <strong>mean weight diameter (MWD)</strong>. A log-based calculation of <strong>geometric mean diameter (GMD)</strong> better reflects changes in the mid-sized aggregate size class. The cumulative mass M of aggregates smaller than size x is proportional to the aggregate size to the power of the fractal dimension (D). Plotting log(M) vs log(x) gives a slope = D. <strong>For the water extract</strong>, estimated marginal means (emmeans) with Tukey-adjusted pariwise comparisons were used to <strong>compare MWD, GMD and D between treatments</strong> (lime, basalt, control etc) while accounting for multiple testing and unequal group comparisons within each extract, thereby showing which treatment had the greatest aggregate stability. Water is the most relevant extract for this baseline comparison; higher MWD, GMD or D indicates greater aggregate stability.</p>
 <div class="cell">
-<div class="cell-output cell-output-stdout">
-<pre><code>$h2o</code></pre>
-</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -122,14 +129,28 @@ window.Quarto = {
 </div>
 </div>
 </section>
-<section id="mean-weight-diameter---extract-effect" class="level2">
-<h2 class="anchored" data-anchor-id="mean-weight-diameter---extract-effect">Mean weight diameter - extract effect</h2>
-<p>Here, <strong>within each treatment group</strong> (lime, basalt, control etc) a parametric (Anova &amp; Tukey) or non-parametric (Kruskal-Wallis &amp; Dunn) was run (based on Shapiro &amp; Levene tests for normality and homogeneity of residuals distribution, respectively) to <strong>compare MWD between extracts</strong>. The extracts that show the greatest decrease in MWD compared to H<span class="math inline">\(_2\)</span>O within each treatment, indicate which <strong>cementing agents</strong> were the most important driver of aggregate stability <strong>for that treatment</strong>. The extracts oxalate, H<span class="math inline">\(_2\)</span>O<span class="math inline">\(_2\)</span> and NaOH removed amorphous Fe/Al oxides, organic matter and siliceous cementing agents, respectively.</p>
+<section id="extract-effect" class="level2">
+<h2 class="anchored" data-anchor-id="extract-effect">Extract effect</h2>
+<p>Here, <strong>within each treatment group</strong> (lime, basalt, control etc) we <strong>compare MWD, GMD and D between extracts</strong>. The extracts that show the greatest decrease in MWD compared to H<span class="math inline">\(_2\)</span>O within each treatment, indicate which <strong>cementing agents</strong> were the most important driver of aggregate stability <strong>for that treatment</strong>. The extracts oxalate, H<span class="math inline">\(_2\)</span>O<span class="math inline">\(_2\)</span> and NaOH removed amorphous Fe/Al oxides, organic matter and siliceous cementing agents, respectively.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
 <figure class="figure">
 <p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20tmts-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20tmts-2.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20tmts-3.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>

@@ -1,39 +1,3 @@
----
-title: "aggstab_2026"
-author: "Teneille Nel"
-format: html
-editor: visual
----
-
-## ROCMICS
-
-Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>.
-
-## Aggregate stability tests
-
-**ERW can influence aggregation via**:
-
-- Cation bridging
-
-- Microbial EPS production
-
-- Secondary mineral formation e.g. amorphous sesquioxides, silicates
-
-- Salt-induced flocculation
-
-## Treatment effect
-
-Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the **mean weight diameter (MWD)**. 
-A log-based calculation of **geometric mean diameter (GMD)** better reflects changes in the mid-sized aggregate size class.
-The cumulative mass M of aggregates smaller than size x is proportional to the aggregate size to the power of the fractal dimension (D). Plotting log(M) vs log(x) gives a slope = D.
-**For the water extract**, estimated marginal means (emmeans) with Tukey-adjusted pariwise comparisons were used to **compare MWD, GMD and D between treatments** (lime, basalt, control etc) while accounting for multiple testing and unequal group comparisons within each extract, thereby showing which treatment had the greatest aggregate stability. Water is the most relevant extract for this baseline comparison; higher MWD, GMD or D indicates greater aggregate stability.
-
-```{r}
-#| echo: false
-#| message: false
-#| label: MWD comparison extracts
-#| warning: FALSE
-
 #load packages
 library(ggplot2)
 library(viridis)
@@ -477,18 +441,6 @@ ggplot(
     strip.text = element_text(face = "bold")
   )
 
-```
-
-## Extract effect
-
-Here, **within each treatment group** (lime, basalt, control etc) we **compare MWD, GMD and D between extracts**. The extracts that show the greatest decrease in MWD compared to H$_2$O within each treatment, indicate which **cementing agents** were the most important driver of aggregate stability **for that treatment**. The extracts oxalate, H$_2$O$_2$ and NaOH removed amorphous Fe/Al oxides, organic matter and siliceous cementing agents, respectively.
-
-```{r}
-#| echo: false
-#| message: false
-#| label: MWD comparison tmts
-#| warning: FALSE
-
 
 #--------------------------------------------------
 # MWD faceted plot
@@ -680,7 +632,110 @@ ggplot(
     )
   )
 
-```
+#normalize all plots
+normalize_to_control <- function(df, control_name) {
+  
+  control_vals <- df %>%
+    filter(treatment == control_name) %>%
+    dplyr::select(metric, mean_value) %>%
+    rename(control_mean = mean_value)
+  
+  df %>%
+    left_join(control_vals, by = "metric") %>%
+    mutate(
+      mean_norm = mean_value / control_mean,
+      se_norm = se_value / control_mean
+    )
+}
+
+h2o_summary_norm <- normalize_to_control(h2o_summary, control_name = "Control")
+
+ggplot(h2o_summary_norm,
+       aes(x = treatment, y = mean_norm, fill = treatment)) +
+  geom_col(width = 0.7, colour = "grey20") +
+  geom_errorbar(
+    aes(ymin = mean_norm - se_norm,
+        ymax = mean_norm + se_norm),
+    width = 0.2
+  ) +
+  geom_text(
+    aes(label = .group,
+        y = mean_norm + se_norm + 0.02),
+    fontface = "bold"
+  ) +
+  facet_wrap(~ metric, scales = "free_y") +
+  scale_fill_viridis_d(option = "D", end = 0.9) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none") +
+  labs(y = "Relative to control (Control = 1)", x = NULL)
+
+MWD_all_summary <- bind_rows(MWD_treatment) %>%
+  normalize_to_control(control_name = "Control")
+MWD_all_summary <- MWD_all_summary %>%
+  distinct(treatment, extract_type, .keep_all = TRUE)
+
+ggplot(MWD_all_summary,
+       aes(x = extract_type, y = mean_norm, fill = extract_type)) +
+  geom_col(width = 0.7, colour = "grey20") +
+  geom_errorbar(
+    aes(ymin = mean_norm - se_norm,
+        ymax = mean_norm + se_norm),
+    width = 0.2
+  ) +
+  geom_text(
+    aes(label = .group,
+        y = mean_norm + se_norm + 0.01),
+    fontface = "bold"
+  ) +
+  facet_wrap(~ treatment, scales = "free_y") +
+  scale_fill_viridis_d(option = "D", end = 0.9) +
+  labs(y = "MWD (relative to control)", x = NULL) +
+  theme_minimal()
+
+GMD_all_summary <- bind_rows(GMD_treatment) %>%
+  normalize_to_control("Control")
+GMD_all_summary <- GMD_all_summary %>%
+  distinct(treatment, extract_type, .keep_all = TRUE)
+
+ggplot(GMD_all_summary,
+       aes(x = extract_type, y = mean_norm, fill = extract_type)) +
+  geom_col(width = 0.7, colour = "grey20") +
+  geom_errorbar(
+    aes(ymin = mean_norm - se_norm,
+        ymax = mean_norm + se_norm),
+    width = 0.2
+  ) +
+  geom_text(
+    aes(label = .group,
+        y = mean_norm + se_norm + 0.01),
+    fontface = "bold"
+  ) +
+  facet_wrap(~ treatment, scales = "free_y") +
+  scale_fill_viridis_d(option = "D", end = 0.9) +
+  labs(y = "GWD (relative to control)", x = NULL) +
+  theme_minimal()
+
+D_all_summary <- bind_rows(D_treatment) %>%
+  normalize_to_control("Control")
+D_all_summary <- D_all_summary %>%
+  distinct(treatment, extract_type, .keep_all = TRUE)
 
 
-
+ggplot(D_all_summary,
+       aes(x = extract_type, y = mean_norm, fill = extract_type)) +
+  geom_col(width = 0.7, colour = "grey20") +
+  geom_errorbar(
+    aes(ymin = mean_norm - se_norm,
+        ymax = mean_norm + se_norm),
+    width = 0.2
+  ) +
+  geom_text(
+    aes(label = .group,
+        y = mean_norm + se_norm + 0.01),
+    fontface = "bold"
+  ) +
+  facet_wrap(~ treatment, scales = "free_y") +
+  scale_fill_viridis_d(option = "D", end = 0.9) +
+  labs(y = "D (relative to control)", x = NULL) +
+  theme_minimal()
