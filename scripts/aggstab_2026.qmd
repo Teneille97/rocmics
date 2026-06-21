@@ -23,10 +23,7 @@ Teneille's data analysis repository is available at <https://github.com/Teneille
 
 ## Treatment effect
 
-Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the **mean weight diameter (MWD)**. 
-A log-based calculation of **geometric mean diameter (GMD)** better reflects changes in the mid-sized aggregate size class.
-The cumulative mass M of aggregates smaller than size x is proportional to the aggregate size to the power of the fractal dimension (D). Plotting log(M) vs log(x) gives a slope = D.
-**For the water extract**, estimated marginal means (emmeans) with Tukey-adjusted pariwise comparisons were used to **compare MWD, GMD and D between treatments** (lime, basalt, control etc) while accounting for multiple testing and unequal group comparisons within each extract, thereby showing which treatment had the greatest aggregate stability. Water is the most relevant extract for this baseline comparison; higher MWD, GMD or D indicates greater aggregate stability.
+Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the **mean weight diameter (MWD)**. A log-based calculation of **geometric mean diameter (GMD)** better reflects changes in the mid-sized aggregate size class. The cumulative mass M of aggregates smaller than size x is proportional to the aggregate size to the power of the fractal dimension (D). Plotting log(M) vs log(x) gives a slope = D. **For the water extract**, estimated marginal means (emmeans) with Tukey-adjusted pariwise comparisons were used to **compare MWD, GMD and D between treatments** (lime, basalt, control etc) while accounting for multiple testing and unequal group comparisons within each extract, thereby showing which treatment had the greatest aggregate stability. Water is the most relevant extract for this baseline comparison; higher MWD, GMD or D indicates greater aggregate stability.
 
 ```{r}
 #| echo: false
@@ -387,6 +384,26 @@ D_treatment <- analyze_metric_by_treatment(
 # H2O-only comparison: MWD, GMD, D
 #--------------------------------------------------
 
+# Letters from treatment comparisons WITHIN H2O
+
+MWD_letters <- MWD_extract$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "MWD")
+
+GMD_letters <- GMD_extract$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "GMD")
+
+D_letters <- D_extract$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "D")
+
+letters_all <- bind_rows(
+  MWD_letters,
+  GMD_letters,
+  D_letters
+)
+
 h2o_metrics <- aggstab_metrics %>%
   filter(extract_type == "h2o") %>%
   pivot_longer(
@@ -394,26 +411,6 @@ h2o_metrics <- aggstab_metrics %>%
     names_to = "metric",
     values_to = "value"
   )
-
-MWD_letters <- bind_rows(MWD_treatment) %>%
-  mutate(metric = "MWD")
-
-GMD_letters <- bind_rows(GMD_treatment) %>%
-  mutate(metric = "GMD")
-
-D_letters <- bind_rows(D_treatment) %>%
-  mutate(metric = "D")
-
-letters_all <- bind_rows(
-  MWD_letters %>% mutate(metric = "MWD"),
-  GMD_letters %>% mutate(metric = "GMD"),
-  D_letters %>% mutate(metric = "D")
-) %>%
-  dplyr::select(treatment, metric, .group)
-
-letters_all <- letters_all %>%
-  distinct(treatment, metric, .keep_all = TRUE)
-
 h2o_summary <- h2o_metrics %>%
   group_by(treatment, metric) %>%
   summarise(
@@ -427,17 +424,6 @@ h2o_summary <- h2o_summary %>%
     letters_all,
     by = c("treatment", "metric")
   )
-h2o_summary <- h2o_summary %>%
-  distinct(treatment, metric, .keep_all = TRUE)
-h2o_summary <- h2o_summary %>%
-  left_join(
-    letters_all,
-    by = c("treatment", "metric")
-  )
-
-h2o_summary <- h2o_summary %>%
-  mutate(.group = coalesce(.group.y, .group.x)) %>%
-  dplyr::select(-.group.x, -.group.y)
 
 ggplot(
   h2o_summary,
@@ -476,6 +462,7 @@ ggplot(
     legend.position = "none",
     strip.text = element_text(face = "bold")
   )
+
 
 ```
 
@@ -680,7 +667,5 @@ ggplot(
     )
   )
 
+
 ```
-
-
-

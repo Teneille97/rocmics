@@ -351,6 +351,26 @@ D_treatment <- analyze_metric_by_treatment(
 # H2O-only comparison: MWD, GMD, D
 #--------------------------------------------------
 
+# Letters from treatment comparisons WITHIN H2O
+
+MWD_letters <- MWD_extract$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "MWD")
+
+GMD_letters <- GMD_extract$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "GMD")
+
+D_letters <- D_extract$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "D")
+
+letters_all <- bind_rows(
+  MWD_letters,
+  GMD_letters,
+  D_letters
+)
+
 h2o_metrics <- aggstab_metrics %>%
   filter(extract_type == "h2o") %>%
   pivot_longer(
@@ -358,26 +378,6 @@ h2o_metrics <- aggstab_metrics %>%
     names_to = "metric",
     values_to = "value"
   )
-
-MWD_letters <- bind_rows(MWD_treatment) %>%
-  mutate(metric = "MWD")
-
-GMD_letters <- bind_rows(GMD_treatment) %>%
-  mutate(metric = "GMD")
-
-D_letters <- bind_rows(D_treatment) %>%
-  mutate(metric = "D")
-
-letters_all <- bind_rows(
-  MWD_letters %>% mutate(metric = "MWD"),
-  GMD_letters %>% mutate(metric = "GMD"),
-  D_letters %>% mutate(metric = "D")
-) %>%
-  dplyr::select(treatment, metric, .group)
-
-letters_all <- letters_all %>%
-  distinct(treatment, metric, .keep_all = TRUE)
-
 h2o_summary <- h2o_metrics %>%
   group_by(treatment, metric) %>%
   summarise(
@@ -391,17 +391,6 @@ h2o_summary <- h2o_summary %>%
     letters_all,
     by = c("treatment", "metric")
   )
-h2o_summary <- h2o_summary %>%
-  distinct(treatment, metric, .keep_all = TRUE)
-h2o_summary <- h2o_summary %>%
-  left_join(
-    letters_all,
-    by = c("treatment", "metric")
-  )
-
-h2o_summary <- h2o_summary %>%
-  mutate(.group = coalesce(.group.y, .group.x)) %>%
-  dplyr::select(-.group.x, -.group.y)
 
 ggplot(
   h2o_summary,
@@ -441,6 +430,116 @@ ggplot(
     strip.text = element_text(face = "bold")
   )
 
+### eliminate dose-response
+
+keep_treatments <- c(
+  "Control",
+  "Eifelgold_50",
+  "Bolsdorfer_50",
+  "Huhnerberg_50"
+)
+
+aggstab_metrics_filtered <- aggstab_metrics %>%
+  filter(treatment %in% keep_treatments)
+
+aggstab_metrics_filtered %>%
+  distinct(treatment) %>%
+  arrange(treatment)
+
+h2o_metrics_filt <- aggstab_metrics_filtered %>%
+  filter(extract_type == "h2o") %>%
+  pivot_longer(
+    cols = c(MWD, GMD, D),
+    names_to = "metric",
+    values_to = "value"
+  )
+
+h2o_summary_filt <- h2o_metrics_filt %>%
+  group_by(treatment, metric) %>%
+  summarise(
+    mean_value = mean(value, na.rm = TRUE),
+    se_value = sd(value, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+
+ggplot(
+  h2o_summary_filt,
+  aes(
+    x = treatment,
+    y = mean_value,
+    fill = treatment
+  )
+) +
+  geom_col(width = 0.7, colour = "grey20") +
+  geom_errorbar(
+    aes(
+      ymin = mean_value - se_value,
+      ymax = mean_value + se_value
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+  geom_text(
+    aes(
+      label = .group,
+      y = mean_value + se_value + 0.02
+    ),
+    fontface = "bold",
+    vjust = 0
+  ) +
+  facet_wrap(~ metric, scales = "free_y") +
+  scale_fill_viridis_d(option = "D", end = 0.9) +
+  labs(
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",
+    strip.text = element_text(face = "bold")
+  )
+
+
+MWD_extract_filt <- analyze_metric_by_extract(
+  aggstab_metrics_filtered,
+  metric = "MWD",
+  ylab = "MWD"
+)
+
+GMD_extract_filt <- analyze_metric_by_extract(
+  aggstab_metrics_filtered,
+  metric = "GMD",
+  ylab = "GMD"
+)
+
+D_extract_filt <- analyze_metric_by_extract(
+  aggstab_metrics_filtered,
+  metric = "D",
+  ylab = "D"
+)
+
+MWD_letters_filt <- MWD_extract_filt$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "MWD")
+
+GMD_letters_filt <- GMD_extract_filt$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "GMD")
+
+D_letters_filt <- D_extract_filt$results$h2o %>%
+  dplyr::select(treatment, .group) %>%
+  mutate(metric = "D")
+
+letters_all_filt <- bind_rows(
+  MWD_letters_filt,
+  GMD_letters_filt,
+  D_letters_filt
+)
+
+h2o_summary_filt <- h2o_summary_filt %>%
+  left_join(letters_all_filt, by = c("treatment", "metric"))
 
 #--------------------------------------------------
 # MWD faceted plot
