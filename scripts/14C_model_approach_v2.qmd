@@ -71,12 +71,14 @@ Where $A$ is the compartmental matrix. For fast-to-slow transfer:
 
 Define cost function ($J$) that quantifies difference between model predictions and observations at sampling $t_1$ (Oct) and $t_2$ (Feb). Minimize $J$ to find optimal turnover rate ($k$) and input ($I$) for each fraction.
 
--   Cost function: $J = w_1(C_{t1}^{obs}-C_{t1}^{mod})^2+w_2(C_{t1}^{obs}-C_{t1}^{mod})^2+w_3(C_{t2}^{obs}-C_{t2}^{mod})^2+w_4(C_{t2}^{obs}-C_{t2}^{mod})^2$
+- Cost function: $J = w_1(C_{t1}^{obs}-C_{t1}^{mod})^2+w_2(C_{t1}^{obs}-C_{t1}^{mod})^2+w_3(C_{t2}^{obs}-C_{t2}^{mod})^2+w_4(C_{t2}^{obs}-C_{t2}^{mod})^2$
 
 ## Calculate uncertainties by Bayesian statistics
-Parameter uncertainty and identifiability can be assessed using a Markov Chain Monte Carlo (MCMC) approach to obtain parameter probability distribution curves. 
 
-## Derive decay, transfer, transit times and age-weighted carbon and nitrogen stock distributions 
-The age and transit time distribution of bulk SOC as well as pool-specific transit time distributions may be derived from the calibrated compartmental model using SoilR functions (systemAge and transitTime) that operate on compartmental matrices constructed using decomposition rate constants, transfer coefficients and C inputs. 
+Parameter uncertainty and identifiability can be assessed using a Markov Chain Monte Carlo (MCMC) approach to obtain parameter probability distribution curves.
+
+## Derive decay, transfer, transit times and age-weighted carbon and nitrogen stock distributions
+
+The age and transit time distribution of bulk SOC as well as pool-specific transit time distributions may be derived from the calibrated compartmental model using SoilR functions (systemAge and transitTime) that operate on compartmental matrices constructed using decomposition rate constants, transfer coefficients and C inputs.
 
 Age distributions of SOM may be derived by combining age density functions with pool-specific SOC stocks.

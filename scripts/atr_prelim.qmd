@@ -8,9 +8,9 @@ editor: visual
 
 ## Overview: ATR Preliminary Findings
 
-ATR-FTIR measurements of soil samples were taken before and after  extractions of base cations (1M NH4AOc, pH = 7) to evaluate changes in organo-mineral environments between the control and rock powder treatments.
+ATR-FTIR measurements of soil samples were taken before and after extractions of base cations (1M NH4AOc, pH = 7) to evaluate changes in organo-mineral environments between the control and rock powder treatments.
 
-ATR measurements were imported to R and the data was cleaned by baseline correction by asymmetric least squares algorithm (improves signal dampened by noise and spectral drift), normalization (relative peak intensities to account for different sample thickness), Savitzky-Golay derivatization (to detect overlapping peaks due to absorption by different chemical compounds) and averaging of replicate scans. Difference curves were calculated to identify the  changes in spectral signatures before and after extraction. Peak areas were also calculated under peaks across spectral ranges associated with functional groups typically found in carbohydrates, carbonates, silicates and organic bonds and the % change in these areas before and after extraction was calculated. 
+ATR measurements were imported to R and the data was cleaned by baseline correction by asymmetric least squares algorithm (improves signal dampened by noise and spectral drift), normalization (relative peak intensities to account for different sample thickness), Savitzky-Golay derivatization (to detect overlapping peaks due to absorption by different chemical compounds) and averaging of replicate scans. Difference curves were calculated to identify the changes in spectral signatures before and after extraction. Peak areas were also calculated under peaks across spectral ranges associated with functional groups typically found in carbohydrates, carbonates, silicates and organic bonds and the % change in these areas before and after extraction was calculated.
 
 ------------------------------------------------------------------------
 
@@ -357,6 +357,7 @@ ggplot(diff_spec,
     xlim = c(1800, 800)
   )
 ```
+
 ## Band region integrations
 
 The code generates changes in areas under absorbance spectra associated with functional groups involved in interactions with cations.
