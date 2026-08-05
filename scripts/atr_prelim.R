@@ -505,8 +505,11 @@ integrate_bands <- function(df){
     poorly_crystalline = c(950,1050), # poorly crystalline silicates 
     Carbonate_bend = c(870,880),     # carbonate bend
     carbonate_stretch = c(1415,1480),
-    double_bond = c(1510,1580), #aromatic & amide
-    polysaccharide = c(1030-1080) # C-O and mineral-bound carbohydrates
+    CH_assym = c(2898, 2976), #aliphatic i.e. S-POM
+    CH_sym = c(2839, 2870), #aliphatic i.e. S-POM
+    aromatic = c(1500,1550), #aromatic i.e. C-POM
+    carbonyl = c(1570, 1710), #amide, quinone, ketones i.e. MOM
+    polysaccharide = c(1030,1080) # C-O and mineral-bound carbohydrates
   )
   
   results <- lapply(unique(df$sample), function(s){
@@ -540,10 +543,30 @@ integrate_bands <- function(df){
 # ---------------------------------------------------------
 
 before_areas <- integrate_bands(before_avg) %>%
-  mutate(dataset = "before")
+  mutate(
+    Aliphatic_total = CH_assym + CH_sym,
+    COO_total = COO_sym + COO_asym,
+    dataset = "before"
+  ) %>%
+  select(
+    -CH_assym,
+    -CH_sym,
+    -COO_sym,
+    -COO_asym
+  )
 
 after_areas <- integrate_bands(after_avg) %>%
-  mutate(dataset = "after")
+  mutate(
+    Aliphatic_total = CH_assym + CH_sym,
+    COO_total = COO_sym + COO_asym,
+    dataset = "after"
+  ) %>%
+  select(
+    -CH_assym,
+    -CH_sym,
+    -COO_sym,
+    -COO_asym
+  )
 
 # ---------------------------------------------------------
 # Combine and calculate extraction effect
@@ -559,11 +582,8 @@ band_compare <- before_areas %>%
     by = "sample"
   ) %>%
   mutate(
-    COO_sym_change =
-      100*(COO_sym_after - COO_sym_before)/COO_sym_before,
-    
-    COO_asym_change =
-      100*(COO_asym_after - COO_asym_before)/COO_asym_before,
+    COO_total_change =
+      100*(COO_total_after - COO_total_before)/COO_total_before,
     
     Silicate_change =
       100*(Silicate_after - Silicate_before)/Silicate_before,
@@ -577,8 +597,14 @@ band_compare <- before_areas %>%
     carbonate_stretch_change =
       100*(carbonate_stretch_after - carbonate_stretch_before)/carbonate_stretch_before,
     
-    double_bond_change =
-      100*(double_bond_after - double_bond_before)/double_bond_before,
+    aromatic_change =
+      100*(aromatic_after - aromatic_before)/aromatic_before,
+    
+    carbonyl_change =
+      100*(carbonyl_after - carbonyl_before)/carbonyl_before,
+    
+    Aliphatic_total_change =
+      100*(Aliphatic_total_after - Aliphatic_total_before)/Aliphatic_total_before,
     
     polysaccharide_change =
       100*(polysaccharide_after - polysaccharide_before)/polysaccharide_before  
