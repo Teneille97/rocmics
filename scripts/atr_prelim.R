@@ -564,15 +564,6 @@ before_scan_areas <- before_scan_areas %>%
       Aliphatic_total
   )
 
-# not sure if should include this normalization step
-#before_scan_areas <- before_scan_areas %>%
-#  mutate(
-#    across(
-#      c(Silicate, poorly_crystalline, carbonate_stretch, carbonyl, Aliphatic_total),
-#      ~ .x / total_area
-#    )
-#  )
-
 # ---------------------------------------------------------
 # Average integrated peak areas across replicate scans
 # ---------------------------------------------------------
@@ -667,6 +658,80 @@ band_compare <- before_areas %>%
 
 # inspect
 band_compare
+
+library(broom)
+
+# --------------------------------------------------
+# Statistical testing of peak areas
+# paired before vs after
+# --------------------------------------------------
+
+stat_test <- band_compare %>%
+  select(
+    sample,
+    ends_with("_before"),
+    ends_with("_after")
+  ) %>%
+  pivot_longer(
+    cols = -sample,
+    names_to = c("band", "dataset"),
+    names_pattern = "(.*)_(before|after)$",
+    values_to = "area"
+  ) %>%
+  pivot_wider(
+    names_from = dataset,
+    values_from = area
+  )
+
+
+# paired t-test + Wilcoxon
+results <- stat_test %>%
+  group_by(band) %>%
+  summarise(
+    
+    n = sum(!is.na(before) & !is.na(after)),
+    
+    mean_before = mean(before, na.rm = TRUE),
+    mean_after = mean(after, na.rm = TRUE),
+    
+    percent_change =
+      100 * (mean_after - mean_before) / mean_before,
+    
+    t_test_p = if(n >= 2) {
+      t.test(after, before, paired = TRUE)$p.value
+    } else {
+      NA_real_
+    },
+    
+    wilcox_p = if(n >= 2) {
+      wilcox.test(after, before, paired = TRUE)$p.value
+    } else {
+      NA_real_
+    },
+    
+    .groups = "drop"
+  ) %>%
+  arrange(t_test_p)
+
+# adjusted FDR 
+results <- results %>%
+  mutate(
+    t_test_FDR = p.adjust(t_test_p, method = "BH"),
+    wilcox_FDR = p.adjust(wilcox_p, method = "BH")
+  )
+
+#cohen's d
+effect_sizes <- stat_test %>%
+  group_by(band) %>%
+  summarise(
+    cohens_d =
+      mean(after - before, na.rm = TRUE) /
+      sd(after - before, na.rm = TRUE)
+  )
+
+results <- left_join(results, effect_sizes, by="band")
+
+results #silicate has large change
 
 # --------------------------------------------------
 # Average technical scans within biological sample
