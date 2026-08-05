@@ -240,10 +240,10 @@ ggplot(after_deriv2, aes(wave, deriv2, colour = sample)) +
 
 # peak picking 
 detect_peaks <- function(df,
-                         value_col = "abs_corr",
-                         smooth_window = 11,
-                         threshold = 0.001,
-                         use_second_derivative = FALSE){
+                             value_col = "abs_corr",
+                             smooth_window = 11,
+                             threshold = 0.001,
+                             use_second_derivative = FALSE){
   
   out <- list()
   
@@ -316,20 +316,20 @@ detect_peaks <- function(df,
 }
 
 before_peaks <- detect_peaks(before_individual,
-                             value_col = "abs_corr",
-                             use_second_derivative = FALSE)
+                                     value_col = "abs_corr",
+                                     use_second_derivative = FALSE)
 
 after_peaks  <- detect_peaks(after_individual,
-                             value_col = "abs_corr",
-                             use_second_derivative = FALSE)
+                                     value_col = "abs_corr",
+                                     use_second_derivative = FALSE)
 
 before_peaks_d2 <- detect_peaks(before_individual,
-                                value_col = "abs_corr",
-                                use_second_derivative = TRUE)
+                                        value_col = "abs_corr",
+                                        use_second_derivative = TRUE)
 
 after_peaks_d2  <- detect_peaks(after_individual,
-                                value_col = "abs_corr",
-                                use_second_derivative = TRUE)
+                                        value_col = "abs_corr",
+                                        use_second_derivative = TRUE)
 
 # checkpoint peak detection - individual scans
 
