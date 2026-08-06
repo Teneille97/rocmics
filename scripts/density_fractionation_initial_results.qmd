@@ -8,8 +8,7 @@ editor: visual
 
 ## Density fractionation procedure
 
-Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>.
-I performed density fractionation by density fractionation using SPT and ca. 10 g soil at Max Planck Institute for Biogeochemistry.
+Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>. I performed density fractionation by density fractionation using SPT and ca. 10 g soil at Max Planck Institute for Biogeochemistry.
 
 ## SOM pools as proportions of bulk
 
@@ -61,8 +60,8 @@ density_fractionation <- density_fractionation %>%
   ) %>%
   
   # --- drop junk columns safely ---
-  select(-any_of(c("mass.rbf", "moisture.content", "recovery....",
-                   "som.fraction....", "X", "X.1", "X.2", "Sample.date"))) %>%
+  dplyr::select(-any_of(c("mass.rbf", "moisture.content", "recovery....",
+                          "som.fraction....", "X", "X.1", "X.2", "Sample.date"))) %>%
   
   # --- fix treatment (2023 = Control) ---
   mutate(
@@ -110,58 +109,93 @@ density_fractionation <- density_fractionation %>%
 #calculate recovery
 density_fractionation$recovery_percent<-100*density_fractionation$total.mass.som.fractions/density_fractionation$mass.soil.corr
 
+#plot outliers
+
+# 1. Ensure recovery_percent is calculated
+density_fractionation$recovery_percent <- 100 * (density_fractionation$total.mass.som.fractions / density_fractionation$mass.soil.corr)
+
+# 2. Filter to one row per sample and identify outliers
+# We define outliers as points outside 1.5 * IQR
+plot_data <- density_fractionation %>%
+  distinct(Sampling_year, Plot, recovery_percent) %>%
+  mutate(
+    # Logical check for outliers
+    is_outlier = recovery_percent < (quantile(recovery_percent, 0.25, na.rm=T) - 1.5 * IQR(recovery_percent, na.rm=T)) | 
+      recovery_percent > (quantile(recovery_percent, 0.75, na.rm=T) + 1.5 * IQR(recovery_percent, na.rm=T)),
+    # Create the label only for outliers
+    outlier_label = ifelse(is_outlier, paste0("Plot ", Plot, " (", Sampling_year, ")"), NA)
+  )
+
 # Calculate the proportion of each fraction within its own sample
 df_proportions <- density_fractionation %>%
   mutate(
     fraction_prop = (mass.som.fraction / total.mass.som.fractions) * 100
   )
-# add CN data - bulk 2026 & MAOM
 
-# Convert CN data from long to wide format
+# add CN data - bulk 2026 & fraction CN
+
+# Clean CN data and convert from long to wide format
 CN_wide <- CN_data %>%
-  select(Sample.name, Parameter, Result....) %>%
+  mutate(
+    Parameter = str_trim(Parameter),
+    Result.... = as.numeric(Result....)
+  ) %>%
+  filter(
+    !is.na(Parameter),
+    Parameter != ""
+  ) %>%
+  dplyr::select(Sample.name, Parameter, Result....) %>%
   pivot_wider(
     names_from = Parameter,
-    values_from = Result....
+    values_from = Result....,
+    values_fn = ~mean(.x, na.rm = TRUE)
+  ) %>%
+  mutate(
+    CN = Ctotal / Ntotal
   )
 
-# create bulk lookup table
+# Create bulk lookup table
 CN_bulk <- CN_wide %>%
   filter(str_detect(Sample.name, "Bulk")) %>%
   mutate(
     core_id = str_replace(Sample.name, "_Bulk$", "")
   ) %>%
-  select(core_id, Ctotal, Ntotal) %>%
-  rename(C_bulk = Ctotal,
-         N_bulk = Ntotal)
+  dplyr::select(core_id, Ctotal, Ntotal, CN) %>%
+  rename(
+    C_bulk = Ctotal,
+    N_bulk = Ntotal,
+    CN_bulk = CN
+  )
 
-# create matching id in df proportions
+# Create matching ID in df_proportions
 df_proportions <- df_proportions %>%
   mutate(
     core_id = str_replace(sample.ID, "_(fPOM|oPOM|MAOM)$", "")
   )
 
-# Join to df_proportions by sample ID
+# Join fraction CN data and bulk CN data
 df_proportions <- df_proportions %>%
   left_join(CN_wide, by = c("sample.ID" = "Sample.name")) %>%
   left_join(CN_bulk, by = "core_id")
 
-df_proportions$CN<-df_proportions$Ctotal/df_proportions$Ntotal
-df_proportions$CN_bulk<-df_proportions$C_bulk/df_proportions$N_bulk
 
 # add CN data - bulk 2025
 
 CN_data_nov2025 <- read.csv(here("csv_files", "CN_nov2025.csv"), header = TRUE)
 CN_data_nov2025 <- CN_data_nov2025[1:63,]
-
 clean_data <- function(df) {
   df %>%
     mutate(across(c(Treatment, Dose_response_exp.), as.factor)) %>%
-    separate(Treatment, into = c("Tmt", "App_rate"), sep = "_") %>%
+    separate(
+      Treatment,
+      into = c("Tmt", "App_rate"),
+      sep = "_",
+      fill = "right"
+    ) %>%
     mutate(
       App_rate = replace_na(App_rate, "0"),
       Tmt = as.factor(Tmt)
-    )%>%
+    ) %>%
     rename(
       N = X.N,
       C = X.C
@@ -187,7 +221,7 @@ CN_data_nov2025$sample <- paste0(CN_data_nov2025$sample, "_2025_Bulk")
 # Prepare 2025 bulk CN data
 CN_2025 <- CN_data_nov2025 %>%
   mutate(core_id = str_remove(sample, "_Bulk$")) %>%
-  select(
+  dplyr::select(
     core_id,
     mean_C,
     mean_N,
@@ -202,12 +236,13 @@ df_proportions <- df_proportions %>%
     N_bulk  = if_else(Sampling_year == 2025, mean_N, N_bulk),
     CN_bulk = if_else(Sampling_year == 2025, mean_CN, CN_bulk)
   ) %>%
-  select(-mean_C, -mean_N, -mean_CN)
+  dplyr::select(-mean_C, -mean_N, -mean_CN)
 
 
 # multiply %C with total C in sample for proportions (% of total C distributed in each pool)
 df_proportions$Cprop<-(df_proportions$Ctotal*df_proportions$fraction_prop)/(df_proportions$C_bulk)
 df_proportions$Nprop<-(df_proportions$Ntotal*df_proportions$fraction_prop)/(df_proportions$N_bulk)
+
 
 #visualize SOM proportions (mass-based)
 # 1. Prepare data (filter for replicates and ensure proportions are calculated)
@@ -237,10 +272,9 @@ ggplot(plot_data_faceted, aes(x = factor(Tmt), y = fraction_prop, fill = Tmt)) +
     legend.position = "none" # Hide legend since X-axis labels cover it
   )
 
-
 ```
 
-The relative pool sizes were normalized to the control as (treatment-control)/control x 100%. Note that the fractions sizes are dependent (add up to 100%) so this plot shows how distribution of SOM among pools change relative to the control,  not how much SOM accumulated in that pool. 
+The relative pool sizes were normalized to the control as (treatment-control)/control x 100%. Note that the fractions sizes are dependent (add up to 100%) so this plot shows how distribution of SOM among pools change relative to the control, not how much SOM accumulated in that pool.
 
 ```{r}
 #| echo: false
@@ -311,6 +345,7 @@ ggplot(plot_data_pct,
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
+
 ```
 
 The total C and N content of bulk soil and SOM fractions was measured by combustion. The %C of each pool was multiplied by the proportion of that pool as a fraction of the bulk to determine the distribution of bulk soil C among pools:
@@ -375,6 +410,44 @@ The % change of C distribution was normalized to the control as (treatment-contr
 
 
 # normalize by control in that year (z-score effect)
+
+#first C
+ggplot(plot_data_faceted, aes(x = factor(Tmt), y = Cprop, fill = Tmt)) +
+  # Using boxplots or points here is better than bars for comparing replicates
+  geom_boxplot(alpha = 0.3, outlier.shape = NA) + 
+  geom_jitter(width = 0.1, alpha = 0.7) +
+  facet_grid(SOM_fraction ~ Sampling_year, scales = "free_y") +
+  labs(
+    title = "Comparison of SOM pool C as proportion of bulk C (%)",
+    subtitle = "Note: Y-axes differ by fraction to highlight POM variability",
+    x = "Treatment",
+    y = "Proportion of Total SOM C"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none" # Hide legend since X-axis labels cover it
+  )
+
+#then N
+ggplot(plot_data_faceted, aes(x = factor(Tmt), y = Nprop, fill = Tmt)) +
+  # Using boxplots or points here is better than bars for comparing replicates
+  geom_boxplot(alpha = 0.3, outlier.shape = NA) + 
+  geom_jitter(width = 0.1, alpha = 0.7) +
+  facet_grid(SOM_fraction ~ Sampling_year, scales = "free_y") +
+  labs(
+    title = "Comparison of SOM pool N as proportion of bulk N (%)",
+    subtitle = "Note: Y-axes differ by fraction to highlight POM variability",
+    x = "Treatment",
+    y = "Proportion of Total SOM N"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none" # Hide legend since X-axis labels cover it
+  )
+
+# normalize by control in that year (z-score effect)
 control_baseline <- df_proportions %>%
   mutate(fraction_prop = 100 * (mass.som.fraction / total.mass.som.fractions)) %>%
   filter(Tmt == "Control", App_rate == "0") %>%
@@ -431,4 +504,5 @@ ggplot(plot_data_pct, aes(x = factor(Tmt), y = Nprop_pct, fill = Tmt)) +
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 ```
