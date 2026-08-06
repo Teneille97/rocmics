@@ -8,7 +8,34 @@ library(tidyr)
 library(pracma)
 library(dplyr)
 library(prospectr)
+library(broom)
+library(here)
+library(FSA)
+# ---------------------------------------------------------
+# Metadata
+# ---------------------------------------------------------
 
+metadata <- read.csv(here("csv_files", "treatment_names.csv"))
+
+metadata <- metadata %>%
+  mutate(
+    sample = paste0("soil", sample)
+  )
+
+metadata <- metadata %>%
+  mutate(
+    analysis_group = case_when(
+      Treatment == "Control" ~ "Control",
+      Treatment == "Eifelgold_50" ~ "Eifelgold_50",
+      Treatment == "Bolsdorfer_50" ~ "Bolsdorfer_50",
+      Treatment == "Lime_2" ~ "Lime_2",
+      Treatment == "Huhnerberg_50" ~ "Huhnerberg_50",
+      TRUE ~ NA_character_
+    )
+  )
+
+metadata_analysis <- metadata %>%
+  filter(!is.na(analysis_group))
 
 # ---------------------------------------------------------
 # PROCESS SPECTRA
@@ -26,9 +53,8 @@ process_spectra <- function(path){
   # ---- metadata ----
   meta <- nc::capture_first_vec(
     long_table$filename,
-    sample_no = "\\d{1,2}",
-    rep_no = "[a|b|c]{1,2}",
-    nomatch.error = FALSE
+    sample_no = "soil\\d+",
+    rep_no = "(?<=\\.)[abc]"
   )
   
   meta_long <- cbind(long_table, meta)
@@ -36,7 +62,8 @@ process_spectra <- function(path){
   meta_long <- meta_long %>%
     mutate(
       wavenumber = round(wavenumber, 0),
-      sample_rep = paste(sample_no, rep_no, sep = "_")
+      sample = gsub("\\.", "", sample_no),
+      sample_rep = paste(sample, rep_no, sep="_")
     ) %>%
     rename(
       wave = wavenumber,
@@ -240,10 +267,10 @@ ggplot(after_deriv2, aes(wave, deriv2, colour = sample)) +
 
 # peak picking 
 detect_peaks <- function(df,
-                             value_col = "abs_corr",
-                             smooth_window = 11,
-                             threshold = 0.001,
-                             use_second_derivative = FALSE){
+                         value_col = "abs_corr",
+                         smooth_window = 11,
+                         threshold = 0.001,
+                         use_second_derivative = FALSE){
   
   out <- list()
   
@@ -316,20 +343,20 @@ detect_peaks <- function(df,
 }
 
 before_peaks <- detect_peaks(before_individual,
-                                     value_col = "abs_corr",
-                                     use_second_derivative = FALSE)
+                             value_col = "abs_corr",
+                             use_second_derivative = FALSE)
 
 after_peaks  <- detect_peaks(after_individual,
-                                     value_col = "abs_corr",
-                                     use_second_derivative = FALSE)
+                             value_col = "abs_corr",
+                             use_second_derivative = FALSE)
 
 before_peaks_d2 <- detect_peaks(before_individual,
-                                        value_col = "abs_corr",
-                                        use_second_derivative = TRUE)
+                                value_col = "abs_corr",
+                                use_second_derivative = TRUE)
 
 after_peaks_d2  <- detect_peaks(after_individual,
-                                        value_col = "abs_corr",
-                                        use_second_derivative = TRUE)
+                                value_col = "abs_corr",
+                                use_second_derivative = TRUE)
 
 # checkpoint peak detection - individual scans
 
@@ -564,15 +591,13 @@ before_scan_areas <- before_scan_areas %>%
       Aliphatic_total
   )
 
-# not sure if should include this normalization step
-#before_scan_areas <- before_scan_areas %>%
-#  mutate(
-#    across(
-#      c(Silicate, poorly_crystalline, carbonate_stretch, carbonyl, Aliphatic_total),
-#      ~ .x / total_area
-#    )
-#  )
-
+after_scan_areas <- after_scan_areas %>%
+  mutate(
+    total_area = Silicate + poorly_crystalline +
+      carbonate_stretch +
+      carbonyl +
+      Aliphatic_total
+  )
 # ---------------------------------------------------------
 # Average integrated peak areas across replicate scans
 # ---------------------------------------------------------
@@ -622,51 +647,161 @@ after_areas <- after_scan_areas %>%
     -COO_asym
   )
 
+before_areas <- before_areas %>%
+  left_join(metadata_analysis,
+            by="sample")
+
+after_areas <- after_areas %>%
+  left_join(metadata_analysis,
+            by="sample")
 
 # ---------------------------------------------------------
 # Combine and calculate extraction effect
 # ---------------------------------------------------------
-
 band_compare <- before_areas %>%
-  select(-dataset) %>%
-  rename_with(~paste0(.x,"_before"), -sample) %>%
+  rename_with(~paste0(.x,"_before"), 
+              -c(sample, Treatment, analysis_group)) %>%
+  
   left_join(
     after_areas %>%
-      select(-dataset) %>%
-      rename_with(~paste0(.x,"_after"), -sample),
-    by = "sample"
+      rename_with(~paste0(.x,"_after"),
+                  -c(sample, Treatment, analysis_group)),
+    by=c("sample",
+         "Treatment",
+         "analysis_group")
   ) %>%
+  
   mutate(
-    COO_total_change =
-      100*(COO_total_after - COO_total_before)/COO_total_before,
-    
-    Silicate_change =
-      100*(Silicate_after - Silicate_before)/Silicate_before,
-    
-    poorly_crystalline_change =
-      100*(poorly_crystalline_after - poorly_crystalline_before)/poorly_crystalline_before,
-    
-    Carbonate_bend_change =
-      100*(Carbonate_bend_after - Carbonate_bend_before)/Carbonate_bend_before,
-    
-    carbonate_stretch_change =
-      100*(carbonate_stretch_after - carbonate_stretch_before)/carbonate_stretch_before,
-    
-    aromatic_change =
-      100*(aromatic_after - aromatic_before)/aromatic_before,
+    COO_change =
+      COO_total_after - COO_total_before,
     
     carbonyl_change =
-      100*(carbonyl_after - carbonyl_before)/carbonyl_before,
+      carbonyl_after - carbonyl_before,
     
-    Aliphatic_total_change =
-      100*(Aliphatic_total_after - Aliphatic_total_before)/Aliphatic_total_before,
+    aromatic_change =
+      aromatic_after - aromatic_before,
     
-    polysaccharide_change =
-      100*(polysaccharide_after - polysaccharide_before)/polysaccharide_before  
+    CH_change =
+      Aliphatic_total_after - Aliphatic_total_before
   )
 
+
 # inspect
-band_compare
+ggplot(band_compare,
+       aes(analysis_group,
+           COO_change)) +
+  
+  geom_point(size=3) +
+  
+  stat_summary(
+    fun=mean,
+    geom="point",
+    size=5
+  ) +
+  
+  theme_bw() +
+  
+  labs(
+    x="Rock amendment",
+    y="Change in COO band area after extraction"
+  )
+
+
+##### treatment summary
+
+
+treatment_summary <- band_compare %>%
+  group_by(Treatment) %>%
+  summarise(
+    
+    n = n(),
+    
+    COO_change_mean =
+      mean(COO_total_after - COO_total_before,
+           na.rm=TRUE),
+    
+    COO_change_se =
+      sd(COO_total_after - COO_total_before,
+         na.rm=TRUE) / sqrt(n),
+    
+    .groups="drop"
+  )
+
+treatment_summary
+
+ggplot(treatment_summary,
+       aes(Treatment,
+           COO_change_mean)) +
+  
+  geom_col() +
+  
+  geom_errorbar(
+    aes(
+      ymin=COO_change_mean-COO_change_se,
+      ymax=COO_change_mean+COO_change_se
+    ),
+    width=0.2
+  ) +
+  
+  theme_bw() +
+  
+  theme(
+    axis.text.x = element_text(angle=45,
+                               hjust=1)
+  )
+
+huhnerberg <- band_compare %>%
+  filter(grepl("Huhnerberg", Treatment))
+
+
+ggplot(huhnerberg,
+       aes(dose,
+           COO_total_after-COO_total_before)) +
+  
+  geom_point(size=3) +
+  
+  geom_line() +
+  
+  theme_bw()
+
+# --------------------------------------------------
+# Statistical testing of peak areas
+# paired before vs after
+# --------------------------------------------------
+table(band_compare$analysis_group)
+kruskal.test(
+  COO_change ~ analysis_group,
+  data=band_compare
+)
+
+dunnTest(
+  COO_change ~ analysis_group,
+  data=band_compare,
+  method="bh"
+)
+
+
+#repeat for 
+carbonyl_change
+aromatic_change
+CH_change
+Silicate_change
+carbonate_stretch_change
+
+
+
+#consider testing 
+change ~ treatment where change = after - before
+
+
+# dose response test
+huhnerberg <- band_compare %>%
+  filter(grepl("Huhnerberg",Treatment))
+
+ggplot(huhnerberg,
+       aes(dose,COO_change))+
+  geom_point(size=3)+
+  geom_smooth(method="lm")
 
 # --------------------------------------------------
 # Average technical scans within biological sample
@@ -704,56 +839,18 @@ diff_spec <- before_avg_diff %>%
 # --------------------------------------------------
 # Plot all samples
 # --------------------------------------------------
-
-ggplot(diff_spec,
-       aes(wave, diff, colour = factor(sample))) +
-  
-  geom_hline(yintercept = 0,
-             linetype = "dashed") +
-  
-  geom_line(size = 0.8) +
-  
-  scale_x_reverse() +
-  
-  theme_bw() +
-  
-  labs(
-    title = "Difference spectra (After − Before)",
-    x = expression(Wavenumber~(cm^{-1})),
-    y = "Difference absorbance",
-    colour = "Sample"
-  ) +
-  
-  coord_cartesian(
-    xlim = c(1800, 800)
+diff_spec <- diff_spec %>%
+  left_join(
+    metadata_analysis,
+    by="sample"
   )
-
 ggplot(diff_spec,
-       aes(wave, diff)) +
-  
-  geom_hline(yintercept = 0,
-             linetype = "dashed") +
-  
-  geom_line(size = 0.8) +
-  
-  scale_x_reverse() +
-  
-  facet_wrap(~sample,
-             ncol = 2,
-             scales = "free_y") +
-  
-  theme_bw() +
-  
-  labs(
-    title = "Difference spectra (After − Before)",
-    x = expression(Wavenumber~(cm^{-1})),
-    y = "Difference absorbance"
-  ) +
-  
-  coord_cartesian(
-    xlim = c(1800, 800)
-  )
-
+       aes(wave,diff,
+           colour=analysis_group,
+           group=sample))+
+  geom_line(alpha=0.5)+
+  scale_x_reverse()+
+  theme_bw()
 # pca
 diff_wide <- diff_spec %>%
   select(sample, wave, diff) %>%
@@ -773,16 +870,20 @@ pca_diff <- prcomp(diff_mat, center = TRUE, scale. = TRUE)
 
 scores <- as.data.frame(pca_diff$x)
 scores$sample <- rownames(scores)
-
-ggplot(scores, aes(PC1, PC2, label = sample)) +
-  geom_point(size = 4) +
-  geom_text(vjust = -0.5) +
-  theme_bw() +
-  labs(
-    title = "PCA of difference spectra (After − Before)",
-    x = "PC1",
-    y = "PC2"
+scores <- scores %>%
+  left_join(
+    metadata_analysis,
+    by="sample"
   )
+
+ggplot(scores,
+       aes(PC1,PC2,
+           colour=analysis_group,
+           label=sample))+
+  geom_point(size=4)+
+  geom_text(vjust=-0.5)+
+  theme_bw()
+
 
 loadings <- as.data.frame(pca_diff$rotation)
 loadings$wave <- as.numeric(rownames(loadings))

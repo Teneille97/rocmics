@@ -564,6 +564,14 @@ before_scan_areas <- before_scan_areas %>%
       Aliphatic_total
   )
 
+after_scan_areas <- after_scan_areas %>%
+  mutate(
+    total_area = Silicate + poorly_crystalline +
+      carbonate_stretch +
+      carbonyl +
+      Aliphatic_total
+  )
+
 # ---------------------------------------------------------
 # Average integrated peak areas across replicate scans
 # ---------------------------------------------------------

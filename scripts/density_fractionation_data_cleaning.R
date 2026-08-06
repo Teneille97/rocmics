@@ -38,7 +38,7 @@ density_fractionation <- density_fractionation %>%
   ) %>%
   
   # --- drop junk columns safely ---
-  select(-any_of(c("mass.rbf", "moisture.content", "recovery....",
+  dplyr::select(-any_of(c("mass.rbf", "moisture.content", "recovery....",
                    "som.fraction....", "X", "X.1", "X.2", "Sample.date"))) %>%
   
   # --- fix treatment (2023 = Control) ---
@@ -124,53 +124,70 @@ df_proportions <- density_fractionation %>%
     fraction_prop = (mass.som.fraction / total.mass.som.fractions) * 100
   )
 
-# add CN data - bulk 2026 & MAOM
+# add CN data - bulk 2026 & fraction CN
 
-# Convert CN data from long to wide format
+# Clean CN data and convert from long to wide format
 CN_wide <- CN_data %>%
-  select(Sample.name, Parameter, Result....) %>%
+  mutate(
+    Parameter = str_trim(Parameter),
+    Result.... = as.numeric(Result....)
+  ) %>%
+  filter(
+    !is.na(Parameter),
+    Parameter != ""
+  ) %>%
+  dplyr::select(Sample.name, Parameter, Result....) %>%
   pivot_wider(
     names_from = Parameter,
-    values_from = Result....
+    values_from = Result....,
+    values_fn = ~mean(.x, na.rm = TRUE)
+  ) %>%
+  mutate(
+    CN = Ctotal / Ntotal
   )
 
-# create bulk lookup table
+# Create bulk lookup table
 CN_bulk <- CN_wide %>%
   filter(str_detect(Sample.name, "Bulk")) %>%
   mutate(
     core_id = str_replace(Sample.name, "_Bulk$", "")
   ) %>%
-  select(core_id, Ctotal, Ntotal) %>%
-  rename(C_bulk = Ctotal,
-         N_bulk = Ntotal)
+  dplyr::select(core_id, Ctotal, Ntotal, CN) %>%
+  rename(
+    C_bulk = Ctotal,
+    N_bulk = Ntotal,
+    CN_bulk = CN
+  )
 
-# create matching id in df proportions
+# Create matching ID in df_proportions
 df_proportions <- df_proportions %>%
   mutate(
     core_id = str_replace(sample.ID, "_(fPOM|oPOM|MAOM)$", "")
   )
 
-# Join to df_proportions by sample ID
+# Join fraction CN data and bulk CN data
 df_proportions <- df_proportions %>%
   left_join(CN_wide, by = c("sample.ID" = "Sample.name")) %>%
   left_join(CN_bulk, by = "core_id")
 
-df_proportions$CN<-df_proportions$Ctotal/df_proportions$Ntotal
-df_proportions$CN_bulk<-df_proportions$C_bulk/df_proportions$N_bulk
 
 # add CN data - bulk 2025
 
 CN_data_nov2025 <- read.csv(here("csv_files", "CN_nov2025.csv"), header = TRUE)
 CN_data_nov2025 <- CN_data_nov2025[1:63,]
-
 clean_data <- function(df) {
   df %>%
     mutate(across(c(Treatment, Dose_response_exp.), as.factor)) %>%
-    separate(Treatment, into = c("Tmt", "App_rate"), sep = "_") %>%
+    separate(
+      Treatment,
+      into = c("Tmt", "App_rate"),
+      sep = "_",
+      fill = "right"
+    ) %>%
     mutate(
       App_rate = replace_na(App_rate, "0"),
       Tmt = as.factor(Tmt)
-    )%>%
+    ) %>%
     rename(
       N = X.N,
       C = X.C
@@ -196,7 +213,7 @@ CN_data_nov2025$sample <- paste0(CN_data_nov2025$sample, "_2025_Bulk")
 # Prepare 2025 bulk CN data
 CN_2025 <- CN_data_nov2025 %>%
   mutate(core_id = str_remove(sample, "_Bulk$")) %>%
-  select(
+  dplyr::select(
     core_id,
     mean_C,
     mean_N,
@@ -211,7 +228,7 @@ df_proportions <- df_proportions %>%
     N_bulk  = if_else(Sampling_year == 2025, mean_N, N_bulk),
     CN_bulk = if_else(Sampling_year == 2025, mean_CN, CN_bulk)
   ) %>%
-  select(-mean_C, -mean_N, -mean_CN)
+  dplyr::select(-mean_C, -mean_N, -mean_CN)
 
 
 # multiply %C with total C in sample for proportions (% of total C distributed in each pool)
@@ -419,3 +436,81 @@ ggplot(plot_data_pct, aes(x = factor(Tmt), y = Nprop_pct, fill = Tmt)) +
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+### statistical analyses
+
+library(emmeans)
+library(multcomp)
+
+# Prepare oPOM C proportion data for 2026
+oPOM_C_2026 <- df_proportions %>%
+  filter(
+    Sampling_year == 2026,
+    SOM_fraction == "oPOM"
+  ) %>%
+  mutate(
+    Treatment_group = case_when(
+      Tmt == "Control" & App_rate == "0" ~ "Control",
+      Tmt == "Lime" & App_rate == "2" ~ "Lime_2",
+      Tmt == "Bolsdorfer" & App_rate == "50" ~ "Bolsdorfer_50",
+      Tmt == "Eifelgold" & App_rate == "50" ~ "Eifelgold_50",
+      Tmt == "Huhnerberg" & App_rate == "50" ~ "Huhnerberg_50",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(Treatment_group)) %>%
+  mutate(
+    Treatment_group = factor(Treatment_group)
+  )
+
+
+# Check sample sizes
+table(oPOM_C_2026$Treatment_group)
+
+
+# ANOVA model
+model_oPOM_C <- lm(Cprop ~ Treatment_group,
+                   data = oPOM_C_2026)
+
+# ANOVA table
+anova(model_oPOM_C)
+
+
+# Tukey post-hoc comparisons
+emmeans_oPOM_C <- emmeans(model_oPOM_C,
+                          pairwise ~ Treatment_group,
+                          adjust = "tukey")
+
+# Estimated means
+emmeans_oPOM_C$emmeans
+
+# Pairwise comparisons
+emmeans_oPOM_C$contrasts
+
+library(multcompView)
+
+letters_oPOM <- cld(
+  emmeans(model_oPOM_C, ~ Treatment_group),
+  Letters = letters,
+  adjust = "tukey"
+)
+
+letters_oPOM
+
+ggplot(oPOM_C_2026,
+       aes(x = Treatment_group,
+           y = Cprop)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.7) +
+  geom_text(
+    data = letters_oPOM,
+    aes(x = Treatment_group,
+        y = max(oPOM_C_2026$Cprop)*1.05,
+        label = .group),
+    inherit.aes = FALSE
+  ) +
+  labs(
+    x = "Treatment",
+    y = "oPOM carbon as proportion of bulk C (%)"
+  ) +
+  theme_minimal()
