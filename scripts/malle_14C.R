@@ -1,0 +1,188 @@
+library(tidyverse)
+library(here)
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(tidyr)
+library(stringr)
+
+radiocarbon_all_rawdata <- read.csv(here("csv_files", "14C_all_rawdata.csv"), header = TRUE)
+df_proportions <- read.csv(here("outputs", "df_proportions.csv"), header = TRUE)
+
+# =========================================================
+# Prepare dataframe for radiocarbon modelling
+# =========================================================
+
+# ---------------------------------------------------------
+# 1. Fraction data
+# ---------------------------------------------------------
+
+fraction_data <- df_proportions %>%
+  transmute(
+    sample = sample.ID,
+    Plot = Plot,
+    Sampling_year = Sampling_year,
+    SOM_fraction = as.character(SOM_fraction),
+    Tmt = Tmt,
+    App_rate = App_rate,
+    fraction_prop = fraction_prop,
+    Ctotal = Ctotal,
+    Ntotal = Ntotal,
+    CN = CN,
+    Cprop = Cprop,
+    Nprop = Nprop
+  )
+
+
+# ---------------------------------------------------------
+# 2. Create bulk dataframe
+# ---------------------------------------------------------
+
+bulk_data <- df_proportions %>%
+  distinct(
+    core_id,
+    Plot,
+    Sampling_year,
+    Tmt,
+    App_rate,
+    C_bulk,
+    N_bulk,
+    CN_bulk
+  ) %>%
+  mutate(
+    sample = paste0(core_id, "_Bulk"),
+    SOM_fraction = "Bulk",
+    fraction_prop = 100,
+    Ctotal = C_bulk,
+    Ntotal = N_bulk,
+    CN = CN_bulk
+  ) %>%
+  transmute(
+    sample = sample,
+    Plot = Plot,
+    Sampling_year = Sampling_year,
+    SOM_fraction = SOM_fraction,
+    Tmt = Tmt,
+    App_rate = App_rate,
+    fraction_prop = fraction_prop,
+    Ctotal = Ctotal,
+    Ntotal = Ntotal,
+    CN = CN,
+    
+    # Bulk is 100% of bulk C and N
+    Cprop = 100,
+    Nprop = 100
+  )
+
+# ---------------------------------------------------------
+# 3. Combine fractions + bulk
+# ---------------------------------------------------------
+
+radiocarbon_samples <- bind_rows(
+  fraction_data,
+  bulk_data
+) %>%
+  arrange(Sampling_year, Plot, SOM_fraction)
+
+
+radiocarbon_samples <- radiocarbon_samples %>%
+  left_join(
+    radiocarbon_all_rawdata,
+    by = c("sample" = "Sample")
+  )
+
+
+write.csv(
+  radiocarbon_samples,
+  here("outputs", "radiocarbon_samples.csv"),
+  row.names = FALSE
+)
+
+# ---------------------------------------------------------
+# Radiocarbon: main experiment
+# ---------------------------------------------------------
+main_14C <- radiocarbon_samples %>%
+  filter(
+    Tmt %in% c("Control", "Lime", "Eifelgold", "Bolsdorfer", "Huhnerberg")
+  ) %>%
+  # Filter to retain non-Huhnerberg treatments OR Huhnerberg only where Dose is 50
+  filter(Tmt != "Huhnerberg" | App_rate == 50) %>%
+  filter(!is.na(X.14C.....)) %>%
+  mutate(
+    SOM_fraction = factor(
+      SOM_fraction,
+      levels = c("Bulk", "fPOM", "oPOM", "MAOM")
+    ),
+    Tmt = factor(
+      Tmt,
+      levels = c("Control", "Lime", "Eifelgold", "Bolsdorfer", "Huhnerberg")
+    )
+  )
+
+ggplot(
+  main_14C,
+  aes(
+    x = SOM_fraction,
+    y = X.14C.....
+  )
+) +
+  geom_boxplot(
+    outlier.shape = NA,
+    width = 0.65
+  ) +
+  geom_jitter(
+    aes(colour = factor(Sampling_year)),  # Apply color mapping ONLY to jitter points
+    width = 0.12,
+    alpha = 0.7,
+    size = 2
+  ) +
+  facet_wrap(~ Tmt) +
+  theme_bw() +
+  labs(
+    x = "SOM fraction",
+    y = expression(Delta^14*C~("\u2030")),
+    title = expression(paste(Delta^14, "C of bulk soil and SOM fractions")),
+    colour = "Sampling Year"
+  ) +
+  guides(colour = guide_legend(override.aes = list(alpha = 1, size = 3)))
+
+# ---------------------------------------------------------
+# Radiocarbon: Huhnerberg dose-response
+# ---------------------------------------------------------
+
+huhnerberg_14C <- radiocarbon_samples %>%
+  filter(Tmt == "Huhnerberg") %>%
+  filter(!is.na(X.14C.....)) %>%
+  mutate(
+    SOM_fraction = factor(
+      SOM_fraction,
+      levels = c("Bulk", "fPOM", "oPOM", "MAOM")
+    )
+  )
+
+ggplot(
+  huhnerberg_14C,
+  aes(
+    x = App_rate,
+    y = X.14C.....
+  )
+) +
+  geom_boxplot(
+    aes(group = App_rate), # Groups numeric application rates for the boxplot
+    outlier.shape = NA,
+    width = 0.65
+  ) +
+  geom_jitter(
+    aes(colour = factor(Sampling_year)), # Colored discrete points
+    width = 0.12,
+    alpha = 0.8,
+    size = 3
+  ) +
+  theme_bw() +
+  facet_wrap(~ SOM_fraction) +
+  labs(
+    x = "Huhnerberg application rate (t ha\u207B\u00B9)",
+    y = expression(Delta^14*C~("\u2030")),
+    colour = "Sampling Year",
+    title = expression(paste(Delta^14, "C response to Huhnerberg application rate"))
+  )

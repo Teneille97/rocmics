@@ -13,6 +13,7 @@ moisture_content <- read.csv(here("csv_files", "moisture_content_density_fractio
 rbf_masses <- read.csv(here("csv_files", "rbf_masses_density_fractionation.csv"))
 treatment_names <- read.csv(here("csv_files", "treatment_names.csv"))
 CN_data<-read.csv(here("csv_files", "total_CN_MAOM_bulk.csv"))
+CN_data_nov2025 <- read.csv(here("csv_files", "CN_nov2025.csv"), header = TRUE)
 
 # clean + join + compute
 density_fractionation <- density_fractionation %>%
@@ -173,7 +174,6 @@ df_proportions <- df_proportions %>%
 
 # add CN data - bulk 2025
 
-CN_data_nov2025 <- read.csv(here("csv_files", "CN_nov2025.csv"), header = TRUE)
 CN_data_nov2025 <- CN_data_nov2025[1:63,]
 clean_data <- function(df) {
   df %>%
@@ -235,6 +235,11 @@ df_proportions <- df_proportions %>%
 df_proportions$Cprop<-(df_proportions$Ctotal*df_proportions$fraction_prop)/(df_proportions$C_bulk)
 df_proportions$Nprop<-(df_proportions$Ntotal*df_proportions$fraction_prop)/(df_proportions$N_bulk)
 
+write.csv(
+  df_proportions,
+  here("outputs", "df_proportions.csv"),
+  row.names = FALSE
+)
 
 # Do the replicates look similar?
 # We'll group by the factors that define a "replicate"
@@ -514,3 +519,4 @@ ggplot(oPOM_C_2026,
     y = "oPOM carbon as proportion of bulk C (%)"
   ) +
   theme_minimal()
+
