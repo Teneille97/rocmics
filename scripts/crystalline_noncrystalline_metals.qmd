@@ -11,7 +11,7 @@ Teneille's data analysis repository is available at <https://github.com/Teneille
 
 ## Treatment comparison
 
-Extracting non-crystalline sesquioxides in 2M oxalate yields the following metal concentrations. We observe more metals released from Bolsdorfer treatment, especially Si. 
+Extracting non-crystalline sesquioxides in 2M oxalate yields the following metal concentrations. We observe more metals released from Bolsdorfer treatment, especially Si.
 
 ```{r}
 #| echo: false
@@ -199,8 +199,6 @@ ggplot(plot50,
 
 ```
 
-
-
 ## Dose-response experiment
 
 Huhnerberg dose response clearly shows Al & Mn decrease, probably going into more cyrstalline mineral formation or Al is substituting for Fe in poorly-crystalline ferrihydrite (formed after Fe released from basalt, is oxidized) and Mn is sorbing to ferrihydrite or forming its own/ mixed oxides.
@@ -251,4 +249,3 @@ ggplot(dose_resp,
 
 
 ```
-
