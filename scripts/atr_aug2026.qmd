@@ -1,3 +1,43 @@
+---
+title: "atr_aug2026"
+format: html
+editor: visual
+---
+
+## ATR experiment
+
+ATR-FTIR measurements of soil samples were taken before and after extractions of base cations (1M NH4AOc, pH = 7) to evaluate changes in organo-mineral environments between the control and rock powder treatments.
+
+ATR measurements were imported to R and the data was cleaned by trimming to 800-3000 cm $^-1$, baseline correction by asymmetric least squares algorithm (improves signal dampened by noise and spectral drift) and vector normalization (relative peak intensities to account for different sample thickness).
+
+We wanted to investigate whether the following mechanisms of SOM stabilization may be occuring: 
+
+```{r}
+#| echo: false
+#| message: false
+#| label: Table
+#| warning: FALSE
+
+library(gt)
+library(tibble)
+
+tribble(
+  ~`Functional Group`, ~`Chemical Form`, ~`Cation Bridging Mechanism & Relevance`, ~`Organomineral Complexation Mechanisms`,
+  "Carboxylate", "-COO^-", "Primary driver (High): Negative electrostatic charge coordinates polyvalent cations.", "Direct ligand exchange (inner-sphere) with surface Fe/Al-OH groups.",
+  "Aromatic", "Ar-C=C / Phenolic", "Moderate: Delocalized pi-system coordinates cations via cation-pi interactions.", "Pi-pi stacking, siloxane face adsorption, and ligand exchange if phenolic.",
+  "Carbonyl", "-C=O", "Low to Moderate: Dipolar oxygen lone pairs act as weaker Lewis bases.", "Hydrogen bonding with surface hydroxyls (Fe/Al/Si-OH) and dipole interactions.",
+  "Aliphatic", "-CH2-, -CH3", "None (Incapable): Lacks charges, lone pairs, or pi-electrons.", "Hydrophobic interactions and van der Waals forces on uncharged surfaces."
+) %>%
+  gt() %>%
+  fmt_markdown(columns = everything())
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| label: Spectra before and after
+#| warning: FALSE
+
 library(stringr)
 library(reshape)
 library(data.table)
@@ -13,7 +53,7 @@ library(here)
 library(FSA)
 library(car)
 library(multcompView)
-library(FSA)
+
 # ---------------------------------------------------------
 # Metadata
 # ---------------------------------------------------------
@@ -244,66 +284,14 @@ overlay_all <- bind_rows(
     )
   )
 
-ggplot(
-  overlay_all,
-  aes(
-    x = wave,
-    y = abs_corr,
-    colour = dataset,
-    group = interaction(dataset, sample_rep)
-  )
-) +
-  geom_line(alpha = 0.6, linewidth = 0.6) +
-  scale_x_reverse() +
-  coord_cartesian(xlim = c(3000, 800)) +
-  facet_wrap(~ sample, ncol = 4) +
-  theme_bw() +
-  labs(
-    x = "Wavenumber (cm⁻¹)",
-    y = "Corrected absorbance",
-    colour = "Dataset"
-  ) +
-  theme(
-    strip.background = element_rect(colour = "black"),
-    strip.text = element_text(face = "bold"),
-    panel.border = element_rect(colour = "black", fill = NA),
-    legend.position = "bottom"
-  )
-
-
 #### overlay by treatment group 
 # Join treatment metadata to individual corrected spectra
 overlay_treatment <- overlay_all %>%
   left_join(metadata_join, by = "sample") %>%
   filter(!is.na(analysis_group))
 
-# Option 1: Individual scans faceted by dataset and colored by treatment
-ggplot(
-  overlay_treatment,
-  aes(
-    x = wave,
-    y = abs_corr,
-    color = analysis_group,
-    group = interaction(dataset, sample_rep)
-  )
-) +
-  geom_line(alpha = 0.35, linewidth = 0.4) +
-  scale_x_reverse() +
-  facet_wrap(~ dataset, ncol = 2) +
-  theme_bw() +
-  labs(
-    x = expression("Wavenumber (cm"^-1*")"),
-    y = "Corrected Absorbance",
-    color = "Treatment Group",
-    title = "Spectral Overlay by Treatment Group"
-  ) +
-  theme(
-    legend.position = "bottom",
-    strip.background = element_rect(fill = "gray90"),
-    strip.text = element_text(face = "bold")
-  )
+# Average spectrum per treatment group
 
-# Option 2: Average spectrum per treatment group
 overlay_treatment_mean <- overlay_treatment %>%
   mutate(dataset = factor(dataset, levels = c("Before", "After"))) %>%
   group_by(dataset, analysis_group, wave) %>%
@@ -332,6 +320,16 @@ ggplot(
     strip.text = element_text(face = "bold")
   )
 
+```
+
+Integrated areas were calculated over the spectral ranges associated with functional groups typically found in aliphatics (2898-2976 and 2939-2870 cm$^{-1}$), aromatics (1500-1550 cm$^{-1}$), carboxylates (1380-1425 and 1580-1650  cm$^{-1}$) and carbonyl (1570-1710  cm$^{-1}$) groups. Areas of replicate scans were averaged to yield mean change in areas before and after extraction.
+
+
+```{r}
+#| echo: false
+#| message: false
+#| label: Integrated peaks
+#| warning: FALSE
 
 # ---------------------------------------------------------
 # Function to integrate spectral regions per scan
@@ -541,27 +539,56 @@ band_compare_long <- band_compare %>%
   ) %>%
   mutate(functional_group = gsub("_change$", "", functional_group))
 
-ggplot(band_compare_long, aes(x = analysis_group, y = change)) +
-  #geom_point(size = 2.5, alpha = 0.6, colour = "blue") +
-  stat_summary(
-    fun = mean,
-    geom = "point",
-    size = 4,
-    color = "black"
+
+band_compare_filtered <- band_compare_long %>%
+  filter(!is.na(analysis_group))
+
+# Generate compact letter display per functional group
+get_cld <- function(df) {
+  dt <- FSA::dunnTest(change ~ factor(analysis_group), data = df, method = "bh")$res
+  p_vals <- dt$P.adj
+  names(p_vals) <- gsub(" ", "", dt$Comparison)
+  
+  cld <- multcompLetters(p_vals)$Letters
+  data.frame(
+    analysis_group = names(cld),
+    letter = as.character(cld),
+    stringsAsFactors = FALSE
+  )
+}
+
+cld_df <- band_compare_filtered %>%
+  group_by(functional_group) %>%
+  group_modify(~ get_cld(.x)) %>%
+  ungroup()
+
+# Position letters slightly above mean + SE
+pos_df <- band_compare_filtered %>%
+  group_by(functional_group, analysis_group) %>%
+  summarise(
+    y_pos = mean(change, na.rm = TRUE) + (sd(change, na.rm = TRUE) / sqrt(n())) + 0.00005,
+    .groups = "drop"
+  )
+
+cld_df <- left_join(cld_df, pos_df, by = c("functional_group", "analysis_group"))
+
+# Plot with statistical letters
+ggplot(band_compare_filtered, aes(x = analysis_group, y = change)) +
+  stat_summary(fun = mean, geom = "point", size = 3, color = "black") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, color = "black") +
+  geom_text(
+    data = cld_df,
+    aes(x = analysis_group, y = y_pos, label = letter),
+    vjust = -0.5,
+    size = 3.5,
+    fontface = "bold"
   ) +
-  stat_summary(
-    fun.data = mean_se, 
-    geom = "errorbar", 
-    width = 0.2, 
-    color = "black"
-  ) +
-  # scales = "free_y" lets each functional group have its own y-axis scale
   facet_wrap(~ functional_group, scales = "free_y") +
   theme_bw() +
   labs(
     x = "Rock amendment",
     y = "Change in band area after extraction",
-    title = "SOM Functional Group Changes by Treatment"
+    title = "SOM Functional Group Changes by Treatment (Dunn test, p < 0.05)"
   ) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
@@ -569,32 +596,6 @@ ggplot(band_compare_long, aes(x = analysis_group, y = change)) +
     strip.text = element_text(face = "bold")
   )
 
-
-
-##### treatment summary
-
-treatment_summary <- band_compare %>%
-  # Filter out NA rows and isolated dose-response treatments
-  filter(!is.na(Treatment), Treatment != "NA") %>%
-  group_by(Treatment) %>%
-  summarise(
-    n = n(),
-    
-    # Dynamically calculate Mean and SE for all *_change columns
-    across(
-      ends_with("_change"),
-      list(
-        mean = ~ mean(.x, na.rm = TRUE),
-        se   = ~ sd(.x, na.rm = TRUE) / sqrt(sum(!is.na(.x)))
-      ),
-      .names = "{.col}_{.fn}"
-    ),
-    
-    .groups = "drop"
-  )
-
-treatment_summary %>% 
-  print(n = Inf, width = Inf)
 
 
 # ---------------------------------------------------------
@@ -659,84 +660,15 @@ ggplot(
     title = "Spectral changes across the Hühnerberg dose-response gradient"
   )
 
+```
 
-huhnerberg_summary %>% 
-  print(n = Inf, width = Inf)
+## Interpration
 
-########### stats
+**Control and lime behave same**
+Both control and lime treatments undergo loss of band areas across almost all functional groups after extraction (COO, carbonyl and CH). Liming doesn't change extractability of SOM. Cation extraction results in loss of organic compounds that were loosely bound via weak cation bridging (Ca, Mg).
 
-band_compare_filtered <- band_compare_long %>%
-  filter(!is.na(analysis_group))
+**Bolsdorfer and Hühnerberg rock dusts mitigate SOM loss**
+Almost no aliphatic loss and reduced COO loss. Silicate rock dusts introduce reactive mineral surfaces (silicates, sesquioxides) that form stronger complexes with SOM that resist being stripped during cation extraction. Eifelgold only had intermediate effect.
 
-# Generate compact letter display per functional group
-get_cld <- function(df) {
-  dt <- FSA::dunnTest(change ~ factor(analysis_group), data = df, method = "bh")$res
-  p_vals <- dt$P.adj
-  names(p_vals) <- gsub(" ", "", dt$Comparison)
-  
-  cld <- multcompLetters(p_vals)$Letters
-  data.frame(
-    analysis_group = names(cld),
-    letter = as.character(cld),
-    stringsAsFactors = FALSE
-  )
-}
-
-cld_df <- band_compare_filtered %>%
-  group_by(functional_group) %>%
-  group_modify(~ get_cld(.x)) %>%
-  ungroup()
-
-# Position letters slightly above mean + SE
-pos_df <- band_compare_filtered %>%
-  group_by(functional_group, analysis_group) %>%
-  summarise(
-    y_pos = mean(change, na.rm = TRUE) + (sd(change, na.rm = TRUE) / sqrt(n())) + 0.00005,
-    .groups = "drop"
-  )
-
-cld_df <- left_join(cld_df, pos_df, by = c("functional_group", "analysis_group"))
-
-# Plot with statistical letters
-ggplot(band_compare_filtered, aes(x = analysis_group, y = change)) +
-  stat_summary(fun = mean, geom = "point", size = 3, color = "black") +
-  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, color = "black") +
-  geom_text(
-    data = cld_df,
-    aes(x = analysis_group, y = y_pos, label = letter),
-    vjust = -0.5,
-    size = 3.5,
-    fontface = "bold"
-  ) +
-  facet_wrap(~ functional_group, scales = "free_y") +
-  theme_bw() +
-  labs(
-    x = "Rock amendment",
-    y = "Change in band area after extraction",
-    title = "SOM Functional Group Changes by Treatment (Dunn test, p < 0.05)"
-  ) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    strip.background = element_rect(fill = "gray90"),
-    strip.text = element_text(face = "bold")
-  )
-
-
-#checks 
-
-# Levene's test per functional group
-levene_results <- band_compare_long %>%
-  filter(!is.na(analysis_group)) %>%
-  group_by(functional_group) %>%
-  group_modify(~ {
-    res <- car::leveneTest(change ~ factor(analysis_group), data = .x)
-    data.frame(
-      F_stat  = res$`F value`[1],
-      df1     = res$Df[1],
-      df2     = res$Df[2],
-      p_value = res$`Pr(>F)`[1]
-    )
-  }) %>%
-  ungroup()
-
-print(levene_results)
+**Dose-response experiment**
+Increase in SOM extraction loss up to 30 t/ha, perhaps the increasing amount of cation bridges resulted in a bigger potential pool of NH4OAc-extractable SOM. Then at 50 t/ha, a critical saturation threshold may have been reached that resulted in formation of secondary minerals that formed organo-mineral complexes that are resistant to extraction  (or phsyical entrapment occurred). 

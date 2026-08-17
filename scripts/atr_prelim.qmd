@@ -467,7 +467,7 @@ band_compare
 
 - **Control Treatment Dynamics:**
   - Demonstrated a higher abundance of **labile cation-organic associations**.
-  - Extraction induced a highly consistent shift in the carboxylate environment, characterized by a **decrease in the** $COO^-$ asymmetric stretching region and a corresponding **increase in the** $COO^-$ symmetric stretching region.
+  - Extraction induced a highly consistent shift in the carboxylate environment, characterized by a **decrease in the** $COO^-$\$COO\^-\$ asymmetric stretching region and a corresponding **increase in the** $COO^-$ symmetric stretching region.
 - **Rock Powder Treatment Stability:**
   - Significantly **reduced the sensitivity of the carboxylate environment** to chemical extraction.
   - Indicates the formation of **more stable, less extractable organo-mineral complexes**.
