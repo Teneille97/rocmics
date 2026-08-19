@@ -740,3 +740,553 @@ levene_results <- band_compare_long %>%
   ungroup()
 
 print(levene_results)
+
+
+# =========================================================
+# SECOND VERSION: PERCENTAGE CHANGE IN FUNCTIONAL GROUPS
+# =========================================================
+#
+# Percentage change is calculated separately for each
+# functional group:
+#
+#   % change = ((After - Before) / Before) * 100
+#
+# Thus, each functional group is expressed relative to its
+# own BEFORE integrated area.
+# =========================================================
+
+
+# ---------------------------------------------------------
+# Calculate percentage change for each functional group
+# ---------------------------------------------------------
+
+band_compare_pct <- before_areas %>%
+  
+  # Rename spectral variables from BEFORE
+  rename_with(
+    ~ paste0(.x, "_before"),
+    -c(sample, Treatment, analysis_group, Dose)
+  ) %>%
+  
+  # Join AFTER spectral data
+  left_join(
+    after_areas %>%
+      select(
+        sample,
+        Treatment,
+        analysis_group,
+        everything()
+      ) %>%
+      select(-Dose) %>%
+      rename_with(
+        ~ paste0(.x, "_after"),
+        -c(sample, Treatment, analysis_group)
+      ),
+    by = c("sample", "Treatment", "analysis_group")
+  ) %>%
+  
+  # Calculate percentage change relative to BEFORE
+  mutate(
+    
+    COO_change_pct =
+      (COO_total_after - COO_total_before) /
+      COO_total_before * 100,
+    
+    carbonyl_change_pct =
+      (carbonyl_after - carbonyl_before) /
+      carbonyl_before * 100,
+    
+    aromatic_change_pct =
+      (aromatic_after - aromatic_before) /
+      aromatic_before * 100,
+    
+    CH_change_pct =
+      (Aliphatic_total_after - Aliphatic_total_before) /
+      Aliphatic_total_before * 100
+  )
+
+
+# ---------------------------------------------------------
+# Convert to long format for plotting
+# ---------------------------------------------------------
+
+band_compare_pct_long <- band_compare_pct %>%
+  
+  filter(
+    !is.na(Treatment),
+    Treatment != "NA",
+    !is.na(analysis_group)
+  ) %>%
+  
+  pivot_longer(
+    cols = ends_with("_change_pct"),
+    names_to = "functional_group",
+    values_to = "change_pct"
+  ) %>%
+  
+  mutate(
+    functional_group =
+      gsub("_change_pct$", "", functional_group)
+  )
+
+
+# ---------------------------------------------------------
+# Treatment summary
+# ---------------------------------------------------------
+
+treatment_summary_pct <- band_compare_pct %>%
+  
+  filter(
+    !is.na(Treatment),
+    Treatment != "NA"
+  ) %>%
+  
+  group_by(Treatment) %>%
+  
+  summarise(
+    
+    n = n(),
+    
+    across(
+      ends_with("_change_pct"),
+      list(
+        mean = ~ mean(.x, na.rm = TRUE),
+        se = ~ sd(.x, na.rm = TRUE) /
+          sqrt(sum(!is.na(.x)))
+      ),
+      .names = "{.col}_{.fn}"
+    ),
+    
+    .groups = "drop"
+  )
+
+
+# Print treatment summary
+treatment_summary_pct %>%
+  print(n = Inf, width = Inf)
+
+
+# ---------------------------------------------------------
+# Plot percentage change by treatment
+# ---------------------------------------------------------
+
+ggplot(
+  band_compare_pct_long,
+  aes(
+    x = analysis_group,
+    y = change_pct
+  )
+) +
+  
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 4,
+    color = "black"
+  ) +
+  
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 0.2,
+    color = "black"
+  ) +
+  
+  facet_wrap(
+    ~ functional_group,
+    scales = "free_y"
+  ) +
+  
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed"
+  ) +
+  
+  theme_bw() +
+  
+  labs(
+    x = "Rock amendment",
+    y = "Change in band area (%)",
+    title = "SOM Functional Group Changes by Treatment"
+  ) +
+  
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
+    strip.background = element_rect(
+      fill = "gray90"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    panel.border = element_rect(
+      colour = "black",
+      fill = NA
+    )
+  )
+
+
+# ---------------------------------------------------------
+# HÜHNERBERG DOSE-RESPONSE ANALYSIS
+# ---------------------------------------------------------
+
+huhnerberg_summary_pct <- band_compare_pct %>%
+  
+  filter(
+    str_detect(Treatment, "^Huhnerberg_")
+  ) %>%
+  
+  group_by(Dose) %>%
+  
+  summarise(
+    
+    n = n(),
+    
+    across(
+      ends_with("_change_pct"),
+      list(
+        mean = ~ mean(.x, na.rm = TRUE),
+        se = ~ sd(.x, na.rm = TRUE) /
+          sqrt(sum(!is.na(.x)))
+      ),
+      .names = "{.col}_{.fn}"
+    ),
+    
+    .groups = "drop"
+  )
+
+
+huhnerberg_long_pct <- band_compare_pct %>%
+  
+  filter(
+    str_detect(Treatment, "^Huhnerberg_")
+  ) %>%
+  
+  pivot_longer(
+    cols = ends_with("_change_pct"),
+    names_to = "functional_group",
+    values_to = "change_pct"
+  ) %>%
+  
+  mutate(
+    functional_group =
+      gsub("_change_pct$", "", functional_group)
+  )
+
+
+# ---------------------------------------------------------
+# Hühnerberg dose-response plot
+# ---------------------------------------------------------
+
+ggplot(
+  huhnerberg_long_pct,
+  aes(
+    x = Dose,
+    y = change_pct
+  )
+) +
+  
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 3
+  ) +
+  
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 1.5
+  ) +
+  
+  facet_wrap(
+    ~ functional_group,
+    scales = "free_y"
+  ) +
+  
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed"
+  ) +
+  
+  theme_bw() +
+  
+  labs(
+    x = expression(
+      "Hühnerberg application rate (t ha"^-1*")"
+    ),
+    y = "Change in band area (%)",
+    title = "Spectral Changes Across the Hühnerberg Dose-Response Gradient"
+  ) +
+  
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
+    strip.background = element_rect(
+      fill = "gray90"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    panel.border = element_rect(
+      colour = "black",
+      fill = NA
+    )
+  )
+
+
+# =========================================================
+# STATISTICS FOR PERCENTAGE CHANGE
+# =========================================================
+
+# ---------------------------------------------------------
+# Filter data for statistical analysis
+# ---------------------------------------------------------
+
+band_compare_pct_filtered <- band_compare_pct_long %>%
+  filter(
+    !is.na(analysis_group),
+    !is.na(change_pct)
+  )
+
+
+# ---------------------------------------------------------
+# Dunn test + compact letter display
+# ---------------------------------------------------------
+
+get_cld_pct <- function(df) {
+  
+  dt <- FSA::dunnTest(
+    change_pct ~ factor(analysis_group),
+    data = df,
+    method = "bh"
+  )$res
+  
+  p_vals <- dt$P.adj
+  
+  names(p_vals) <- gsub(
+    " ",
+    "",
+    dt$Comparison
+  )
+  
+  cld <- multcompLetters(p_vals)$Letters
+  
+  data.frame(
+    analysis_group = names(cld),
+    letter = as.character(cld),
+    stringsAsFactors = FALSE
+  )
+}
+
+
+# ---------------------------------------------------------
+# Generate significance letters separately for each
+# functional group
+# ---------------------------------------------------------
+
+cld_df_pct <- band_compare_pct_filtered %>%
+  
+  group_by(functional_group) %>%
+  
+  group_modify(
+    ~ get_cld_pct(.x)
+  ) %>%
+  
+  ungroup()
+
+
+# ---------------------------------------------------------
+# Calculate positions for significance letters
+# ---------------------------------------------------------
+#
+# Letters are positioned above the mean + SE.
+# The offset is scaled to the range of each functional
+# group so that it works appropriately with percentage data.
+# ---------------------------------------------------------
+
+pos_df_pct <- band_compare_pct_filtered %>%
+  
+  group_by(
+    functional_group,
+    analysis_group
+  ) %>%
+  
+  summarise(
+    
+    mean_change = mean(
+      change_pct,
+      na.rm = TRUE
+    ),
+    
+    se = sd(
+      change_pct,
+      na.rm = TRUE
+    ) / sqrt(
+      sum(!is.na(change_pct))
+    ),
+    
+    .groups = "drop"
+  ) %>%
+  
+  group_by(functional_group) %>%
+  
+  mutate(
+    
+    range_change = diff(
+      range(
+        band_compare_pct_filtered$change_pct[
+          band_compare_pct_filtered$functional_group ==
+            first(functional_group)
+        ],
+        na.rm = TRUE
+      )
+    ),
+    
+    y_pos = mean_change +
+      se +
+      0.05 * range_change
+  ) %>%
+  
+  ungroup()
+
+
+# ---------------------------------------------------------
+# Add positions to significance letters
+# ---------------------------------------------------------
+
+cld_df_pct <- cld_df_pct %>%
+  
+  left_join(
+    pos_df_pct %>%
+      select(
+        functional_group,
+        analysis_group,
+        y_pos
+      ),
+    by = c(
+      "functional_group",
+      "analysis_group"
+    )
+  )
+
+
+# ---------------------------------------------------------
+# Final percentage-change plot with significance letters
+# ---------------------------------------------------------
+
+ggplot(
+  band_compare_pct_filtered,
+  aes(
+    x = analysis_group,
+    y = change_pct
+  )
+) +
+  
+  stat_summary(
+    fun = mean,
+    geom = "point",
+    size = 3,
+    color = "black"
+  ) +
+  
+  stat_summary(
+    fun.data = mean_se,
+    geom = "errorbar",
+    width = 0.2,
+    color = "black"
+  ) +
+  
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed"
+  ) +
+  
+  geom_text(
+    data = cld_df_pct,
+    aes(
+      x = analysis_group,
+      y = y_pos,
+      label = letter
+    ),
+    vjust = -0.5,
+    size = 3.5,
+    fontface = "bold"
+  ) +
+  
+  facet_wrap(
+    ~ functional_group,
+    scales = "free_y"
+  ) +
+  
+  theme_bw() +
+  
+  labs(
+    x = "Rock amendment",
+    y = "Change in band area (%)",
+    title = "SOM Functional Group Changes by Treatment",
+    subtitle = "Percentage change relative to the pre-extraction band area"
+  ) +
+  
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
+    strip.background = element_rect(
+      fill = "gray90"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    panel.border = element_rect(
+      colour = "black",
+      fill = NA
+    )
+  )
+
+
+# ---------------------------------------------------------
+# Levene's test for percentage changes
+# ---------------------------------------------------------
+
+levene_results_pct <- band_compare_pct_long %>%
+  
+  filter(
+    !is.na(analysis_group),
+    !is.na(change_pct)
+  ) %>%
+  
+  group_by(functional_group) %>%
+  
+  group_modify(~ {
+    
+    res <- car::leveneTest(
+      change_pct ~ factor(analysis_group),
+      data = .x
+    )
+    
+    data.frame(
+      F_stat = res$`F value`[1],
+      df1 = res$Df[1],
+      df2 = res$Df[2],
+      p_value = res$`Pr(>F)`[1]
+    )
+  }) %>%
+  
+  ungroup()
+
+
+# Print Levene's test results
+print(levene_results_pct)
+
+
+# =========================================================
+# OPTIONAL: INSPECT THE PERCENTAGE-CHANGE DATA
+# =========================================================
+
+band_compare_pct_long %>%
+  print(n = Inf, width = Inf)
