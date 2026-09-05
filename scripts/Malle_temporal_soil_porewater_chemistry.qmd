@@ -604,4 +604,3 @@ multi_page <- marrangeGrob(
 
 print(multi_page)
 ```
-
