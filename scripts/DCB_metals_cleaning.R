@@ -9,6 +9,9 @@ library(here)
 library(emmeans)
 library(multcomp)
 library(multcompView)
+library(ggthemr)
+
+ggthemr(palette="fresh")
 # ---------------------------------------------------------
 # Metadata
 # ---------------------------------------------------------
@@ -35,10 +38,10 @@ metadata <- metadata %>%
 metadata_analysis <- metadata %>%
   filter(!is.na(analysis_group))
 
-# import oxalate data
+# import DCB data
 
-oxalate_data <- read.csv(here("csv_files", "oxalate_sesq_feb2026.csv"))
-alldata_long <- cbind(oxalate_data, metadata)
+DCB_data <- read.csv(here("csv_files", "DCB_Feb2026.csv"))
+alldata_long <- cbind(DCB_data, metadata)
 alldata_long<-alldata_long%>%
   
   # --- split treatment ---
@@ -56,22 +59,29 @@ library(tidyverse)
 # Convert to long format
 elements_long <- alldata_long %>%
   dplyr::select(Tmt, App_rate,
-         Fe..mg.g.1.soil.,
-         Al..mg.g.1.soil.,
-         Mn..mg.g.1.soil.,
-         Si..mg.g.1.soil.) %>%
+                X.Al,
+                X.Al2O3,
+                X.Fe2O3,
+                X.Mn,
+                X.MnO,
+                X.Si,
+                X.SiO2) %>%
   pivot_longer(
-    cols = starts_with(c("Fe", "Al", "Mn", "Si")),
-    names_to = "Element",
+    cols = starts_with("X"),
+    names_to = "Metal",
     values_to = "Concentration"
   ) %>%
   mutate(
-    Element = dplyr::recode(
-      Element,
-      "Fe..mg.g.1.soil." = "Fe",
-      "Al..mg.g.1.soil." = "Al",
-      "Mn..mg.g.1.soil." = "Mn",
-      "Si..mg.g.1.soil." = "Si"
+    Metal = dplyr::recode(
+      Metal,
+      "X.Al" = "Al (%)",
+      "X.Al2O3" = "Al2O3 (%)",
+      "X.Fe" = "Fe (%)",
+      "X.Fe2O3" = "Fe2O3 (%)",
+      "X.Mn" = "Mn (%)",
+      "X.MnO" = "MnO (%)",
+      "X.Si" = "Si (%)",
+      "X.SiO2" = "SiO2 (%)"
     ),
     App_rate = factor(App_rate,
                       levels = c("0", "2", "4", "8", "12", "20", "30", "50"))
@@ -82,7 +92,7 @@ ggplot(elements_long,
        aes(x = App_rate, y = Concentration)) +
   geom_boxplot(outlier.shape = NA, fill = "grey85") +
   geom_jitter(width = 0.15, size = 2, alpha = 0.8) +
-  facet_grid(Element ~ Tmt, scales = "free_y") +
+  facet_grid(Metal ~ Tmt, scales = "free_y") +
   labs(
     x = "Application rate (t ha⁻¹)",
     y = expression(paste("Concentration (mg g"^-1, " soil)"))
@@ -98,23 +108,30 @@ ggplot(elements_long,
 elements_long_50 <- alldata_long %>%
   dplyr::select(
     analysis_group, Tmt, App_rate,
-    Fe..mg.g.1.soil.,
-    Al..mg.g.1.soil.,
-    Mn..mg.g.1.soil.,
-    Si..mg.g.1.soil.
+    X.Al,
+    X.Al2O3,
+    X.Fe2O3,
+    X.Mn,
+    X.MnO,
+    X.Si,
+    X.SiO2
   ) %>%
   pivot_longer(
-    cols = starts_with(c("Fe", "Al", "Mn", "Si")),
-    names_to = "Element",
+    cols = starts_with("X"),
+    names_to = "Metal",
     values_to = "Concentration"
   ) %>%
   mutate(
-    Element = dplyr::recode(
-      Element,
-      "Fe..mg.g.1.soil." = "Fe",
-      "Al..mg.g.1.soil." = "Al",
-      "Mn..mg.g.1.soil." = "Mn",
-      "Si..mg.g.1.soil." = "Si"
+    Metal = dplyr::recode(
+      Metal,
+      "X.Al" = "Al (%)",
+      "X.Al2O3" = "Al2O3 (%)",
+      "X.Fe" = "Fe (%)",
+      "X.Fe2O3" = "Fe2O3 (%)",
+      "X.Mn" = "Mn (%)",
+      "X.MnO" = "MnO (%)",
+      "X.Si" = "Si (%)",
+      "X.SiO2" = "SiO2 (%)"
     )
   )
 
@@ -141,11 +158,10 @@ plot50 <- elements_long_50 %>%
     )
   )
 
-
 # stats
 
 letters_df <- plot50 %>%
-  group_by(Element) %>%
+  group_by(Metal) %>%
   group_modify(~{
     
     mod <- aov(Concentration ~ analysis_group, data = .x)
@@ -180,7 +196,7 @@ ggplot(plot50,
             inherit.aes = FALSE,
             x = letters_df$analysis_group,
             size = 5) +
-  facet_grid(Element ~ ., scales = "free_y") +
+  facet_grid(Metal ~ ., scales = "free_y") +
   labs(
     x = "",
     y = expression(paste("Concentration (mg g"^-1," soil)"))
@@ -222,7 +238,7 @@ ggplot(dose_resp,
            y = Concentration)) +
   geom_boxplot(outlier.shape = NA, fill = "grey90") +
   geom_jitter(width = 0.15, size = 2) +
-  facet_grid(Element ~ ., scales = "free_y") +
+  facet_grid(Metal ~ ., scales = "free_y") +
   labs(
     x = "",
     y = expression(paste("Concentration (mg g"^-1," soil)"))
@@ -235,10 +251,11 @@ ggplot(dose_resp,
 ggplot(dose_resp,
        aes(Treatment, Concentration, group = 1)) +
   geom_point(size = 3) +
-  facet_grid(Element ~ ., scales = "free_y") +
+  facet_grid(Metal ~ ., scales = "free_y") +
   labs(
     x = "",
     y = expression(paste("Concentration (mg g"^-1," soil)"))
   ) +
   theme_bw()
+
 
