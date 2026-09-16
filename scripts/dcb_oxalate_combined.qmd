@@ -1,3 +1,25 @@
+---
+title: "dcb_oxalate_combined"
+format: html
+editor: visual
+---
+
+## Overview
+
+Teneille's full project repository is available at <https://github.com/Teneille97/rocmics>.
+
+We analysed crystalline and non-crystalline metal(loid)s (Fe, Al, Mn and Si) in an enhanced rock weathering field trial in Malle.
+
+The DCB extraction is designed to reduce crystalline sesquioxides and the oxalate extraction is highly acidic and can dissolve short-order range (amorphous, non-crystalline) aluminosilicates. 
+
+## DCB- and oxalate-extractable metal(loid) content of different treatments
+
+```{r}
+#| echo: false
+#| message: false
+#| label: metal(loid)s comparison
+#| warning: FALSE
+#| 
 # ==============================================================================
 # 1. LIBRARIES & SETUP
 # ==============================================================================
@@ -110,25 +132,7 @@ metrics_long <- extraction_metrics %>%
 # Custom Color Palette
 method_colors <- c("Oxalate" = "#E69F00", "DCB" = "#56B4E9")
 
-# --- Plot 1: Full Dataset Overview by Application Rate & Method ---
-ggplot(combined_extractions, aes(x = App_rate, y = Concentration, fill = Method)) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.7, position = position_dodge(0.8)) +
-  geom_point(aes(color = Method), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.8), size = 1.2, alpha = 0.7) +
-  facet_grid(Element ~ Tmt, scales = "free_y") +
-  scale_fill_manual(values = method_colors) +
-  scale_color_manual(values = method_colors) +
-  labs(
-    x = expression(paste("Application Rate (t ha"^-1, ")")),
-    y = expression(paste("Concentration (mg g"^-1, " soil)")),
-    title = "Comparison of Oxalate and DCB Extractions Across Treatments"
-  ) +
-  theme(
-    strip.background = element_rect(fill = "grey90"),
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "top"
-  )
-
-# --- Plot 2: 50 t/ha Treatments Comparison (ANOVA & Tukey Letters) ---
+# --- 50 t/ha Treatments Comparison (ANOVA & Tukey Letters) ---
 plot50_combined <- combined_extractions %>%
   filter(analysis_group %in% c("Control", "Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50", "Lime_2")) %>%
   mutate(analysis_group = factor(analysis_group, levels = c("Control", "Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50", "Lime_2")))
@@ -152,16 +156,35 @@ letters_df_combined <- plot50_combined %>%
   ungroup()
 
 ggplot(plot50_combined, aes(x = analysis_group, y = Concentration, fill = Method)) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.7, position = position_dodge(0.8)) +
-  geom_point(aes(color = Method), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.8), size = 1.5) +
+  geom_boxplot(
+    outlier.shape = NA,
+    alpha = 0.7,
+    position = position_dodge(0.8)
+  ) +
+  geom_point(
+    aes(color = Method),
+    position = position_jitterdodge(
+      jitter.width = 0.1,
+      dodge.width = 0.8
+    ),
+    size = 1.5
+  ) +
   geom_text(
     data = letters_df_combined,
-    aes(x = analysis_group, y = y, label = .group, group = Method),
+    aes(
+      x = analysis_group,
+      y = y,
+      label = .group,
+      group = Method
+    ),
     position = position_dodge(0.8),
     size = 3.5,
     vjust = 0
   ) +
   facet_grid(Element ~ Method, scales = "free_y") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0.05, 0.20))
+  ) +
   scale_fill_manual(values = method_colors) +
   scale_color_manual(values = method_colors) +
   labs(
@@ -174,7 +197,7 @@ ggplot(plot50_combined, aes(x = analysis_group, y = Concentration, fill = Method
     legend.position = "none"
   )
 
-# --- Plot 3: Dose-Response (Huhnerberg vs Control) ---
+# --- Dose-Response (Huhnerberg vs Control) ---
 dose_resp_combined <- combined_extractions %>%
   filter(Tmt == "Control" | Tmt == "Huhnerberg") %>%
   mutate(
@@ -197,48 +220,22 @@ ggplot(dose_resp_combined, aes(x = Treatment, y = Concentration, fill = Method))
     axis.text.x = element_text(angle = 45, hjust = 1),
     legend.position = "top"
   )
+```
 
-# ==============================================================================
-# 7. DIFFERENCE (DCB - Oxalate) AND RATIO (Oxalate / DCB) PLOTS
-# ==============================================================================
+## Ratio comparison
 
-# --- Plot 4: Absolute Difference (DCB - Oxalate) across 50 t/ha groups ---
+We then compared ratios of amorphous to crystalline elements among different treatments. 
+
+```{r}
+#| echo: false
+#| message: false
+#| label: ratio comparison
+#| warning: FALSE
+#| 
 metrics_50 <- extraction_metrics %>%
   filter(analysis_group %in% c("Control", "Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50", "Lime_2")) %>%
   mutate(analysis_group = factor(analysis_group, levels = c("Control", "Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50", "Lime_2")))
 
-ggplot(metrics_50, aes(x = analysis_group, y = Diff_DCB_Ox, fill = analysis_group)) +
-  geom_boxplot(outlier.shape = NA, fill = "grey90") +
-  geom_jitter(width = 0.15, size = 2, alpha = 0.8) +
-  facet_grid(Element ~ ., scales = "free_y") +
-  labs(
-    x = "",
-    y = expression(paste("Difference: DCB - Oxalate (mg g"^-1, " soil)")),
-    title = "Crystalline/Residual Fraction (DCB - Oxalate)"
-  ) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none"
-  )
-
-# --- Plot 5: Extraction Ratio (Oxalate / DCB) across 50 t/ha groups ---
-ggplot(metrics_50, aes(x = analysis_group, y = Ratio_Ox_DCB, fill = analysis_group)) +
-  geom_boxplot(outlier.shape = NA, fill = "grey90") +
-  geom_jitter(width = 0.15, size = 2, alpha = 0.8) +
-  facet_grid(Element ~ ., scales = "free_y") +
-  labs(
-    x = "",
-    y = expression("Active Ratio (Oxalate / DCB)"),
-    title = "Amorphous Fraction Ratio (Oxalate / DCB)"
-  ) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none"
-  )
-
-# ==============================================================================
-# 8. TUKEY STATISTICAL ANALYSIS FOR AMORPHOUS FRACTION RATIO (Oxalate / DCB)
-# ==============================================================================
 
 # 1. Filter metrics data for the 50 t/ha comparison group
 ratio_50 <- extraction_metrics %>%
@@ -275,20 +272,36 @@ letters_ratio_df <- ratio_50 %>%
 
 # 3. Plot Amorphous Fraction Ratio with Tukey Letters
 ggplot(ratio_50, aes(x = analysis_group, y = Ratio_Ox_DCB)) +
-  geom_boxplot(outlier.shape = NA, fill = "grey92", color = "grey30") +
-  geom_jitter(width = 0.15, size = 2, alpha = 0.8, color = "#2B5C8F") +
+  geom_boxplot(
+    outlier.shape = NA,
+    fill = "grey92",
+    color = "grey30"
+  ) +
+  geom_jitter(
+    width = 0.15,
+    size = 2,
+    alpha = 0.8,
+    color = "#2B5C8F"
+  ) +
   geom_text(
     data = letters_ratio_df,
-    aes(x = analysis_group, y = y, label = .group),
+    aes(
+      x = analysis_group,
+      y = y,
+      label = .group
+    ),
     inherit.aes = FALSE,
     size = 4.5,
     fontface = "bold"
   ) +
   facet_grid(Element ~ ., scales = "free_y") +
+  scale_y_continuous(
+    expand = expansion(mult = c(0.05, 0.20))
+  ) +
   labs(
     x = "",
     y = expression(paste("Active Ratio (Oxalate / DCB)")),
-    title = "Amorphous Fraction Ratio (Oxalate / DCB) with Tukey HSD Groups",
+    title = "Amorphous Fraction Ratio (Oxalate / DCB) with Tukey HSD Groups"
   ) +
   theme_bw() +
   theme(
@@ -296,39 +309,6 @@ ggplot(ratio_50, aes(x = analysis_group, y = Ratio_Ox_DCB)) +
     strip.text = element_text(size = 11, face = "bold"),
     plot.title = element_text(face = "bold", size = 13)
   )
-
-##### check normality
-
-# 1. Shapiro-Wilk Test per Element (Fixed st$p.value)
-normality_results <- ratio_50 %>%
-  filter(!is.na(Ratio_Ox_DCB)) %>%
-  group_by(Element) %>%
-  group_modify(~{
-    # Fit ANOVA model
-    mod <- aov(Ratio_Ox_DCB ~ analysis_group, data = .x)
-    resids <- na.omit(residuals(mod))
-    
-    # Run Shapiro-Wilk test safely
-    if (length(resids) >= 3 && var(resids) > 0) {
-      st <- shapiro.test(resids)
-      
-      data.frame(
-        W_statistic = unname(st$statistic),
-        p_value     = st$p.value,  # Corrected from st$p_value to st$p.value
-        Is_Normal   = ifelse(st$p.value > 0.05, "Yes (p > 0.05)", "No (p <= 0.05)")
-      )
-    } else {
-      data.frame(
-        W_statistic = NA_real_,
-        p_value     = NA_real_,
-        Is_Normal   = "Insufficient Data"
-      )
-    }
-  }) %>%
-  ungroup()
-
-print(normality_results)
-
 # ==============================================================================
 # Dose-response ratio plot (Hühnerberg)
 # No statistical comparisons because there are no replicates
@@ -394,3 +374,4 @@ ggplot(
       size = 13
     )
   )
+```

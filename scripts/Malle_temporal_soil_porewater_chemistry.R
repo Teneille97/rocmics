@@ -65,7 +65,7 @@ Alldata_Rhizon_summary <- Alldata_Rhizon %>%
     list(mean = ~ mean(.x, na.rm = TRUE),
          se   = ~ sd(.x, na.rm = TRUE) / sqrt(n())),
     .names = "{.fn}_{.col}"),
-    .groups = "drop")
+    .groups = "drop")o
 
 # Clean and transform Alldata_Soil_phEC similarly
 Alldata_Soil_phEC <- Alldata_Soil_phEC %>%

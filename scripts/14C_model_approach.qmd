@@ -11,7 +11,7 @@ Teneille's full project repository is available at <https://github.com/Teneille9
 
 We aim to estimate treatment-induced differences in apparent soil organic matter (SOM) turnover under enhanced mineral weathering (EMW), using:
 
-- Baseline carbon stocks ($t_0$ = May 2023, rock application)
+- Baseline carbon stocks ($t_0$\$t_0\$ = May 2023, rock application)
 - Two more measured time points ($t_1$ = Oct 2025, $t_2$ = Feb 2026)
 - Bulk soil + three density fractions
 - C stocks and $\Delta^{14}C$
