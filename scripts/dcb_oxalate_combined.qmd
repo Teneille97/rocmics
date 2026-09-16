@@ -224,7 +224,7 @@ ggplot(dose_resp_combined, aes(x = Treatment, y = Concentration, fill = Method))
 
 ## Ratio comparison
 
-We then compared ratios of amorphous to crystalline elements among different treatments. 
+We then compared ratios of amorphous to crystalline elements among different treatments.  DCB solution, which is more neutral to alkaline pH, is designed to reduce Fe oxides, but does not fully dissolve amorphous aluminosilicates formed by ERW, while acidic oxalate is more efficient at dissolving these. Therefore, we see much higher oxalate-Si relative to DCB-Si in the Bolsdorfer treatment. Meanwhile, iron-bearing minerals in the basalts release Fe2+ upon weathering, which can oxidize and form crystalline iron oxides, which explains why we see a bit more DCB-Fe relative to oxalate-Fe in the treatments compared to control.
 
 ```{r}
 #| echo: false
