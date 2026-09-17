@@ -381,7 +381,7 @@ silicate_effect_results <- stats_50_ratio %>%
   }) %>%
   ungroup()
 
-print(silicate_effect_results)
+print(silicate_effect_results) #no sig diff
 
 # 2. Silicate type effect: Bolsdorfer vs Eifelgold vs Huhnerberg (evaluated on Ratio_Ox_DCB per Element)
 silicate_type_results <- stats_50_ratio %>%
