@@ -57,7 +57,6 @@ oxalate_long <- cbind(oxalate_raw, metadata) %>%
 # ==============================================================================
 dcb_raw <- read.csv(here("csv_files", "DCB_Feb2026.csv"))
 
-# Note: Converting elemental % to mg g^-1 by multiplying by 10 (1% = 10 mg/g)
 dcb_long <- cbind(dcb_raw, metadata) %>%
   separate(Treatment, into = c("Tmt", "App_rate"), sep = "_", fill = "right") %>%
   mutate(
@@ -65,7 +64,6 @@ dcb_long <- cbind(dcb_raw, metadata) %>%
     Tmt = factor(Tmt),
     App_rate = factor(App_rate, levels = c("0", "2", "4", "8", "12", "20", "30", "50")),
     Method = "DCB",
-    # Column conversions if elemental % columns exist
     Fe = if("X.Fe" %in% names(.)) X.Fe * 10 else NA_real_,
     Al = X.Al * 10,
     Mn = X.Mn * 10,
@@ -81,21 +79,18 @@ dcb_long <- cbind(dcb_raw, metadata) %>%
 # ==============================================================================
 # 5. UNIFIED DATASET & METRIC CALCULATIONS (DIFFERENCES & RATIOS)
 # ==============================================================================
-# Combined long dataset for extractions
 combined_extractions <- bind_rows(oxalate_long, dcb_long)
 
-# Reshape wide to compute sample-matched ratios and differences
 extraction_metrics <- combined_extractions %>%
   pivot_wider(
     names_from = Method,
     values_from = Concentration
   ) %>%
   mutate(
-    Diff_DCB_Ox = DCB - Oxalate,           # Crystalline/Residual fraction (e.g., Fe_d - Fe_o)
-    Ratio_Ox_DCB = Oxalate / DCB           # Amorphous/Active fraction ratio (e.g., Fe_o / Fe_d)
+    Diff_DCB_Ox = DCB - Oxalate,
+    Ratio_Ox_DCB = Oxalate / DCB
   )
 
-# Convert metrics to long format for easy visualization
 metrics_long <- extraction_metrics %>%
   pivot_longer(
     cols = c(Diff_DCB_Ox, Ratio_Ox_DCB),
@@ -106,8 +101,6 @@ metrics_long <- extraction_metrics %>%
 # ==============================================================================
 # 6. COMBINED PLOTS: OXALATE VS DCB (SHARED SCALE)
 # ==============================================================================
-
-# Custom Color Palette
 method_colors <- c("Oxalate" = "#E69F00", "DCB" = "#56B4E9")
 
 # --- Plot 1: Full Dataset Overview by Application Rate & Method ---
@@ -133,7 +126,6 @@ plot50_combined <- combined_extractions %>%
   filter(analysis_group %in% c("Control", "Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50", "Lime_2")) %>%
   mutate(analysis_group = factor(analysis_group, levels = c("Control", "Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50", "Lime_2")))
 
-# Generate Tukey Letters per Element and Extraction Method
 letters_df_combined <- plot50_combined %>%
   group_by(Element, Method) %>%
   group_modify(~{
@@ -249,20 +241,14 @@ ratio_50 <- extraction_metrics %>%
 letters_ratio_df <- ratio_50 %>%
   group_by(Element) %>%
   group_modify(~{
-    # Run ANOVA model on Ratio_Ox_DCB
     mod <- aov(Ratio_Ox_DCB ~ analysis_group, data = .x)
-    
-    # Estimate marginal means
     emm <- emmeans(mod, ~ analysis_group)
-    
-    # Compute Tukey pairwise comparisons and letter groups
     cld_results <- cld(
       emm,
       Letters = letters,
       adjust = "tukey"
     )
     
-    # Format letters and calculate label y-position slightly above max ratio value
     cld_results %>%
       as.data.frame() %>%
       dplyr::select(analysis_group, .group) %>%
@@ -297,24 +283,19 @@ ggplot(ratio_50, aes(x = analysis_group, y = Ratio_Ox_DCB)) +
     plot.title = element_text(face = "bold", size = 13)
   )
 
-##### check normality
-
-# 1. Shapiro-Wilk Test per Element (Fixed st$p.value)
+# --- Check Normality ---
 normality_results <- ratio_50 %>%
   filter(!is.na(Ratio_Ox_DCB)) %>%
   group_by(Element) %>%
   group_modify(~{
-    # Fit ANOVA model
     mod <- aov(Ratio_Ox_DCB ~ analysis_group, data = .x)
     resids <- na.omit(residuals(mod))
     
-    # Run Shapiro-Wilk test safely
     if (length(resids) >= 3 && var(resids) > 0) {
       st <- shapiro.test(resids)
-      
       data.frame(
         W_statistic = unname(st$statistic),
-        p_value     = st$p.value,  # Corrected from st$p_value to st$p.value
+        p_value     = st$p.value,
         Is_Normal   = ifelse(st$p.value > 0.05, "Yes (p > 0.05)", "No (p <= 0.05)")
       )
     } else {
@@ -330,49 +311,22 @@ normality_results <- ratio_50 %>%
 print(normality_results)
 
 # ==============================================================================
-# Dose-response ratio plot (Hühnerberg)
-# No statistical comparisons because there are no replicates
+# DOSE-RESPONSE RATIO PLOT (HÜHNERBERG)
 # ==============================================================================
-
 dose_resp_ratio <- extraction_metrics %>%
   filter(Tmt == "Control" | Tmt == "Huhnerberg") %>%
   mutate(
-    Treatment = ifelse(
-      Tmt == "Control",
-      "Control",
-      paste0(App_rate, " t ha^-1")
-    ),
+    Treatment = ifelse(Tmt == "Control", "Control", paste0(App_rate, " t ha^-1")),
     Treatment = factor(
       Treatment,
-      levels = c(
-        "Control",
-        "2 t ha^-1",
-        "4 t ha^-1",
-        "8 t ha^-1",
-        "12 t ha^-1",
-        "20 t ha^-1",
-        "30 t ha^-1",
-        "50 t ha^-1"
-      )
+      levels = c("Control", "2 t ha^-1", "4 t ha^-1", "8 t ha^-1", "12 t ha^-1", "20 t ha^-1", "30 t ha^-1", "50 t ha^-1")
     )
   )
 
-
-ggplot(
-  dose_resp_ratio,
-  aes(x = Treatment, y = Ratio_Ox_DCB, group = 1)
-) +
-  geom_point(
-    size = 3,
-    alpha = 0.9
-  ) +
-  facet_grid(
-    Element ~ .,
-    scales = "free_y"
-  ) +
-  scale_y_continuous(
-    expand = expansion(mult = c(0.05, 0.20))
-  ) +
+ggplot(dose_resp_ratio, aes(x = Treatment, y = Ratio_Ox_DCB, group = 1)) +
+  geom_point(size = 3, alpha = 0.9) +
+  facet_grid(Element ~ ., scales = "free_y") +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.20))) +
   labs(
     x = "",
     y = expression(paste("Active Ratio (Oxalate / DCB)")),
@@ -380,17 +334,78 @@ ggplot(
   ) +
   theme_bw() +
   theme(
-    axis.text.x = element_text(
-      angle = 45,
-      hjust = 1,
-      size = 10
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    strip.text = element_text(size = 11, face = "bold"),
+    plot.title = element_text(face = "bold", size = 13)
+  )
+
+# ==============================================================================
+# SILICATE VS NON-SILICATE & TYPE COMPARISONS ON OX/DCB RATIOS
+# ==============================================================================
+
+# Prepare factor levels & classes using extraction_metrics directly
+stats_50_ratio <- extraction_metrics %>%
+  filter(
+    analysis_group %in% c("Control", "Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50", "Lime_2")
+  ) %>%
+  mutate(
+    analysis_group = factor(
+      analysis_group,
+      levels = c("Control", "Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50", "Lime_2")
     ),
-    strip.text = element_text(
-      size = 11,
-      face = "bold"
+    amendment_class = case_when(
+      analysis_group == "Control" ~ "Control",
+      analysis_group == "Lime_2" ~ "Lime",
+      analysis_group %in% c("Bolsdorfer_50", "Eifelgold_50", "Huhnerberg_50") ~ "Silicate"
     ),
-    plot.title = element_text(
-      face = "bold",
-      size = 13
+    silicate_type = case_when(
+      analysis_group == "Bolsdorfer_50" ~ "Bolsdorfer",
+      analysis_group == "Eifelgold_50" ~ "Eifelgold",
+      analysis_group == "Huhnerberg_50" ~ "Huhnerberg",
+      TRUE ~ NA_character_
     )
   )
+
+# 1. Overall silicate effect: Control vs Silicate (evaluated on Ratio_Ox_DCB per Element)
+silicate_effect_results <- stats_50_ratio %>%
+  filter(amendment_class %in% c("Control", "Silicate")) %>%
+  group_by(Element) %>%
+  group_modify(~ {
+    mod <- aov(Ratio_Ox_DCB ~ amendment_class, data = .x)
+    anova_tab <- summary(mod)[[1]]
+    
+    data.frame(
+      silicate_F = anova_tab["amendment_class", "F value"],
+      silicate_p = anova_tab["amendment_class", "Pr(>F)"]
+    )
+  }) %>%
+  ungroup()
+
+print(silicate_effect_results)
+
+# 2. Silicate type effect: Bolsdorfer vs Eifelgold vs Huhnerberg (evaluated on Ratio_Ox_DCB per Element)
+silicate_type_results <- stats_50_ratio %>%
+  filter(amendment_class == "Silicate") %>%
+  group_by(Element) %>%
+  group_modify(~ {
+    # ANOVA across silicate types for Ratio_Ox_DCB
+    mod <- aov(Ratio_Ox_DCB ~ silicate_type, data = .x)
+    
+    # Estimated marginal means and Tukey comparisons
+    emm <- emmeans(mod, ~ silicate_type)
+    cld_res <- cld(emm, Letters = letters, adjust = "tukey")
+    
+    anova_tab <- summary(mod)[[1]]
+    type_p <- anova_tab["silicate_type", "Pr(>F)"]
+    
+    cld_res %>%
+      as.data.frame() %>%
+      transmute(
+        silicate_type = as.character(silicate_type),
+        silicate_type_p = type_p,
+        silicate_letter = str_trim(.group)
+      )
+  }) %>%
+  ungroup()
+
+print(silicate_type_results)
