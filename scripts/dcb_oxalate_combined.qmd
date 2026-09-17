@@ -8,14 +8,13 @@ editor: visual
 
 Teneille's full project repository is available at <https://github.com/Teneille97/rocmics>.
 
-We analysed crystalline and non-crystalline metal(loid)s (Fe, Al, Mn and Si) in an enhanced rock weathering field trial in Malle.
-
-The DCB extraction is designed to reduce crystalline sesquioxides and the oxalate extraction is highly acidic and can dissolve short-order range (amorphous, non-crystalline) aluminosilicates.
+We analysed metal(loid)s (Fe, Al, Mn and Si) extracted by DCB and oxalate in soils from an enhanced rock weathering field trial in Malle.
+The DCB extraction is designed for reductive dissolution of more crystalline Fe oxides and the oxalate extraction is designed for ligand-assisted dissolution of poorly crystalline/amorphous/short-range-order phases.
 
 
 ## DCB- and oxalate-extractable metal(loid) content of different treatments
 
-We observe more oxalate-extractable metals released from Bolsdorfer treatment, especially Si. In the dose-response experiment, Huhnerberg dose response clearly shows oxalate-extractable Al & Mn decrease, probably going into more crystalline mineral formation or Al is substituting for Fe in poorly-crystalline ferrihydrite (formed after Fe released from basalt, is oxidized) and Mn is sorbing to ferrihydrite or forming its own/ mixed oxides. 
+We observe more oxalate-extractable metals released from Bolsdorfer treatment, especially Si. In the dose-response experiment, Huhnerberg dose response clearly shows oxalate-extractable Al & Mn decrease, probably associating with more crystalline oxides. 
 
 ```{r}
 #| echo: false
@@ -227,8 +226,9 @@ ggplot(dose_resp_combined, aes(x = Treatment, y = Concentration, fill = Method))
 
 ## Ratio comparison
 
-We then compared ratios of amorphous to crystalline elements among different treatments. DCB solution, which is more neutral to alkaline pH, is designed to reduce Fe oxides, but does not fully dissolve amorphous aluminosilicates formed by ERW, while acidic oxalate is more efficient at dissolving these. Therefore, we see much higher oxalate-Si relative to DCB-Si in the Bolsdorfer treatment. Meanwhile, iron-bearing minerals in the basalts release Fe2+ upon weathering, which can oxidize and form crystalline iron oxides, which explains why we see a bit more DCB-Fe relative to oxalate-Fe in the treatments compared to control.
+We then compared the ratio of oxalate- to DCB-extractable elements among treatments.
 
+We see much higher oxalate-Si relative to DCB-Si in the Bolsdorfer treatment, consistent with the presence of poorly crystalline Si-bearing phases. Meanwhile, iron-bearing minerals in the basalts release Fe2+ upon weathering, which can oxidize and form crystalline iron oxides. More DCB-Fe relative to oxalate-Fe in the treatments compared to control is consistent with the development or aging of Fe oxide phases following Fe release and oxidation during basalt weathering.
 
 ```{r}
 #| echo: false
