@@ -409,3 +409,7 @@ silicate_type_results <- stats_50_ratio %>%
   ungroup()
 
 print(silicate_type_results)
+
+############### quick check CEC cor dcb ox
+CEC_Feb_26 <- read.csv(here("csv_files", CEC_Feb_26.csv)) 
+  

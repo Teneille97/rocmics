@@ -65,6 +65,8 @@ CEC_Feb_26 <- CEC_Feb_26 %>%
     Treatment = as.character(Treatment)
   )
 
+write.csv(CEC_Feb_26,file=here::here("outputs","CEC_Feb_26.csv"), row.names=FALSE)
+
 # ---------------------------------------------------------
 # 5. Define CEC properties
 # ---------------------------------------------------------
