@@ -411,5 +411,241 @@ silicate_type_results <- stats_50_ratio %>%
 print(silicate_type_results)
 
 ############### quick check CEC cor dcb ox
-CEC_Feb_26 <- read.csv(here("csv_files", CEC_Feb_26.csv)) 
+CEC_Feb_26 <- read.csv(here("csv_files", "CEC_Feb_26.csv")) 
+CN_2026_clean <- read.csv(here("csv_files", "CN_2026_clean.csv")) 
+CN_2026_bulk<- CN_2026_clean[CN_2026_clean$SOM_fraction=="Bulk",] #only bulk 
+CN_2026_bulk<- CN_2026_bulk[CN_2026_bulk$Sample.year.1=="2026",] #only 2026
+extraction_metrics_Fe<-extraction_metrics[extraction_metrics$Element=="Fe",]
+extraction_metrics_Al<-extraction_metrics[extraction_metrics$Element=="Al",]
+extraction_metrics_Mn<-extraction_metrics[extraction_metrics$Element=="Mn",]
+extraction_metrics_Si<-extraction_metrics[extraction_metrics$Element=="Si",]
+radiocarbon_clean<-read.csv(here("outputs", "radiocarbon_samples.csv")) 
+
+
+# ============================================================
+# Correlation analysis: February 2026 bulk soil
+# CEC, metal extraction metrics, and radiocarbon
+# ============================================================
+
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(tibble)
+
+# ------------------------------------------------------------
+# 1. Choose correlation method
+# ------------------------------------------------------------
+
+cor_method <- "spearman"  # Change to "pearson" if desired
+
+stopifnot(cor_method %in% c("spearman", "pearson"))
+
+# ------------------------------------------------------------
+# 2. Prepare CEC data
+# ------------------------------------------------------------
+
+cec_clean <- CEC_Feb_26 %>%
+  transmute(
+    Sample = as.integer(Sample),
+    CEC = CEC..cmolg.kg.1.
+  )
+
+# ------------------------------------------------------------
+# 3. Prepare February 2026 bulk radiocarbon data
+# ------------------------------------------------------------
+
+# This assumes 2026 bulk-soil radiocarbon data exist.
+# If your radiocarbon data are from another sampling year,
+# do NOT substitute that year without considering the
+# temporal mismatch.
+
+rc_bulk_2026 <- radiocarbon_clean %>%
+  filter(
+    Sampling_year == 2026,
+    SOM_fraction == "Bulk"
+  ) %>%
+  transmute(
+    Sample = as.integer(Plot),
+    Delta14C = X.14C.....
+  )
+
+# Check that the required radiocarbon records exist
+if (nrow(rc_bulk_2026) == 0) {
+  stop(
+    "No 2026 Bulk radiocarbon data found. ",
+    "Check Sampling_year and SOM_fraction. ",
+    "Do not correlate against other years unintentionally."
+  )
+}
+
+# Check for duplicate sample IDs
+if (anyDuplicated(cec_clean$Sample)) {
+  stop("Duplicate Sample IDs in CEC data.")
+}
+
+if (anyDuplicated(rc_bulk_2026$Sample)) {
+  stop("Duplicate Plot IDs in 2026 bulk radiocarbon data.")
+}
+
+# ------------------------------------------------------------
+# 4. List the four metal extraction datasets
+# ------------------------------------------------------------
+
+metal_data <- list(
+  Fe = extraction_metrics_Fe,
+  Al = extraction_metrics_Al,
+  Mn = extraction_metrics_Mn,
+  Si = extraction_metrics_Si
+)
+
+# ------------------------------------------------------------
+# 5. Match datasets by sample number
+# ------------------------------------------------------------
+
+cor_data <- imap_dfr(metal_data, function(df, metal_name) {
   
+  metal_clean <- df %>%
+    transmute(
+      Sample = as.integer(sample),
+      Oxalate = Oxalate,
+      Diff_DCB_Ox = Diff_DCB_Ox
+    )
+  
+  if (anyDuplicated(metal_clean$Sample)) {
+    stop(paste("Duplicate sample IDs for", metal_name))
+  }
+  
+  cec_clean %>%
+    inner_join(metal_clean, by = "Sample") %>%
+    inner_join(rc_bulk_2026, by = "Sample") %>%
+    mutate(Metal = metal_name)
+})
+
+# Check how many matched observations are available
+cor_data %>%
+  group_by(Metal) %>%
+  summarise(
+    n_matched = n(),
+    n_complete = sum(
+      complete.cases(CEC, Oxalate, Diff_DCB_Ox, Delta14C)
+    ),
+    .groups = "drop"
+  ) %>%
+  print()
+
+# Inspect the matched data
+print(cor_data)
+
+# ------------------------------------------------------------
+# 6. Function to calculate one correlation
+# ------------------------------------------------------------
+
+run_correlation <- function(data, var1, var2,
+                            method = cor_method) {
+  
+  dat <- data %>%
+    dplyr::select(all_of(c(var1, var2))) %>%
+    drop_na()
+  
+  n <- nrow(dat)
+  
+  # Need at least 3 complete pairs and variation in both vars
+  if (n < 3 ||
+      sd(dat[[var1]]) == 0 ||
+      sd(dat[[var2]]) == 0) {
+    
+    return(tibble(
+      Variable_1 = var1,
+      Variable_2 = var2,
+      Method = method,
+      n = n,
+      r = NA_real_,
+      p_value = NA_real_
+    ))
+  }
+  
+  test <- cor.test(
+    dat[[var1]],
+    dat[[var2]],
+    method = method,
+    exact = FALSE
+  )
+  
+  tibble(
+    Variable_1 = var1,
+    Variable_2 = var2,
+    Method = method,
+    n = n,
+    r = unname(test$estimate),
+    p_value = test$p.value
+  )
+}
+
+# ------------------------------------------------------------
+# 7. Focused hypothesis-driven correlations
+# ------------------------------------------------------------
+
+# CEC vs oxalate-extractable metal
+# DCB - oxalate vs bulk soil Delta14C
+
+focused_correlations <- cor_data %>%
+  group_by(Metal) %>%
+  group_modify(~ bind_rows(
+    run_correlation(.x, "CEC", "Oxalate"),
+    run_correlation(.x, "Diff_DCB_Ox", "Delta14C")
+  )) %>%
+  ungroup() %>%
+  mutate(
+    p_adjusted_BH = p.adjust(p_value, method = "BH")
+  )
+
+print(focused_correlations)
+
+# ------------------------------------------------------------
+# 8. All pairwise correlations among the four variables
+# ------------------------------------------------------------
+
+vars <- c("CEC", "Oxalate", "Diff_DCB_Ox", "Delta14C")
+
+all_pairwise_correlations <- cor_data %>%
+  group_by(Metal) %>%
+  group_modify(~ {
+    pairs <- combn(vars, 2, simplify = FALSE)
+    
+    map_dfr(pairs, function(pair) {
+      run_correlation(.x, pair[1], pair[2])
+    })
+  }) %>%
+  ungroup() %>%
+  group_by(Metal) %>%
+  mutate(
+    p_adjusted_BH = p.adjust(p_value, method = "BH")
+  ) %>%
+  ungroup()
+
+print(all_pairwise_correlations)
+
+# ------------------------------------------------------------
+# 9. Correlation matrices for each metal
+# ------------------------------------------------------------
+
+correlation_matrices <- cor_data %>%
+  group_by(Metal) %>%
+  group_split() %>%
+  set_names(map_chr(., ~ unique(.x$Metal))) %>%
+  map(function(df) {
+    
+    df %>%
+      dplyr::select(all_of(vars)) %>%
+      cor(
+        method = cor_method,
+        use = "pairwise.complete.obs"
+      )
+  })
+
+# Print individual matrices
+correlation_matrices$Fe
+correlation_matrices$Al
+correlation_matrices$Mn
+correlation_matrices$Si
+

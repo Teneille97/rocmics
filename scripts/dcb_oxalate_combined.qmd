@@ -8,13 +8,11 @@ editor: visual
 
 Teneille's full project repository is available at <https://github.com/Teneille97/rocmics>.
 
-We analysed metal(loid)s (Fe, Al, Mn and Si) extracted by DCB and oxalate in soils from an enhanced rock weathering field trial in Malle.
-The DCB extraction is designed for reductive dissolution of more crystalline Fe oxides and the oxalate extraction is designed for ligand-assisted dissolution of poorly crystalline/amorphous/short-range-order phases.
-
+We analysed metal(loid)s (Fe, Al, Mn and Si) extracted by DCB and oxalate in soils from an enhanced rock weathering field trial in Malle. The DCB extraction is designed for reductive dissolution of more crystalline Fe oxides and the oxalate extraction is designed for ligand-assisted dissolution of poorly crystalline/amorphous/short-range-order phases.
 
 ## DCB- and oxalate-extractable metal(loid) content of different treatments
 
-We observe more oxalate-extractable metals released from Bolsdorfer treatment, especially Si. In the dose-response experiment, Huhnerberg dose response clearly shows oxalate-extractable Al & Mn decrease, probably associating with more crystalline oxides. 
+We observe more oxalate-extractable metals released from Bolsdorfer treatment, especially Si. In the dose-response experiment, Huhnerberg dose response clearly shows oxalate-extractable Al & Mn decrease, probably associating with more crystalline oxides.
 
 ```{r}
 #| echo: false
