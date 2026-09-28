@@ -18,11 +18,11 @@ library(here)
 
 #import data
 CN_total_data <- read.csv(here("csv_files", "total_CN_MAOM_bulk.csv"), header = TRUE)
-C_inorganic_data <- read.csv(here("csv_files", "inorgCN_bulk_MAOM.csv"), header = TRUE) #negligble
+#C_inorganic_data <- read.csv(here("csv_files", "inorgCN_bulk_MAOM.csv"), header = TRUE) #negligble
 
 
 CN_clean <- CN_total_data %>%
-  select(Sample.name, SN2, SN3, Sample.year, Parameter, Result) %>%
+  dplyr::select(Sample.name, SN2, SN3, Sample.year, Parameter, Result) %>%
   rename(
     treatment = SN2,
     dose_resp_exp = SN3
@@ -53,7 +53,7 @@ CN_clean <- CN_total_data %>%
     sample_num
   ) %>%
   
-  select(-sample_num, -sample_year, -sample_type)
+  dplyr::select(-sample_num, -sample_year, -sample_type)
 
 CN_clean
 write.csv(
