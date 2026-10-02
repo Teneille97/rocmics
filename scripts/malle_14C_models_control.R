@@ -10,18 +10,64 @@ library(tidyr)
 library(patchwork)
 library(emmeans)
 
-## import data
-radiocarbon_samples <- read.csv(here("outputs", "radiocarbon_samples.csv"))
-soil_BD_summary<-read.csv(here("outputs","soil_BD_summary.csv"))
+# ============================================================
+# DATA CLEANING
+# ============================================================
 
-## data cleaning
+## Choose treatment to model
+## Examples:
+## "Control"
+## "Bolsdorfer"
+## "Eifelgold"
+## "Huhnerberg"
+
+model_treatment <- "Bolsdorfer"
+
+
+## Load radiocarbon data
+radiocarbon_samples <- read.csv(
+  here("outputs", "radiocarbon_samples.csv")
+)
+
+soil_BD_summary <- read.csv(
+  here("outputs", "soil_BD_summary.csv")
+)
+
+
+# ------------------------------------------------------------
+# Basic cleaning
+# ------------------------------------------------------------
+
 radiocarbon_samples <- radiocarbon_samples %>%
-  mutate(across(c("SOM_fraction", "Tmt", "App_rate"), as.factor))  %>% 
-  filter(Tmt != "Huhnerberg" | App_rate == 50) #drop dose-response
+  mutate(
+    SOM_fraction = as.factor(SOM_fraction),
+    Tmt = as.character(Tmt),
+    App_rate = as.numeric(App_rate)
+  ) %>%
+  filter(
+    Tmt != "Huhnerberg" | App_rate == 50
+  )
 
-soil_BD_summary_Feb2026<-soil_BD_summary[soil_BD_summary$Date=="2026-02-28",] %>% #keep only Feb 2026 BD 
-  mutate(across(c("Tmt", "App_rate"), as.factor)) %>% 
-  filter(Tmt != "Huhnerberg" | App_rate == 50) #drop dose-response
+
+soil_BD_summary_Feb2026 <- soil_BD_summary %>%
+  mutate(
+    Tmt = as.character(Tmt),
+    App_rate = as.numeric(App_rate)
+  ) %>%
+  filter(
+    Date == "2026-02-28",
+    Tmt != "Huhnerberg" | App_rate == 50
+  )
+
+
+# ------------------------------------------------------------
+# Add bulk density
+#
+# IMPORTANT:
+# This is done BEFORE changing the 2023 treatment labels.
+# Therefore all 2023 baseline samples retain the Control
+# bulk density, rather than receiving the later treatment BD.
+# ------------------------------------------------------------
 
 radiocarbon_samples <- radiocarbon_samples %>%
   left_join(
@@ -31,11 +77,41 @@ radiocarbon_samples <- radiocarbon_samples %>%
     by = c("Tmt", "App_rate")
   )
 
-names(radiocarbon_samples)[names(radiocarbon_samples) == 'Sampling_year'] <- 'Year'
 
-# CHOOSE TREATMENT
-radiocarbon_samples  %>% 
-  filter(Tmt == "Control") 
+# ------------------------------------------------------------
+# Rename Sampling_year -> Year
+# ------------------------------------------------------------
+
+names(radiocarbon_samples)[
+  names(radiocarbon_samples) == "Sampling_year"
+] <- "Year"
+
+
+# ------------------------------------------------------------
+# Select data for the model
+#
+# ALWAYS include ALL 2023 samples.
+#
+# For 2023:
+#   - all samples are used
+#   - they were originally labelled Control
+#   - they are renamed to the treatment being modelled
+#
+# For later years:
+#   - only samples belonging to model_treatment are retained
+# ------------------------------------------------------------
+
+radiocarbon_samples <- radiocarbon_samples %>%
+  filter(
+    Year == 2023 |
+      Tmt == model_treatment
+  ) %>%
+  mutate(
+    Tmt = model_treatment
+  ) %>%
+  mutate(
+    Tmt = factor(Tmt)
+  )
 
 ## inputs
 mean_C_inputs <- 100 # g m-2
@@ -91,6 +167,54 @@ Nobs_fPOM <- data.frame(Year = fPOM$Year, Nt_fPOM = fPOM$N_stocks_mean, Nt_fPOM_
 Nobs_oPOM<- data.frame(Year = oPOM$Year, Nt_oPOM = oPOM$N_stocks_mean, Nt_oPOM_sd = oPOM$N_stocks_sd)
 Nobs_MAOM <- data.frame(Year = MAOM$Year, Nt_MAOM = MAOM$N_stocks_mean, Nt_MAOM_sd = MAOM$N_stocks_sd)
 
+# ---------------------------------------------------------
+# Fill missing SD values with a fallback uncertainty
+# ---------------------------------------------------------
+
+fill_missing_sd <- function(df, sd_col) {
+  
+  # Identify valid, positive SD values
+  valid_sd <- is.finite(df[[sd_col]]) & df[[sd_col]] > 0
+  
+  # Calculate fallback uncertainty from the median
+  # of all available SDs for this variable
+  fallback_sd <- median(
+    df[[sd_col]][valid_sd],
+    na.rm = TRUE
+  )
+  
+  # Stop if there are no usable SDs at all
+  if (!is.finite(fallback_sd)) {
+    stop(
+      paste0(
+        "No valid SD values available for ", sd_col,
+        ". A fallback uncertainty cannot be calculated."
+      )
+    )
+  }
+  
+  
+  # Replace missing, infinite, or zero SDs
+  # with the median available SD
+  df[[sd_col]][!valid_sd] <- fallback_sd
+  
+  return(df)
+}
+
+
+# Apply to all observation datasets used in model fitting
+Cobs_bulk   <- fill_missing_sd(Cobs_bulk, "Ct_sd")
+C14obs_bulk <- fill_missing_sd(C14obs_bulk, "C14t_sd")
+
+Cobs_fPOM   <- fill_missing_sd(Cobs_fPOM, "Ct_fPOM_sd")
+C14obs_fPOM <- fill_missing_sd(C14obs_fPOM, "C14t_fPOM_sd")
+
+Cobs_oPOM   <- fill_missing_sd(Cobs_oPOM, "Ct_oPOM_sd")
+C14obs_oPOM <- fill_missing_sd(C14obs_oPOM, "C14t_oPOM_sd")
+
+Cobs_MAOM   <- fill_missing_sd(Cobs_MAOM, "Ct_MAOM_sd")
+C14obs_MAOM <- fill_missing_sd(C14obs_MAOM, "C14t_MAOM_sd")
+
 # initial values
 yr <- seq(2023, 2026, by = 1/12)
 C0_bulk <- mean(Cobs_bulk[Cobs_bulk$Year==2023,]$Ct)
@@ -117,7 +241,7 @@ run_mod <- function(pars){ #kf, ki, ks, alpha 21, alpha 32
     A = A3,
     ivList = c(C0_fPOM, C0_oPOM, C0_MAOM),
     initialValF = c14_initial,
-    inputFluxes = c(0.8*mean_C_inputs,0.2*mean_C_inputs,0),
+    inputFluxes = c(mean_C_inputs,0,0),
     inputFc = c14_atm
   )
   
@@ -160,7 +284,7 @@ mc <- function(pars){
 #  f = mc,
 #  p = inipars, 
 #  method = "Nelder-Mead",
-#  upper = c(1.5, 0.5 ,0.01, 0.5, 0.5),
+#  upper = c(1.5, 0.5 ,0.05, 0.5, 0.5),
 #  lower = c(0.05, 0.005, 0.0001, 0, 0) 
 #)
 
@@ -510,20 +634,14 @@ plot_14C <- ggplot() +
 # save results and plots
 output_dir <- "plots/3p/control"
 
-file_C <- file.path(output_dir, "C.png")
-file_14C <- file.path(output_dir, "14C.png")
+file_C <- file.path(output_dir, "C_control.png")
+file_14C <- file.path(output_dir, "14C_control.png")
 
 ggsave(filename = file_C, plot = plot_C,
        width = 7, height = 5, dpi = 300, bg = "white")
 ggsave(filename = file_14C, plot = plot_14C,
        width = 7, height = 5, dpi = 300, bg = "white")
 
-saveRDS(plot_C,
-        file = file.path(output_dir, "C.rds"))
-saveRDS(plot_14C,
-        file = file.path(output_dir, "14C.rds"))
-
-########################### edit from here
 ########## MCMC ############
 
 var0 <- mFit$var_ms_unweighted
@@ -531,7 +649,7 @@ cov0 <- summary(mFit)$cov.scaled #  cov matrix can be used for jump
 
 # run 
 #MCMC <- modMCMC(f=mc, p = bestpars, niter = 50000, jump = cov0*0.001, var0 = var0, wvar0 = 1, updatecov = 1000, burninlength =  1000, 
-#                upper = c(1.5, 0.5 ,0.01, 0.5, 0.5),
+#                upper = c(1.5, 0.5 ,0.05, 0.5, 0.5),
 #                lower = c(0.05, 0.005, 0.0001, 0, 0)) 
 #save(MCMC, file = file.path("mod_runs", "MCMC_3p_Control.Rdata"))
 load(here::here("mod_runs/MCMC_3p_Control.Rdata"))
@@ -541,42 +659,39 @@ class(MCMC) <- "modMCMC"
 parsMCMC<-summary(MCMC)
 
 # plot convergence
-convergence_plot<-plot(MCMC) 
+convergence_plot_control<-plot(MCMC) 
 
 output_dir <- "plots/3p/control"
-file_convergence_plot <- file.path(output_dir, "convergence_plot.png")
+file_convergence_plot <- file.path(output_dir, "convergence_plot_control.png")
 
 png(file_convergence_plot, width = 10, height = 8, units = "in", res = 300)
 plot(MCMC)
 dev.off()
 
+print(convergence_plot_control)
+
 # plot densitites
 mcmc_long <- as.data.frame(MCMC$pars) %>%
   pivot_longer(cols = everything(), names_to = "parameter", values_to = "value")
 
-density_plot <- ggplot(mcmc_long, aes(x = value)) +
+density_plot_control <- ggplot(mcmc_long, aes(x = value)) +
   geom_density(fill = "skyblue", alpha = 0.5) +
   facet_wrap(~ parameter, scales = "free") +
   theme_minimal() +
   labs(title = "MCMC Parameter Densities", x = "Value", y = "Density")
 
-file_density_plot <- file.path(output_dir, "density_plot.png")
-ggsave(filename = file_density_plot, plot = density_plot,
+file_density_plot <- file.path(output_dir, "density_plot_control.png")
+ggsave(filename = file_density_plot, plot = density_plot_control,
        width = 10, height = 8, dpi = 300, bg = "white")
-saveRDS(density_plot,
-        file = file.path(output_dir, "density_plot.rds"))
-
 
 # check inter-dependence of parameters using 500 MCMC runs
-pairs_plot<-pairs(MCMC,nsample=500) 
+pairs_plot_control<-pairs(MCMC,nsample=500) 
 
-file_pairs_plot <- file.path(output_dir, "pairs_plot.png")
+file_pairs_plot <- file.path(output_dir, "pairs_plot_control.png")
 
 png(file_pairs_plot, width = 10, height = 8, units = "in", res = 300)
 pairs(MCMC, nsample = 500)
 dev.off()
-saveRDS(pairs_plot,
-        file = file.path(output_dir, "pairs_plot.rds"))
 
 # performance
 par(mfrow = c(1, 1))  
@@ -638,7 +753,7 @@ out_best_MCMC <- run_mod(MCMC$bestpar)
 
 # plot using predictions made by mcmc
 
-plot_C_final <- ggplot() +
+plot_C_final_control <- ggplot() +
   
   ## --- MCMC ribbons (model uncertainty) ---
   
@@ -739,7 +854,7 @@ plot_C_final <- ggplot() +
 
 ############# 14C plot final ######################
 
-plot_14C_final <- ggplot() +
+plot_14C_final_control <- ggplot() +
   
   ## --- MCMC ribbons (model uncertainty) ---
   
@@ -866,41 +981,33 @@ plot_14C_final <- ggplot() +
 
 # save individual plots
 output_dir <- "plots/3p/control"
-file_C_final <- file.path(output_dir, "C_final.png")
-file_14C_final <- file.path(output_dir, "14C_final.png")
+file_C_final <- file.path(output_dir, "C_final_control.png")
+file_14C_final <- file.path(output_dir, "plot_14C_final_control.png")
 
-ggsave(filename = file_C_final, plot = plot_C_final, width = 7, height = 5, dpi = 300, bg = "white")
-ggsave(filename = file_14C_final, plot = plot_14C_final, width = 7, height = 5, dpi = 300, bg = "white")
-
-saveRDS(plot_C_final, file = file.path(output_dir, "C_final.rds"))
-saveRDS(plot_14C_final, file = file.path(output_dir, "14C_final.rds"))
+ggsave(filename = file_C_final, plot = plot_C_final_control, width = 7, height = 5, dpi = 300, bg = "white")
+ggsave(filename = file_14C_final, plot = plot_14C_final_control, width = 7, height = 5, dpi = 300, bg = "white")
 
 # combined MCMC plots
 
-plot_C_notitle <- plot_C_final + ggtitle(NULL)
-plot_14C_notitle <- plot_14C_final + ggtitle(NULL)
+plot_C_notitle_control <- plot_C_final_control + ggtitle(NULL)
+plot_14C_notitle_control <- plot_14C_final_control + ggtitle(NULL)
 
-combined_plot <- (plot_C_notitle / plot_14C_notitle) +
+C_and_14C_combined_control <- (plot_C_notitle_control / plot_14C_notitle_control) +
   plot_layout(guides = "collect") &
   theme(
     legend.position = "bottom"
   )
 
-combined_plot <- combined_plot +
+C_and_14C_combined_control <- C_and_14C_combined_control +
   plot_annotation(tag_levels = "A")
 
 ggsave(
-  filename = file.path(output_dir, "C_and_14C_combined.png"),
-  plot = combined_plot,
+  filename = file.path(output_dir, "C_and_14C_combined_control.png"),
+  plot = C_and_14C_combined_control,
   width = 7,
   height = 10,
   dpi = 300,
   bg = "white"
-)
-
-saveRDS(
-  combined_plot,
-  file = file.path(output_dir, "C_and_14C_combined.rds")
 )
 
 
@@ -1014,14 +1121,25 @@ print(uncertainty_summary)
 # sample mcmc pars
 set.seed(1)
 
-burnin <- 20000  # or more, see below
-pars_full <- as.data.frame(MCMC$pars)
-pars_post <- pars_full[-(1:burnin), ]
-pars_sub <- pars_post[sample(1:nrow(pars_post), 700), ]
+burnin <- 20000
 
-# sample ~700 parameter sets
-n_samp <- 700
-pars_sub <- pars_full[sample(1:nrow(pars_full), n_samp), ]
+pars_full <- as.data.frame(MCMC$pars)
+
+pars_post <- pars_full[
+  (burnin + 1):nrow(pars_full),
+  ,
+  drop = FALSE
+]
+
+n_samp <- min(700, nrow(pars_post))
+
+pars_sub <- pars_post[
+  sample(seq_len(nrow(pars_post)), n_samp),
+  ,
+  drop = FALSE
+]
+
+
 
 # func to build 3 pool system matrix
 build_A_u <- function(pars){
@@ -1034,7 +1152,7 @@ build_A_u <- function(pars){
   A <- diag(-c(kf, ki, ks)) # 3 pool system ---
   A[2,1] <- kf * alpha_fi
   A[3,2] <- ki * alpha_is
-  u <- matrix(c(0.8*mean_C_inputs, 0.2*mean_C_inputs, 0), ncol = 1) # input vector 
+  u <- matrix(c(mean_C_inputs, 0, 0), ncol = 1) # input vector 
   return(list(A = A, u = u))
 }
 
@@ -1124,7 +1242,7 @@ save(summary_table_age_TT_3p_Control, file = file.path("mod_runs", "summary_tabl
 
 
 # Prepare text labels for the mean & median values per facet
-summary_labels <- summary_table_fmt %>%
+summary_labels <- summary_table_age_TT_3p_Control %>%
   mutate(
     label_text = paste0("Mean: ", mean, "\nMedian: ", median)
   )
@@ -1139,7 +1257,7 @@ tag_df <- data.frame(
 # ==========================================
 # 1. Plot of age and transit time
 # ==========================================
-plot_log_age_tt <- ggplot() +
+plot_log_age_tt_control <- ggplot() +
   # --- ribbon ---
   geom_ribbon(data = unc_dens_df,
               aes(x = age, ymin = low, ymax = high),
@@ -1195,7 +1313,7 @@ plot_log_age_tt <- ggplot() +
 output_dir <- "plots/3p/control"
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
-file_plot_log_age_tt <- file.path(output_dir, "plot_log_age_tt.png")
+file_plot_log_age_tt <- file.path(output_dir, "plot_log_age_tt_control.png")
 
 png(file_plot_log_age_tt,
     width = 10,
@@ -1203,7 +1321,7 @@ png(file_plot_log_age_tt,
     units = "in",
     res = 300)
 
-print(plot_log_age_tt)
+print(plot_log_age_tt_control)
 
 dev.off()
 
@@ -1376,7 +1494,7 @@ flux_plot_df <- flux_plot_df %>%
 # Plot: carbon fate by source SOM pool
 ############################################
 
-fluxplot<-ggplot(
+fluxplot_control<-ggplot(
   flux_plot_df,
   aes(
     x = Fate,
@@ -1433,7 +1551,7 @@ fluxplot<-ggplot(
 fluxplot_path <- file.path(output_dir, "flux_plot.png")
 
 png(fluxplot_path, width = 10, height = 8, units = "in", res = 300)
-print(fluxplot)
+print(fluxplot_control)
 dev.off()
 
 
@@ -1458,8 +1576,8 @@ efficiency_list <- lapply(1:length(runs_3p_control), function(i){
   ks <- pars[3]
   
   # transfer coefficients
-  alpha_fi <- pars[4]   # fPOM -> oPOMmediate
-  alpha_is <- pars[5]   # oPOMmediate -> MAOM
+  alpha_fi <- pars[4]   # fPOM -> oPOM
+  alpha_is <- pars[5]   # oPOM -> MAOM
   
   
   ## -------------------------------
@@ -1476,7 +1594,7 @@ efficiency_list <- lapply(1:length(runs_3p_control), function(i){
 
   
   ## -------------------------------
-  ## OPOMMEDIATE POOL
+  ## OPOM POOL
   ## -------------------------------
   
   oPOM_decomp <- ki * C_oPOM
@@ -1545,7 +1663,11 @@ efficiency_summary <- efficiency_df %>%
 
 
 efficiency_summary
-
+write.csv(
+  efficiency_summary,
+  here("outputs", "efficiency_summary_Control.csv"),
+  row.names = FALSE
+)
 
 # possibly not necessary
 # ============================================================
@@ -1810,12 +1932,12 @@ plot_df_final$variable <- recode(
 # 6. Summary statistics
 # ============================================================
 
-fPOM_ref <- summary_table_fmt$median[
-  summary_table_fmt$variable == "fPOM"
+fPOM_ref <- summary_table_age_TT_3p_Control$median[
+  summary_table_age_TT_3p_Control$variable == "fPOM"
 ]
 
-MAOM_ref <- summary_table_fmt$median[
-  summary_table_fmt$variable == "MAOM"
+MAOM_ref <- summary_table_age_TT_3p_Control$median[
+  summary_table_age_TT_3p_Control$variable == "MAOM"
 ]
 
 
@@ -2186,7 +2308,7 @@ var_labels_N <- c(
 # Create Carbon Plot
 # ============================================================
 
-plot_C_weighted_final <- create_stock_age_plot(
+plot_C_weighted_final_control <- create_stock_age_plot(
   
   data_subset =
     subset(
@@ -2211,7 +2333,7 @@ plot_C_weighted_final <- create_stock_age_plot(
 # Create Nitrogen Plot
 # ============================================================
 
-plot_N_weighted_final <- create_stock_age_plot(
+plot_N_weighted_final_control <- create_stock_age_plot(
   
   data_subset =
     subset(
@@ -2236,9 +2358,9 @@ plot_N_weighted_final <- create_stock_age_plot(
 # Combined Plot
 # ============================================================
 
-combined_CN_plot <-
-  (plot_C_weighted_final /
-     plot_N_weighted_final) +
+CN_age_distribution_combined_control <-
+  (plot_C_weighted_final_control /
+     plot_N_weighted_final_control) +
   
   plot_layout(
     guides = "collect"
@@ -2265,9 +2387,9 @@ dir.create(
 ggsave(
   file.path(
     output_dir,
-    "plot_C_weighted_final.png"
+    "plot_C_weighted_final_control.png"
   ),
-  plot_C_weighted_final,
+  plot_C_weighted_final_control,
   width = 7,
   height = 5,
   dpi = 300,
@@ -2278,9 +2400,9 @@ ggsave(
 ggsave(
   file.path(
     output_dir,
-    "plot_N_weighted_final.png"
+    "plot_N_weighted_final_control.png"
   ),
-  plot_N_weighted_final,
+  plot_N_weighted_final_control,
   width = 7,
   height = 5,
   dpi = 300,
@@ -2291,41 +2413,15 @@ ggsave(
 ggsave(
   file.path(
     output_dir,
-    "CN_age_distribution_combined.png"
+    "CN_age_distribution_combined_control.png"
   ),
-  combined_CN_plot,
+  CN_age_distribution_combined_control,
   width = 9,
   height = 11,
   dpi = 300,
   bg = "white"
 )
 
-
-saveRDS(
-  plot_C_weighted_final,
-  file.path(
-    output_dir,
-    "plot_C_weighted_final.rds"
-  )
-)
-
-
-saveRDS(
-  plot_N_weighted_final,
-  file.path(
-    output_dir,
-    "plot_N_weighted_final.rds"
-  )
-)
-
-
-saveRDS(
-  combined_CN_plot,
-  file.path(
-    output_dir,
-    "CN_age_distribution_combined.rds"
-  )
-)
 
 
 # ============================================================
@@ -2443,7 +2539,7 @@ cn_stats_labels <- cn_stats_subset %>%
 # LOG AGE VERSION
 # ============================================================
 
-plot_CN_system <- ggplot(
+plot_CN_system_control <- ggplot(
   cn_sys_df,
   aes(x = age)
 ) +
@@ -2576,7 +2672,7 @@ plot_CN_system <- ggplot(
 
 
 # display
-plot_CN_system
+plot_CN_system_control
 
 
 
@@ -2587,23 +2683,15 @@ plot_CN_system
 ggsave(
   file.path(
     output_dir,
-    "plot_CN_system.png"
+    "plot_CN_system_control.png"
   ),
-  plot_CN_system,
+  plot_CN_system_control,
   width = 7,
   height = 5,
   dpi = 300,
   bg = "white"
 )
 
-
-saveRDS(
-  plot_CN_system,
-  file.path(
-    output_dir,
-    "plot_CN_system.rds"
-  )
-)
 
 
 ##########################
@@ -2615,58 +2703,20 @@ saveRDS(
 
 final_year <- 2026
 
-final_dat <- all_data %>%
+CN_long <- radiocarbon_samples %>%
   filter(Year == final_year)
-
-# create C and N stocks
-final_pools <- final_dat %>%
-  select(LTE,
-         Temperature...C.,
-         C_stocks_gm2,
-         N_stocks_gm2) %>%
-  pivot_wider(
-    names_from = Temperature...C.,
-    values_from = c(C_stocks_gm2, N_stocks_gm2)
-  ) %>%
-  mutate(
-    
-    C_fPOM  = C_stocks_gm2_Soil - C_stocks_gm2_325,
-    C_oPOM = C_stocks_gm2_325  - C_stocks_gm2_400,
-    C_MAOM  = C_stocks_gm2_400,
-    
-    N_fPOM  = N_stocks_gm2_Soil - N_stocks_gm2_325,
-    N_oPOM = N_stocks_gm2_325  - N_stocks_gm2_400,
-    N_MAOM  = N_stocks_gm2_400,
-    
-    CN_fPOM  = C_fPOM / N_fPOM,
-    CN_oPOM = C_oPOM / N_oPOM,
-    CN_MAOM  = C_MAOM / N_MAOM
-  )
 
 # ------------------------------------------------------
 # Long format
 # ------------------------------------------------------
 
-CN_long <- final_pools %>%
-  select(LTE, CN_fPOM, CN_oPOM, CN_MAOM) %>%
-  pivot_longer(
-    -LTE,
-    names_to = "Pool",
-    values_to = "CN"
-  )
-
-CN_long$Pool <- factor(
-  CN_long$Pool,
-  levels = c("CN_fPOM","CN_oPOM","CN_MAOM"),
-  labels = c("FPOM","OPOM","MAOM")
-)
-
+CN_long$SOM_fraction <- as.factor(CN_long$SOM_fraction)
 # ------------------------------------------------------
 # Repeated measures ANOVA
 # ------------------------------------------------------
 
 mod <- aov(
-  CN ~ Pool + Error(LTE/Pool),
+  CN ~ SOM_fraction,
   data = CN_long
 )
 
@@ -2676,28 +2726,12 @@ summary(mod)
 # Pairwise comparisons
 # ------------------------------------------------------
 
-lm_mod <- lm(CN ~ LTE + Pool, data = CN_long)
+lm_mod <- lm(CN ~ SOM_fraction, data = CN_long)
 
 pairs(
-  emmeans(lm_mod, "Pool"),
+  emmeans(lm_mod, "SOM_fraction"),
   adjust = "tukey"
 )
-
-friedman.test(
-  CN ~ Pool | LTE,
-  data = CN_complete
-)
-
-pairwise.wilcox.test( #doesnt make sense to report because too few samples
-  CN_long$CN,
-  CN_long$Pool,
-  paired = TRUE,
-  p.adjust.method = "holm"
-)
-
-#check 
-CN_long %>%
-  arrange(LTE, Pool)
 
 # report bulk CN vs system age relationship
 cn_age_lm <- lm(
