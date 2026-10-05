@@ -1,0 +1,16 @@
+"Metric","Value"
+"fPOM_resp_eff_median",0.745999923003662
+"fPOM_resp_eff_lci",0.50574420718109
+"fPOM_resp_eff_uci",0.965748917507187
+"fPOM_stab_eff_median",0.254000076996338
+"fPOM_stab_eff_lci",0.0342510824928127
+"fPOM_stab_eff_uci",0.49425579281891
+"oPOM_resp_eff_median",0.773208886681646
+"oPOM_resp_eff_lci",0.572704435756531
+"oPOM_resp_eff_uci",0.974861825655958
+"oPOM_stab_eff_median",0.226791113318354
+"oPOM_stab_eff_lci",0.0251381743440415
+"oPOM_stab_eff_uci",0.427295564243468
+"MAOM_resp_eff_median",1
+"MAOM_resp_eff_lci",1
+"MAOM_resp_eff_uci",1

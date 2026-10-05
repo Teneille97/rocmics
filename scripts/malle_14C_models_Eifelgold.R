@@ -280,15 +280,15 @@ mc <- function(pars){
 }                                                                                                                                                                                                                                  
 
 #fit mod
-mFit <- modFit(
-  f = mc,
-  p = inipars, 
-  method = "Nelder-Mead",
-  upper = c(1.5, 0.5 ,0.05, 0.5, 0.5),
-  lower = c(0.05, 0.005, 0.0001, 0, 0) 
-)
+#mFit <- modFit(
+#  f = mc,
+#  p = inipars, 
+#  method = "Nelder-Mead",
+#  upper = c(1.5, 0.5 ,0.05, 0.5, 0.5),
+#  lower = c(0.05, 0.005, 0.0001, 0, 0) 
+#)
 
-save(mFit, file = file.path("mod_runs", "mFit_3p_Eifelgold.Rdata"))
+#save(mFit, file = file.path("mod_runs", "mFit_3p_Eifelgold.Rdata"))
 load(here::here("mod_runs/mFit_3p_Eifelgold.Rdata"))
 
 
@@ -648,10 +648,10 @@ var0 <- mFit$var_ms_unweighted
 cov0 <- summary(mFit)$cov.scaled #  cov matrix can be used for jump 
 
 # run 
-MCMC <- modMCMC(f=mc, p = bestpars, niter = 50000, jump = cov0*0.001, var0 = var0, wvar0 = 1, updatecov = 1000, burninlength =  1000, 
-                upper = c(1.5, 0.5 ,0.05, 0.5, 0.5),
-                lower = c(0.05, 0.005, 0.0001, 0, 0)) 
-save(MCMC, file = file.path("mod_runs", "MCMC_3p_Eifelgold.Rdata"))
+#MCMC <- modMCMC(f=mc, p = bestpars, niter = 50000, jump = cov0*0.001, var0 = var0, wvar0 = 1, updatecov = 1000, burninlength =  1000, 
+#                upper = c(1.5, 0.5 ,0.05, 0.5, 0.5),
+#                lower = c(0.05, 0.005, 0.0001, 0, 0)) 
+#save(MCMC, file = file.path("mod_runs", "MCMC_3p_Eifelgold.Rdata"))
 load(here::here("mod_runs/MCMC_3p_Eifelgold.Rdata"))
 
 # view distribution
@@ -707,8 +707,8 @@ cost_mcmc   <- mc(MCMC_bestpars)$model
 set.seed(1)
 pars_sub <- MCMC$pars[sample(1:nrow(MCMC$pars), 500), ]
 
-runs_3p_Eifelgold <- lapply(1:nrow(pars_sub), function(i) run_mod(pars_sub[i, ]))
-save(runs_3p_Eifelgold, file = file.path("mod_runs", "runs_3p_Eifelgold.Rdata"))
+#runs_3p_Eifelgold <- lapply(1:nrow(pars_sub), function(i) run_mod(pars_sub[i, ]))
+#save(runs_3p_Eifelgold, file = file.path("mod_runs", "runs_3p_Eifelgold.Rdata"))
 load(here::here("mod_runs/runs_3p_Eifelgold.Rdata"))
 
 # convert to array-like structure
@@ -1179,13 +1179,11 @@ ages <- seq(0, 500, by = 1)
 dens_best <- get_age_tt_dens(MCMC_bestpars, ages)
 
 # run for sampled mcmc pars 
-dens_list_3p_Eifelgold <- lapply(1:nrow(pars_sub), function(i){
-  get_age_tt_dens(as.numeric(pars_sub[i, ]), ages)
-})
+#dens_list_3p_Eifelgold <- lapply(1:nrow(pars_sub), function(i){
+#  get_age_tt_dens(as.numeric(pars_sub[i, ]), ages)
+#})
 
-
-
-save(dens_list_3p_Eifelgold, file = file.path("mod_runs", "dens_list_3p_Eifelgold.Rdata"))
+#save(dens_list_3p_Eifelgold, file = file.path("mod_runs", "dens_list_3p_Eifelgold.Rdata"))
 load(here::here("mod_runs/dens_list_3p_Eifelgold.Rdata"))
 
 # uncertainty envelopes
