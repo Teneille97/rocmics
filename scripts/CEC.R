@@ -1,6 +1,6 @@
 # =========================================================
 # CEC AND EXCHANGEABLE CATIONS — FEBRUARY 2026
-# ANOVA + TUKEY HSD + MEAN ± SE PLOTS
+# ANOVA OR KRUSKAL-WALLIS + POST-HOC TESTS + MEAN ± SE PLOTS
 # =========================================================
 
 # ---------------------------------------------------------
@@ -101,96 +101,134 @@ property_labels <- c(
   "Basesaturation...."      = "Base~saturation~plain('%')"
 )
 
+
 # ---------------------------------------------------------
-# 7. ANOVA for every property
+# Helper: test residual normality, select ANOVA or Kruskal-Wallis,
+# and calculate adjusted post-hoc comparisons + compact letters.
 # ---------------------------------------------------------
 
-anova_results <- list()
-tukey_results <- list()
-
-for (prop in cec_properties) {
+run_treatment_test <- function(data, prop, group = "Treatment") {
+  d <- data %>%
+    dplyr::select(all_of(c(prop, group))) %>%
+    dplyr::filter(!is.na(.data[[prop]]), !is.na(.data[[group]])) %>%
+    dplyr::mutate(!!group := droplevels(as.factor(.data[[group]])))
   
-  formula <- as.formula(
-    paste0("`", prop, "` ~ Treatment")
-  )
-  
-  model <- aov(
-    formula,
-    data = CEC_Feb_26
-  )
-  
-  anova_results[[prop]] <- summary(model)
-  
-  # Only calculate Tukey when the overall ANOVA is significant
-  p_value <- summary(model)[[1]][["Pr(>F)"]][1]
-  
-  if (!is.na(p_value) && p_value < 0.05) {
-    tukey_results[[prop]] <- TukeyHSD(model)
-  } else {
-    tukey_results[[prop]] <- NULL
+  # Require at least two groups with observations
+  group_n <- table(d[[group]])
+  if (length(group_n) < 2) {
+    return(list(
+      method = "Not testable", shapiro_p = NA_real_, p_value = NA_real_,
+      test = NULL, posthoc = NULL,
+      letters = data.frame(Treatment = levels(d[[group]]),
+                           Letters = "", Property = prop)
+    ))
   }
+  
+  formula <- as.formula(paste0("`", prop, "` ~ `", group, "`"))
+  model <- aov(formula, data = d)
+  residuals_model <- residuals(model)
+  
+  shapiro_p <- tryCatch({
+    if (length(residuals_model) >= 3 &&
+        length(residuals_model) <= 5000 &&
+        length(unique(residuals_model)) > 1) {
+      shapiro.test(residuals_model)$p.value
+    } else {
+      NA_real_
+    }
+  }, error = function(e) NA_real_)
+  
+  use_anova <- is.na(shapiro_p) || shapiro_p >= 0.05
+  treatment_levels <- levels(d[[group]])
+  posthoc <- NULL
+  letter_values <- setNames(rep("", length(treatment_levels)), treatment_levels)
+  
+  if (use_anova) {
+    method <- "ANOVA"
+    test <- summary(model)
+    p_value <- test[[1]][["Pr(>F)"]][1]
+    
+    if (!is.na(p_value) && p_value < 0.05) {
+      tukey <- TukeyHSD(model)
+      posthoc <- tukey
+      letter_values <- multcompView::multcompLetters4(model, tukey)[[group]]$Letters
+    }
+  } else {
+    method <- "Kruskal-Wallis"
+    kw <- kruskal.test(formula, data = d)
+    test <- kw
+    p_value <- kw$p.value
+    
+    if (!is.na(p_value) && p_value < 0.05) {
+      pairs <- combn(treatment_levels, 2, simplify = FALSE)
+      pair_p <- vapply(pairs, function(pair) {
+        x <- d[[prop]][d[[group]] == pair[1]]
+        y <- d[[prop]][d[[group]] == pair[2]]
+        tryCatch(wilcox.test(x, y, exact = FALSE)$p.value,
+                 error = function(e) NA_real_)
+      }, numeric(1))
+      
+      pair_names <- vapply(pairs, function(pair) {
+        paste(pair[1], pair[2], sep = "-")
+      }, character(1))
+      names(pair_p) <- pair_names
+      pair_p_adjusted <- p.adjust(pair_p, method = "holm")
+      names(pair_p_adjusted) <- pair_names
+      posthoc <- pair_p_adjusted
+      
+      if (length(pair_p_adjusted) > 0 && any(!is.na(pair_p_adjusted))) {
+        letter_values <- multcompView::multcompLetters(pair_p_adjusted)$Letters
+      }
+    }
+  }
+  
+  letters_df <- data.frame(
+    Treatment = names(letter_values),
+    Letters = as.character(letter_values),
+    Property = prop,
+    stringsAsFactors = FALSE
+  )
+  
+  list(
+    method = method,
+    shapiro_p = shapiro_p,
+    p_value = as.numeric(p_value),
+    test = test,
+    posthoc = posthoc,
+    letters = letters_df
+  )
 }
 
 # ---------------------------------------------------------
-# 8. Print ANOVA p-values
+# 7. Select ANOVA or Kruskal-Wallis for every property
 # ---------------------------------------------------------
 
-anova_pvalues <- data.frame(
+property_test_results <- lapply(
+  cec_properties,
+  function(prop) run_treatment_test(CEC_Feb_26, prop)
+)
+names(property_test_results) <- cec_properties
+
+anova_results <- lapply(property_test_results, `[[`, "test")
+tukey_results <- lapply(property_test_results, `[[`, "posthoc")
+tukey_letters <- lapply(property_test_results, `[[`, "letters")
+
+# ---------------------------------------------------------
+# 8. Print test selection, Shapiro-Wilk and overall p-values
+# ---------------------------------------------------------
+
+property_pvalues <- data.frame(
   Property = cec_properties,
-  p_value = sapply(
-    anova_results,
-    function(x) x[[1]][["Pr(>F)"]][1]
-  )
+  Test = vapply(property_test_results, `[[`, character(1), "method"),
+  Shapiro_Wilk_p = vapply(property_test_results, `[[`, numeric(1), "shapiro_p"),
+  Overall_p = vapply(property_test_results, `[[`, numeric(1), "p_value")
 )
 
-print(anova_pvalues)
+print(property_pvalues)
 
 # ---------------------------------------------------------
-# 9. Calculate Tukey letters
+# 9. Combine post-hoc letters for plotting
 # ---------------------------------------------------------
-
-tukey_letters <- list()
-
-for (prop in cec_properties) {
-  
-  formula <- as.formula(
-    paste0("`", prop, "` ~ Treatment")
-  )
-  
-  model <- aov(
-    formula,
-    data = CEC_Feb_26
-  )
-  
-  p_value <- summary(model)[[1]][["Pr(>F)"]][1]
-  
-  if (!is.na(p_value) && p_value < 0.05) {
-    
-    tukey <- TukeyHSD(model)
-    
-    letters <- multcompLetters4(
-      model,
-      tukey
-    )
-    
-    tukey_letters[[prop]] <- data.frame(
-      Treatment = names(letters$Treatment$Letters),
-      Letters = as.character(letters$Treatment$Letters),
-      Property = prop,
-      stringsAsFactors = FALSE
-    )
-    
-  } else {
-    
-    # No letters for non-significant ANOVAs
-    tukey_letters[[prop]] <- data.frame(
-      Treatment = unique(CEC_Feb_26$Treatment),
-      Letters = "",
-      Property = prop,
-      stringsAsFactors = FALSE
-    )
-  }
-}
 
 tukey_letters_df <- bind_rows(tukey_letters) %>%
   mutate(
@@ -369,7 +407,7 @@ print(CEC_plot)
 # =========================================================
 # CEC AND EXCHANGEABLE CATIONS — FEBRUARY 2026
 # TWO PLOTS:
-# 1. 50 t/ha treatments + Lime (ANOVA + Tukey HSD)
+# 1. 50 t/ha treatments + Lime (ANOVA or Kruskal-Wallis)
 # 2. Huhnerberg dose-response (descriptive)
 # Point symbols + mean ± SE
 # =========================================================
@@ -515,74 +553,28 @@ print(
 
 
 # ---------------------------------------------------------
-# 7. ANOVA + Tukey HSD
+# 7. Select ANOVA or Kruskal-Wallis for 50 t/ha + Lime
 # ---------------------------------------------------------
 
-anova_50_results <- list()
-tukey_50_results <- list()
-letters_50_results <- list()
+test_results_50 <- lapply(
+  cec_properties,
+  function(prop) run_treatment_test(CEC_50, prop)
+)
+names(test_results_50) <- cec_properties
 
-for (prop in cec_properties) {
-  
-  formula <- as.formula(
-    paste0("`", prop, "` ~ Treatment")
-  )
-  
-  model <- aov(
-    formula,
-    data = CEC_50
-  )
-  
-  anova_50_results[[prop]] <- summary(model)
-  
-  p_value <- summary(model)[[1]][["Pr(>F)"]][1]
-  
-  if (!is.na(p_value) && p_value < 0.05) {
-    
-    tukey <- TukeyHSD(model)
-    
-    tukey_50_results[[prop]] <- tukey
-    
-    letters <- multcompLetters4(
-      model,
-      tukey
-    )
-    
-    letters_50_results[[prop]] <- data.frame(
-      Treatment = names(letters$Treatment$Letters),
-      Letters = as.character(letters$Treatment$Letters),
-      Property = prop,
-      stringsAsFactors = FALSE
-    )
-    
-  } else {
-    
-    tukey_50_results[[prop]] <- NULL
-    
-    letters_50_results[[prop]] <- data.frame(
-      Treatment = levels(CEC_50$Treatment),
-      Letters = "",
-      Property = prop,
-      stringsAsFactors = FALSE
-    )
-  }
-}
+anova_50_results <- lapply(test_results_50, `[[`, "test")
+tukey_50_results <- lapply(test_results_50, `[[`, "posthoc")
+letters_50_results <- lapply(test_results_50, `[[`, "letters")
 
-
-# ---------------------------------------------------------
-# 8. Print ANOVA p-values
-# ---------------------------------------------------------
-
-anova_50_pvalues <- data.frame(
+# Print test selection, Shapiro-Wilk and overall p-values
+test_50_pvalues <- data.frame(
   Property = cec_properties,
-  p_value = sapply(
-    anova_50_results,
-    function(x) x[[1]][["Pr(>F)"]][1]
-  )
+  Test = vapply(test_results_50, `[[`, character(1), "method"),
+  Shapiro_Wilk_p = vapply(test_results_50, `[[`, numeric(1), "shapiro_p"),
+  Overall_p = vapply(test_results_50, `[[`, numeric(1), "p_value")
 )
 
-print(anova_50_pvalues)
-
+print(test_50_pvalues)
 
 # ---------------------------------------------------------
 # 9. Calculate mean ± SE
