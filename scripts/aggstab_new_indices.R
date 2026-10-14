@@ -293,6 +293,11 @@ aggstab_h2o <- aggstab_h2o %>% #remove faulty sample
              rep == "b" &
              treatment == "Bolsdorfer_50"))
 
+write.csv(
+  aggstab_h2o,
+  here("outputs", "aggstab_h2o.csv"),
+  row.names = FALSE
+)
 
 aggstab_oxalate <- clean_aggstab_extract("aggstab_2026_oxalate.csv", "oxalate")
 aggstab_h2o2    <- clean_aggstab_extract("aggstab_2026_h2o2.csv", "h2o2")

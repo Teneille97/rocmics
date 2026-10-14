@@ -21,7 +21,7 @@ library(emmeans)
 ## "Eifelgold"
 ## "Huhnerberg"
 
-model_treatment <- "Bolsdorfer"
+model_treatment <- "Control"
 
 
 ## Load radiocarbon data
@@ -284,7 +284,7 @@ mc <- function(pars){
 #  f = mc,
 #  p = inipars, 
 #  method = "Nelder-Mead",
-#  upper = c(1.5, 0.5 ,0.05, 0.5, 0.5),
+#  upper = c(1.5, 0.5 ,0.05, 0.5, 0.1),
 #  lower = c(0.05, 0.005, 0.0001, 0, 0) 
 #)
 
@@ -649,7 +649,7 @@ cov0 <- summary(mFit)$cov.scaled #  cov matrix can be used for jump
 
 # run 
 #MCMC <- modMCMC(f=mc, p = bestpars, niter = 50000, jump = cov0*0.001, var0 = var0, wvar0 = 1, updatecov = 1000, burninlength =  1000, 
-#                upper = c(1.5, 0.5 ,0.05, 0.5, 0.5),
+#                upper = c(1.5, 0.5 ,0.05, 0.5, 0.1),
 #                lower = c(0.05, 0.005, 0.0001, 0, 0)) 
 #save(MCMC, file = file.path("mod_runs", "MCMC_3p_Control.Rdata"))
 load(here::here("mod_runs/MCMC_3p_Control.Rdata"))
