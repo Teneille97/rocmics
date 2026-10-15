@@ -21,7 +21,10 @@ After normalizing the cations extracted from basalt and lime treatments to the c
 #| message: false
 #| label: Tessier
 #| warning: FALSE
-
+#| fig-width: 10
+#| fig-height: 14
+#| out-width: 100%
+#| 
 # ==============================================================================
 # TESSIER EXTRACTIONS — FEBRUARY 2026
 # ABSOLUTE DIFFERENCE FROM CONTROL
@@ -976,6 +979,10 @@ CEC_plot <- ggplot(
 # ---------------------------------------------------------
 # 15. Display plot
 # ---------------------------------------------------------
+options(
+  repr.plot.width = 10,
+  repr.plot.height = 14
+)
 
 print(CEC_plot)
 
@@ -1302,6 +1309,10 @@ CEC_plot_50 <- ggplot(
     )
   )
 
+options(
+  repr.plot.width = 10,
+  repr.plot.height = 14
+)
 
 print(CEC_plot_50)
 
@@ -1473,6 +1484,10 @@ CEC_plot_dose <- ggplot(
     )
   )
 
+options(
+  repr.plot.width = 10,
+  repr.plot.height = 14
+)
 
 print(CEC_plot_dose)
 

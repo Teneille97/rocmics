@@ -19,7 +19,10 @@ We observe more oxalate-extractable metals released from Bolsdorfer treatment, e
 #| message: false
 #| label: metal(loid)s comparison
 #| warning: FALSE
-#| 
+#| fig-width: 10
+#| fig-height: 14
+#| out-width: 100%
+
 # ==============================================================================
 # 1. LIBRARIES & SETUP
 # ==============================================================================
