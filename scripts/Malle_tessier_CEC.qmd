@@ -1,0 +1,1480 @@
+---
+title: "Malle_tessier_CEC"
+format: html
+editor: visual
+---
+
+## Overview
+
+Teneille's full project repository is available at https://github.com/Teneille97/rocmics.
+
+We measured cations released by sequential extractions according to the Tessier protocol, namely exchangeable (NH4OAc), carbonates (acetic acid), reducible oxides (hydroxylamine) and oxidizable organic matter (H2O2). 
+
+We measured exchangeable cation content, base saturation and CEC by accounting for exchangeable acidity measured by titration at Ecosphere.
+
+## Tessier results
+
+After normalizing the cations extracted from basalt and lime treatments to the control by subtraction, we see that some K and Ca were in the exchangeable and reducible fractions in basalt treatments, while in Bolsdorfer, some cations were in the carbonate pool. It seems that there was an increasing proportion of cations in the reducible pool with increasing application rate in the dose-response experiment.
+
+```{r}
+#| echo: false
+#| message: false
+#| label: Tessier
+#| warning: FALSE
+
+# ==============================================================================
+# TESSIER EXTRACTIONS — FEBRUARY 2026
+# ABSOLUTE DIFFERENCE FROM CONTROL
+# FOUR EXTRACTS: NH4OAc, ACETIC, HYDROXYLAMINE, H2O2
+# ANOVA + TUKEY HSD + PLOTS
+# ==============================================================================
+
+
+# ==============================================================================
+# 1. LIBRARIES & SETUP
+# ==============================================================================
+
+library(tidyverse)
+library(here)
+library(emmeans)
+library(multcomp)
+library(multcompView)
+library(broom)
+library(ggplot2)
+
+theme_set(theme_bw())
+
+
+# ==============================================================================
+# 2. METADATA PROCESSING
+# ==============================================================================
+
+metadata <- read.csv(here("csv_files", "treatment_names.csv")) %>%
+  mutate(
+    analysis_group = case_when(
+      Treatment == "Control" ~ "Control",
+      Treatment == "Eifelgold_50" ~ "Eifelgold_50",
+      Treatment == "Bolsdorfer_50" ~ "Bolsdorfer_50",
+      Treatment == "Lime_2" ~ "Lime_2",
+      Treatment == "Huhnerberg_50" ~ "Huhnerberg_50",
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# ==============================================================================
+# 3. IMPORT & CLEAN DATA
+# ==============================================================================
+
+tessier_feb26_nh4oac <- read.csv(
+  here("csv_files", "tessier_feb2026_nh4oac.csv")
+)
+
+tessier_feb26_acetic <- read.csv(
+  here("csv_files", "tessier_feb2026_acetic.csv")
+)
+
+tessier_feb26_hydroxylamine <- read.csv(
+  here("csv_files", "tessier_feb2026_hydroxylamine.csv")
+)
+
+tessier_feb26_h2o2 <- read.csv(
+  here("csv_files", "tessier_feb2026_h2o2.csv")
+)
+
+
+# ==============================================================================
+# 4. PROCESS TESSIER EXTRACTS
+# Convert concentrations to mg/g soil
+# ==============================================================================
+
+process_tessier_extract <- function(df, extract_name) {
+  
+  cbind(df, metadata) %>%
+    separate(
+      Treatment,
+      into = c("Tmt", "App_rate"),
+      sep = "_",
+      fill = "right"
+    ) %>%
+    mutate(
+      App_rate = replace_na(App_rate, "0"),
+      
+      Tmt = factor(Tmt),
+      
+      App_rate = factor(
+        App_rate,
+        levels = c("0", "2", "4", "8", "12", "20", "30", "50")
+      ),
+      
+      Extract = extract_name,
+      
+      # Convert concentrations from mg/L to mg/g soil
+      Fe = (Fe..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
+        Mass.soil..g.,
+      
+      Al = (Al..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
+        Mass.soil..g.,
+      
+      Mn = (Mn..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
+        Mass.soil..g.,
+      
+      Si = (Si..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
+        Mass.soil..g.,
+      
+      Ca = (Ca..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
+        Mass.soil..g.,
+      
+      K = (K..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
+        Mass.soil..g.,
+      
+      Na = (Na..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
+        Mass.soil..g.
+    ) %>%
+    dplyr::select(
+      sample,
+      analysis_group,
+      Tmt,
+      App_rate,
+      Extract,
+      Fe, Al, Mn, Si, Ca, K, Na
+    ) %>%
+    pivot_longer(
+      cols = c(Fe, Al, Mn, Si, Ca, K, Na),
+      names_to = "Element",
+      values_to = "Concentration (mg g-1 soil)"
+    )
+}
+
+
+# ==============================================================================
+# 5. APPLY FUNCTION TO EACH EXTRACT
+# ==============================================================================
+
+tessier_feb26_nh4oac_long <- process_tessier_extract(
+  tessier_feb26_nh4oac,
+  "NH4OAc"
+)
+
+tessier_feb26_acetic_long <- process_tessier_extract(
+  tessier_feb26_acetic,
+  "Acetic"
+)
+
+tessier_feb26_hydroxylamine_long <- process_tessier_extract(
+  tessier_feb26_hydroxylamine,
+  "Hydroxylamine"
+)
+
+tessier_feb26_h2o2_long <- process_tessier_extract(
+  tessier_feb26_h2o2,
+  "H2O2"
+)
+
+
+# ==============================================================================
+# 6. COMBINE ALL FOUR TESSIER EXTRACTS
+# ==============================================================================
+
+tessier_combined <- bind_rows(
+  tessier_feb26_nh4oac_long,
+  tessier_feb26_acetic_long,
+  tessier_feb26_hydroxylamine_long,
+  tessier_feb26_h2o2_long
+) %>%
+  mutate(
+    Extract = factor(
+      Extract,
+      levels = c("NH4OAc", "Acetic", "Hydroxylamine", "H2O2")
+    ),
+    
+    Element = factor(
+      Element,
+      levels = c("Fe", "Al", "Mn", "Si", "Ca", "K", "Na")
+    )
+  )
+
+
+# ==============================================================================
+# 7. CALCULATE ABSOLUTE DIFFERENCE FROM CONTROL
+#
+# Difference = individual concentration - Control mean
+#
+# Calculated separately for each Element x Extract combination
+# Units remain mg/g soil
+# ==============================================================================
+
+control_means <- tessier_combined %>%
+  dplyr::filter(Tmt == "Control") %>%
+  group_by(Element, Extract) %>%
+  summarise(
+    Control_mean = if (all(is.na(`Concentration (mg g-1 soil)`))) {
+      NA_real_
+    } else {
+      mean(`Concentration (mg g-1 soil)`, na.rm = TRUE)
+    },
+    .groups = "drop"
+  )
+
+
+# Join Control means and calculate absolute differences
+
+tessier_combined <- tessier_combined %>%
+  left_join(
+    control_means,
+    by = c("Element", "Extract")
+  ) %>%
+  mutate(
+    Difference_mg_g =
+      `Concentration (mg g-1 soil)` - Control_mean
+  )
+
+
+# Check Control means and normalization
+
+
+tessier_combined %>%
+  dplyr::filter(Tmt == "Control") %>%
+  group_by(Element, Extract) %>%
+  summarise(
+    Mean_difference = mean(Difference_mg_g, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+# ==============================================================================
+# 8. CONSISTENT EXTRACT COLOURS
+# ==============================================================================
+
+extract_colors <- c(
+  "NH4OAc"        = "#E69F00",
+  "Acetic"        = "#56B4E9",
+  "Hydroxylamine" = "#009E73",
+  "H2O2"          = "#CC79A7"
+)
+
+
+# ==============================================================================
+# 10. 50 t/ha TREATMENT COMPARISONS
+# ANOVA + TUKEY HSD
+# ==============================================================================
+
+plot50_tessier <- tessier_combined %>%
+  dplyr::filter(
+    analysis_group %in% c(
+      "Control",
+      "Bolsdorfer_50",
+      "Eifelgold_50",
+      "Huhnerberg_50",
+      "Lime_2"
+    )
+  ) %>%
+  mutate(
+    analysis_group = factor(
+      analysis_group,
+      levels = c(
+        "Control",
+        "Bolsdorfer_50",
+        "Eifelgold_50",
+        "Huhnerberg_50",
+        "Lime_2"
+      )
+    )
+  )
+
+
+# ==============================================================================
+# 10a. ANOVA FOR EACH ELEMENT x EXTRACT
+# ==============================================================================
+
+anova_tessier_50 <- plot50_tessier %>%
+  group_by(Element, Extract) %>%
+  group_modify(~ {
+    
+    dat <- .x %>%
+      dplyr::filter(!is.na(Difference_mg_g)) %>%
+      mutate(analysis_group = droplevels(analysis_group))
+    
+    n_groups <- n_distinct(dat$analysis_group)
+    
+    # Skip if fewer than 2 treatment groups
+    if (n_groups < 2) {
+      return(tibble(
+        term = "analysis_group",
+        df = NA_real_,
+        statistic = NA_real_,
+        p.value = NA_real_,
+        n_groups = n_groups,
+        status = "Skipped: fewer than 2 treatment groups"
+      ))
+    }
+    
+    # Fit ANOVA
+    mod <- aov(
+      Difference_mg_g ~ analysis_group,
+      data = dat
+    )
+    
+    # Extract results
+    broom::tidy(mod) %>%
+      mutate(
+        n_groups = n_groups,
+        status = "OK"
+      )
+  }) %>%
+  ungroup()
+
+
+
+# ==============================================================================
+# 10b. TUKEY HSD LETTERS FOR EACH ELEMENT x EXTRACT
+# ==============================================================================
+
+letters_tessier_50 <- plot50_tessier %>%
+  group_by(Element, Extract) %>%
+  group_modify(~ {
+    
+    dat <- .x %>%
+      filter(!is.na(Difference_mg_g)) %>%
+      mutate(analysis_group = droplevels(analysis_group))
+    
+    n_groups <- n_distinct(dat$analysis_group)
+    
+    # Skip if fewer than 2 groups or insufficient residual df
+    if (
+      n_groups < 2 ||
+      nrow(dat) <= n_groups
+    ) {
+      return(tibble(
+        analysis_group = factor(character()),
+        .group = character(),
+        y = numeric()
+      ))
+    }
+    
+    mod <- aov(
+      Difference_mg_g ~ analysis_group,
+      data = dat
+    )
+    
+    emm <- emmeans(mod, ~ analysis_group)
+    
+    cld_res <- multcomp::cld(
+      emm,
+      Letters = letters,
+      adjust = "tukey"
+    )
+    
+    # Dynamic label height that also works with negative differences
+    data_range <- range(dat$Difference_mg_g, na.rm = TRUE)
+    padding <- diff(data_range) * 0.15
+    
+    if (padding == 0 || !is.finite(padding)) {
+      padding <- 0.02
+    }
+    
+    label_y <- max(dat$Difference_mg_g, na.rm = TRUE) + padding
+    
+    cld_res %>%
+      as.data.frame() %>%
+      dplyr::select(analysis_group, .group) %>%
+      mutate(
+        .group = stringr::str_trim(.group),
+        y = label_y
+      )
+  }) %>%
+  ungroup()
+
+
+
+# ==============================================================================
+# 10c. PLOT 50 t/ha COMPARISONS WITH TUKEY LETTERS
+# ==============================================================================
+
+plot50_tessier_labeled <- plot50_tessier %>%
+  left_join(
+    letters_tessier_50,
+    by = c("Element", "Extract", "analysis_group")
+  )
+
+
+ggplot(
+  plot50_tessier_labeled,
+  aes(
+    x = analysis_group,
+    y = Difference_mg_g,
+    fill = Extract
+  )
+) +
+  
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    colour = "grey40"
+  ) +
+  
+  geom_boxplot(
+    outlier.shape = NA,
+    alpha = 0.7,
+    width = 0.65
+  ) +
+  
+  geom_point(
+    aes(color = Extract),
+    position = position_jitter(width = 0.08),
+    size = 1.5,
+    alpha = 0.8
+  ) +
+  
+  geom_text(
+    data = letters_tessier_50,
+    aes(
+      x = analysis_group,
+      y = y,
+      label = .group
+    ),
+    inherit.aes = FALSE,
+    colour = "black",
+    size = 3.5,
+    vjust = 0
+  ) +
+  
+  facet_grid(Element ~ Extract, scales = "free_y") +
+  
+  scale_fill_manual(values = extract_colors) +
+  
+  scale_color_manual(values = extract_colors) +
+  
+  scale_x_discrete(
+    labels = c(
+      "Control" = "Control",
+      "Bolsdorfer_50" = "Bolsdorfer\n50 t/ha",
+      "Eifelgold_50" = "Eifelgold\n50 t/ha",
+      "Huhnerberg_50" = "Hühnerberg\n50 t/ha",
+      "Lime_2" = "Lime\n2 t/ha"
+    )
+  ) +
+  # Add extra space above each facet for Tukey letters
+  scale_y_continuous(
+    expand = expansion(mult = c(0.08, 0.30))
+  ) +
+  
+  # Prevent labels from being clipped at panel boundaries
+  coord_cartesian(clip = "off") +
+  labs(
+    x = "Treatment",
+    y = expression("Difference from Control (mg g"^-1*" soil)"),
+    title = "Tessier Extract Comparisons — 50 t/ha Treatments",
+    subtitle = "Absolute difference from Control; Tukey HSD within each Element × Extract",
+    fill = "Extract",
+    color = "Extract"
+  ) +
+  
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",
+    plot.margin = margin(
+      t = 15,
+      r = 15,
+      b = 15,
+      l = 15
+    )
+  )
+
+
+# ==============================================================================
+# 11. HÜHNERBERG DOSE-RESPONSE
+# CONTROL VS BASALT APPLICATION RATES
+# NO TUKEY: UNREPLICATED DOSE-RESPONSE TREATMENTS
+# ==============================================================================
+
+dose_resp_tessier <- tessier_combined %>%
+  dplyr::filter(Tmt %in% c("Control", "Huhnerberg")) %>%
+  mutate(
+    Treatment = ifelse(
+      Tmt == "Control",
+      "Control (0 t/ha)",
+      paste0(as.character(App_rate), " t/ha")
+    ),
+    
+    Treatment = factor(
+      Treatment,
+      levels = c(
+        "Control (0 t/ha)",
+        "2 t/ha",
+        "4 t/ha",
+        "8 t/ha",
+        "12 t/ha",
+        "20 t/ha",
+        "30 t/ha",
+        "50 t/ha"
+      )
+    )
+  )
+
+
+# ==============================================================================
+# 11a. DOSE-RESPONSE PLOT
+# Points and lines; no Tukey testing
+# ==============================================================================
+
+ggplot(
+  dose_resp_tessier,
+  aes(
+    x = Treatment,
+    y = Difference_mg_g,
+    color = Extract,
+    group = Extract
+  )
+) +
+  
+  geom_hline(
+    yintercept = 0,
+    linetype = "dashed",
+    colour = "grey40"
+  ) +
+  
+  geom_point(
+    position = position_dodge(width = 0.5),
+    size = 2,
+    alpha = 0.85
+  ) +
+  
+  geom_line(
+    position = position_dodge(width = 0.5),
+    linewidth = 0.6,
+    alpha = 0.7
+  ) +
+  
+  facet_grid(Element ~ ., scales = "free_y") +
+  
+  scale_color_manual(values = extract_colors) +
+  
+  labs(
+    x = "Hühnerberg application rate (t/ha)",
+    y = expression("Difference from Control (mg g"^-1*" soil)"),
+    title = "Tessier Element Concentrations — Hühnerberg Dose-Response",
+    subtitle = "Absolute difference from Control; no Tukey testing for unreplicated dose rates",
+    color = "Tessier Extract"
+  ) +
+  
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  )
+
+
+```
+
+## Exchangeable cations and CEC results
+Basalts have higher CEC and exchangeable Ca content. Bolsdorfer and Huhnerberg had higher exchangeable Mg content and Bolsdorfer also had higher exchangeable Na and K content. 
+
+```{r}
+#| echo: false
+#| message: false
+#| label: CEC
+#| warning: FALSE
+
+# =========================================================
+# CEC AND EXCHANGEABLE CATIONS — FEBRUARY 2026
+# ANOVA OR KRUSKAL-WALLIS + POST-HOC TESTS + MEAN ± SE PLOTS
+# =========================================================
+
+# ---------------------------------------------------------
+# 1. Load packages
+# ---------------------------------------------------------
+
+library(ggplot2)
+library(gganimate)
+library(ragg)
+options(bitmapType = "cairo")
+library(gifski)
+library(viridis)
+library(RColorBrewer)
+library(tidyverse)
+library(dplyr)
+library(car)
+library(zoo)
+library(ggthemr)
+library(gridExtra)
+library(here)
+library(multcompView)
+
+theme_update(
+  legend.title = element_text(size = 10),
+  legend.text  = element_text(size = 8)
+)
+
+# ---------------------------------------------------------
+# 2. Theme
+# ---------------------------------------------------------
+
+ggthemr("flat dark")
+
+# ---------------------------------------------------------
+# 3. Import data
+# ---------------------------------------------------------
+
+CEC_Feb_26 <- read.csv(
+  here("csv_files", "CEC_Feb_26.csv"),
+  header = TRUE
+)[1:252, ]
+
+treatment_names <- read.csv(
+  here("csv_files", "treatment_names.csv")
+)
+
+# ---------------------------------------------------------
+# 4. Join treatment metadata
+# ---------------------------------------------------------
+
+CEC_Feb_26 <- CEC_Feb_26 %>%
+  left_join(
+    treatment_names %>%
+      dplyr::rename(Sample = sample),
+    by = "Sample"
+  ) %>%
+  na.omit()
+
+# Make Treatment consistently character
+CEC_Feb_26 <- CEC_Feb_26 %>%
+  mutate(
+    Treatment = as.character(Treatment)
+  )
+
+write.csv(CEC_Feb_26,file=here::here("outputs","CEC_Feb_26.csv"), row.names=FALSE)
+
+# ---------------------------------------------------------
+# 5. Define CEC properties
+# ---------------------------------------------------------
+
+cec_properties <- c(
+  "H...cmolg.kg.1.",
+  "CALCIUM..cmolg.kg.1.",
+  "KALIUM..cmolg.kg.1.",
+  "MAGNESIUM..cmolg.kg.1.",
+  "NATRIUM..cmolg.kg.1.",
+  "Aluminium..cmolg.kg.1.",
+  "Ijzer..cmolg.kg.1.",
+  "Mangaan..cmolg.kg.1.",
+  "CEC..cmolg.kg.1.",
+  "Basesaturation...."
+)
+
+# ---------------------------------------------------------
+# 6. English facet labels
+# ---------------------------------------------------------
+
+property_labels <- c(
+  "H...cmolg.kg.1."        = "H^'+'~(cmol[c]~kg^{-1})",
+  "CALCIUM..cmolg.kg.1."   = "Calcium~(cmol[c]~kg^{-1})",
+  "KALIUM..cmolg.kg.1."    = "Potassium~(cmol[c]~kg^{-1})",
+  "MAGNESIUM..cmolg.kg.1." = "Magnesium~(cmol[c]~kg^{-1})",
+  "NATRIUM..cmolg.kg.1."   = "Sodium~(cmol[c]~kg^{-1})",
+  "Aluminium..cmolg.kg.1." = "Aluminium~(cmol[c]~kg^{-1})",
+  "Ijzer..cmolg.kg.1."     = "Iron~(cmol[c]~kg^{-1})",
+  "Mangaan..cmolg.kg.1."   = "Manganese~(cmol[c]~kg^{-1})",
+  "CEC..cmolg.kg.1."       = "CEC~(cmol[c]~kg^{-1})",
+  "Basesaturation...."      = "Base~saturation~plain('%')"
+)
+
+
+# ---------------------------------------------------------
+# Helper: test residual normality, select ANOVA or Kruskal-Wallis,
+# and calculate adjusted post-hoc comparisons + compact letters.
+# ---------------------------------------------------------
+
+run_treatment_test <- function(data, prop, group = "Treatment") {
+  d <- data %>%
+    dplyr::select(all_of(c(prop, group))) %>%
+    dplyr::filter(!is.na(.data[[prop]]), !is.na(.data[[group]])) %>%
+    dplyr::mutate(!!group := droplevels(as.factor(.data[[group]])))
+  
+  # Require at least two groups with observations
+  group_n <- table(d[[group]])
+  if (length(group_n) < 2) {
+    return(list(
+      method = "Not testable", shapiro_p = NA_real_, p_value = NA_real_,
+      test = NULL, posthoc = NULL,
+      letters = data.frame(Treatment = levels(d[[group]]),
+                           Letters = "", Property = prop)
+    ))
+  }
+  
+  formula <- as.formula(paste0("`", prop, "` ~ `", group, "`"))
+  model <- aov(formula, data = d)
+  residuals_model <- residuals(model)
+  
+  shapiro_p <- tryCatch({
+    if (length(residuals_model) >= 3 &&
+        length(residuals_model) <= 5000 &&
+        length(unique(residuals_model)) > 1) {
+      shapiro.test(residuals_model)$p.value
+    } else {
+      NA_real_
+    }
+  }, error = function(e) NA_real_)
+  
+  use_anova <- is.na(shapiro_p) || shapiro_p >= 0.05
+  treatment_levels <- levels(d[[group]])
+  posthoc <- NULL
+  letter_values <- setNames(rep("", length(treatment_levels)), treatment_levels)
+  
+  if (use_anova) {
+    method <- "ANOVA"
+    test <- summary(model)
+    p_value <- test[[1]][["Pr(>F)"]][1]
+    
+    if (!is.na(p_value) && p_value < 0.05) {
+      tukey <- TukeyHSD(model)
+      posthoc <- tukey
+      letter_values <- multcompView::multcompLetters4(model, tukey)[[group]]$Letters
+    }
+  } else {
+    method <- "Kruskal-Wallis"
+    kw <- kruskal.test(formula, data = d)
+    test <- kw
+    p_value <- kw$p.value
+    
+    if (!is.na(p_value) && p_value < 0.05) {
+      pairs <- combn(treatment_levels, 2, simplify = FALSE)
+      pair_p <- vapply(pairs, function(pair) {
+        x <- d[[prop]][d[[group]] == pair[1]]
+        y <- d[[prop]][d[[group]] == pair[2]]
+        tryCatch(wilcox.test(x, y, exact = FALSE)$p.value,
+                 error = function(e) NA_real_)
+      }, numeric(1))
+      
+      pair_names <- vapply(pairs, function(pair) {
+        paste(pair[1], pair[2], sep = "-")
+      }, character(1))
+      names(pair_p) <- pair_names
+      pair_p_adjusted <- p.adjust(pair_p, method = "holm")
+      names(pair_p_adjusted) <- pair_names
+      posthoc <- pair_p_adjusted
+      
+      if (length(pair_p_adjusted) > 0 && any(!is.na(pair_p_adjusted))) {
+        letter_values <- multcompView::multcompLetters(pair_p_adjusted)$Letters
+      }
+    }
+  }
+  
+  letters_df <- data.frame(
+    Treatment = names(letter_values),
+    Letters = as.character(letter_values),
+    Property = prop,
+    stringsAsFactors = FALSE
+  )
+  
+  list(
+    method = method,
+    shapiro_p = shapiro_p,
+    p_value = as.numeric(p_value),
+    test = test,
+    posthoc = posthoc,
+    letters = letters_df
+  )
+}
+
+# ---------------------------------------------------------
+# 7. Select ANOVA or Kruskal-Wallis for every property
+# ---------------------------------------------------------
+
+property_test_results <- lapply(
+  cec_properties,
+  function(prop) run_treatment_test(CEC_Feb_26, prop)
+)
+names(property_test_results) <- cec_properties
+
+anova_results <- lapply(property_test_results, `[[`, "test")
+tukey_results <- lapply(property_test_results, `[[`, "posthoc")
+tukey_letters <- lapply(property_test_results, `[[`, "letters")
+
+# ---------------------------------------------------------
+# 8. Print test selection, Shapiro-Wilk and overall p-values
+# ---------------------------------------------------------
+
+property_pvalues <- data.frame(
+  Property = cec_properties,
+  Test = vapply(property_test_results, `[[`, character(1), "method"),
+  Shapiro_Wilk_p = vapply(property_test_results, `[[`, numeric(1), "shapiro_p"),
+  Overall_p = vapply(property_test_results, `[[`, numeric(1), "p_value")
+)
+
+
+# ---------------------------------------------------------
+# 9. Combine post-hoc letters for plotting
+# ---------------------------------------------------------
+
+tukey_letters_df <- bind_rows(tukey_letters) %>%
+  mutate(
+    Treatment = as.character(Treatment),
+    Property = as.character(Property),
+    Letters = as.character(Letters)
+  )
+
+# ---------------------------------------------------------
+# 10. Calculate mean ± SE
+# ---------------------------------------------------------
+
+CEC_Feb_26_summary <- CEC_Feb_26 %>%
+  group_by(Treatment) %>%
+  summarise(
+    across(
+      all_of(cec_properties),
+      list(
+        mean = ~ mean(.x, na.rm = TRUE),
+        se = ~ sd(.x, na.rm = TRUE) /
+          sqrt(sum(!is.na(.x)))
+      ),
+      .names = "{.fn}_{.col}"
+    ),
+    .groups = "drop"
+  )
+
+# ---------------------------------------------------------
+# 11. Convert summary data to long format
+# ---------------------------------------------------------
+
+CEC_long <- CEC_Feb_26_summary %>%
+  pivot_longer(
+    cols = -Treatment,
+    names_to = c(".value", "Property"),
+    names_pattern = "^(mean|se)_(.*)$"
+  ) %>%
+  mutate(
+    Treatment = as.character(Treatment),
+    Property = as.character(Property)
+  )
+
+# ---------------------------------------------------------
+# 12. Keep only significant Tukey letters
+# ---------------------------------------------------------
+
+letter_positions <- tukey_letters_df %>%
+  dplyr::filter(
+    !is.na(Letters),
+    Letters != ""
+  ) %>%
+  left_join(
+    CEC_long,
+    by = c("Treatment", "Property")
+  )
+
+# ---------------------------------------------------------
+# 13. Calculate positions for Tukey letters
+# ---------------------------------------------------------
+
+letter_positions <- letter_positions %>%
+  group_by(Property) %>%
+  mutate(
+    y_max = max(
+      mean + se,
+      na.rm = TRUE
+    ),
+    
+    y_min = min(
+      mean - se,
+      na.rm = TRUE
+    ),
+    
+    y_range = y_max - y_min,
+    
+    # Prevent zero/invalid ranges
+    y_range = if_else(
+      !is.finite(y_range) | y_range == 0,
+      1,
+      y_range
+    ),
+    
+    # Position letters slightly above each error bar
+    y_position = mean + se + 0.05 * y_range
+  ) %>%
+  ungroup() %>%
+  dplyr::filter(
+    !is.na(mean),
+    !is.na(se),
+    !is.na(y_position),
+    is.finite(y_position)
+  )
+
+# ---------------------------------------------------------
+# 14. Plot CEC and exchangeable cations
+# ---------------------------------------------------------
+
+CEC_plot <- ggplot(
+  CEC_long,
+  aes(
+    x = Treatment,
+    y = mean
+  )
+) +
+  
+  # Mean bars
+  geom_col(
+    width = 0.7
+  ) +
+  
+  # Standard error
+  geom_errorbar(
+    aes(
+      ymin = mean - se,
+      ymax = mean + se
+    ),
+    width = 0.2,
+    na.rm = TRUE
+  ) +
+  
+  # Tukey letters
+  geom_text(
+    data = letter_positions,
+    aes(
+      x = Treatment,
+      y = y_position,
+      label = Letters
+    ),
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 4,
+    vjust = 0
+  ) +
+  
+  # Separate panel for each property
+  facet_wrap(
+    ~ Property,
+    scales = "free_y",
+    labeller = as_labeller(
+      property_labels,
+      default = label_parsed
+    )
+  ) +
+  
+  # Extra space above bars for Tukey letters
+  scale_y_continuous(
+    expand = expansion(
+      mult = c(0.05, 0.25)
+    )
+  ) +
+  
+  labs(
+    x = "Treatment",
+    y = "Mean ± SE"
+  ) +
+  
+  theme_bw() +
+  
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
+    strip.text = element_text(
+      face = "bold"
+    )
+  )
+
+# ---------------------------------------------------------
+# 15. Display plot
+# ---------------------------------------------------------
+
+print(CEC_plot)
+
+
+# =========================================================
+# CEC AND EXCHANGEABLE CATIONS — FEBRUARY 2026
+# TWO PLOTS:
+# 1. 50 t/ha treatments + Lime (ANOVA or Kruskal-Wallis)
+# 2. Huhnerberg dose-response (descriptive)
+# Point symbols + mean ± SE
+# =========================================================
+
+
+# ---------------------------------------------------------
+# 1. Load packages
+# ---------------------------------------------------------
+
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(here)
+library(multcompView)
+library(ggthemr)
+
+options(bitmapType = "cairo")
+
+ggthemr("flat dark")
+
+theme_update(
+  legend.title = element_text(size = 10),
+  legend.text  = element_text(size = 8)
+)
+
+
+# ---------------------------------------------------------
+# 2. Import data
+# ---------------------------------------------------------
+
+CEC_Feb_26 <- read.csv(
+  here("csv_files", "CEC_Feb_26.csv"),
+  header = TRUE
+)[1:252, ]
+
+treatment_names <- read.csv(
+  here("csv_files", "treatment_names.csv")
+)
+
+
+# ---------------------------------------------------------
+# 3. Join treatment metadata
+# ---------------------------------------------------------
+
+CEC_Feb_26 <- CEC_Feb_26 %>%
+  left_join(
+    treatment_names %>%
+      dplyr::rename(Sample = sample),
+    by = "Sample"
+  ) %>%
+  na.omit() %>%
+  mutate(
+    Treatment = as.character(Treatment)
+  )
+
+
+# Export joined data
+write.csv(
+  CEC_Feb_26,
+  file = here("outputs", "CEC_Feb_26.csv"),
+  row.names = FALSE
+)
+
+
+# ---------------------------------------------------------
+# 4. Define CEC properties
+# ---------------------------------------------------------
+
+cec_properties <- c(
+  "H...cmolg.kg.1.",
+  "CALCIUM..cmolg.kg.1.",
+  "KALIUM..cmolg.kg.1.",
+  "MAGNESIUM..cmolg.kg.1.",
+  "NATRIUM..cmolg.kg.1.",
+  "Aluminium..cmolg.kg.1.",
+  "Ijzer..cmolg.kg.1.",
+  "Mangaan..cmolg.kg.1.",
+  "CEC..cmolg.kg.1.",
+  "Basesaturation...."
+)
+
+
+# ---------------------------------------------------------
+# 5. Facet labels
+# ---------------------------------------------------------
+
+property_labels <- c(
+  "H...cmolg.kg.1."        = "H^'+'~(cmol[c]~kg^{-1})",
+  "CALCIUM..cmolg.kg.1."   = "Calcium~(cmol[c]~kg^{-1})",
+  "KALIUM..cmolg.kg.1."    = "Potassium~(cmol[c]~kg^{-1})",
+  "MAGNESIUM..cmolg.kg.1." = "Magnesium~(cmol[c]~kg^{-1})",
+  "NATRIUM..cmolg.kg.1."   = "Sodium~(cmol[c]~kg^{-1})",
+  "Aluminium..cmolg.kg.1." = "Aluminium~(cmol[c]~kg^{-1})",
+  "Ijzer..cmolg.kg.1."     = "Iron~(cmol[c]~kg^{-1})",
+  "Mangaan..cmolg.kg.1."   = "Manganese~(cmol[c]~kg^{-1})",
+  "CEC..cmolg.kg.1."       = "CEC~(cmol[c]~kg^{-1})",
+  "Basesaturation...."     = "Base~saturation~plain('%')"
+)
+
+
+# ---------------------------------------------------------
+# 6. Prepare treatment comparison data
+# ---------------------------------------------------------
+
+CEC_50 <- CEC_Feb_26 %>%
+  dplyr::filter(
+    Treatment %in% c(
+      "Control",
+      "Bolsdorfer_50",
+      "Eifelgold_50",
+      "Huhnerberg_50",
+      "Lime_2"
+    )
+  ) %>%
+  mutate(
+    Treatment = factor(
+      Treatment,
+      levels = c(
+        "Control",
+        "Bolsdorfer_50",
+        "Eifelgold_50",
+        "Huhnerberg_50",
+        "Lime_2"
+      )
+    )
+  )
+
+
+
+
+
+# =========================================================
+# PLOT 1: 50 t/ha TREATMENTS + LIME
+# =========================================================
+
+
+# ---------------------------------------------------------
+# 7. Select ANOVA or Kruskal-Wallis for 50 t/ha + Lime
+# ---------------------------------------------------------
+
+test_results_50 <- lapply(
+  cec_properties,
+  function(prop) run_treatment_test(CEC_50, prop)
+)
+names(test_results_50) <- cec_properties
+
+anova_50_results <- lapply(test_results_50, `[[`, "test")
+tukey_50_results <- lapply(test_results_50, `[[`, "posthoc")
+letters_50_results <- lapply(test_results_50, `[[`, "letters")
+
+# Print test selection, Shapiro-Wilk and overall p-values
+test_50_pvalues <- data.frame(
+  Property = cec_properties,
+  Test = vapply(test_results_50, `[[`, character(1), "method"),
+  Shapiro_Wilk_p = vapply(test_results_50, `[[`, numeric(1), "shapiro_p"),
+  Overall_p = vapply(test_results_50, `[[`, numeric(1), "p_value")
+)
+
+
+# ---------------------------------------------------------
+# 9. Calculate mean ± SE
+# ---------------------------------------------------------
+
+CEC_50_summary <- CEC_50 %>%
+  group_by(Treatment) %>%
+  summarise(
+    across(
+      all_of(cec_properties),
+      list(
+        mean = ~ mean(.x, na.rm = TRUE),
+        se = ~ sd(.x, na.rm = TRUE) /
+          sqrt(sum(!is.na(.x)))
+      ),
+      .names = "{.fn}_{.col}"
+    ),
+    .groups = "drop"
+  )
+
+
+CEC_50_long <- CEC_50_summary %>%
+  pivot_longer(
+    cols = -Treatment,
+    names_to = c(".value", "Property"),
+    names_pattern = "^(mean|se)_(.*)$"
+  ) %>%
+  mutate(
+    Treatment = as.character(Treatment),
+    Property = as.character(Property)
+  )
+
+
+# ---------------------------------------------------------
+# 10. Prepare Tukey letters
+# ---------------------------------------------------------
+
+letters_50_df <- bind_rows(letters_50_results) %>%
+  mutate(
+    Treatment = as.character(Treatment),
+    Property = as.character(Property),
+    Letters = as.character(Letters)
+  )
+
+
+letter_positions_50 <- letters_50_df %>%
+  dplyr::filter(
+    !is.na(Letters),
+    Letters != ""
+  ) %>%
+  left_join(
+    CEC_50_long,
+    by = c("Treatment", "Property")
+  ) %>%
+  group_by(Property) %>%
+  mutate(
+    y_max = max(mean + se, na.rm = TRUE),
+    y_min = min(mean - se, na.rm = TRUE),
+    
+    y_range = y_max - y_min,
+    
+    y_range = if_else(
+      !is.finite(y_range) | y_range == 0,
+      1,
+      y_range
+    ),
+    
+    y_position = mean + se + 0.08 * y_range
+  ) %>%
+  ungroup() %>%
+  dplyr::filter(
+    !is.na(mean),
+    !is.na(se),
+    is.finite(y_position)
+  )
+
+
+# ---------------------------------------------------------
+# 11. Plot 1 — 50 t/ha + Lime
+#     Points + SE + Tukey letters
+# ---------------------------------------------------------
+
+CEC_plot_50 <- ggplot(
+  CEC_50_long,
+  aes(
+    x = Treatment,
+    y = mean
+  )
+) +
+  
+  geom_point(
+    size = 3,
+    shape = 21,
+    fill = "white",
+    colour = "black",
+    stroke = 0.8
+  ) +
+  
+  geom_errorbar(
+    aes(
+      ymin = mean - se,
+      ymax = mean + se
+    ),
+    width = 0.2,
+    linewidth = 0.7,
+    na.rm = TRUE
+  ) +
+  
+  geom_text(
+    data = letter_positions_50,
+    aes(
+      x = Treatment,
+      y = y_position,
+      label = Letters
+    ),
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 4,
+    vjust = 0
+  ) +
+  
+  facet_wrap(
+    ~ Property,
+    scales = "free_y",
+    labeller = as_labeller(
+      property_labels,
+      default = label_parsed
+    )
+  ) +
+  
+  scale_y_continuous(
+    expand = expansion(
+      mult = c(0.05, 0.25)
+    )
+  ) +
+  
+  labs(
+    x = "",
+    y = "Mean ± SE",
+    title = "CEC and Exchangeable Cations — 50 t ha-1 + Lime"
+  ) +
+  
+  theme_bw() +
+  
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1,
+      size = 10
+    ),
+    strip.text = element_text(
+      face = "bold",
+      size = 11
+    ),
+    plot.title = element_text(
+      face = "bold",
+      size = 13
+    )
+  )
+
+
+print(CEC_plot_50)
+
+
+# =========================================================
+# PLOT 2: HUHNERBERG DOSE-RESPONSE
+# =========================================================
+
+
+# ---------------------------------------------------------
+# 12. Filter Control + Huhnerberg dose-response
+# ---------------------------------------------------------
+
+CEC_dose <- CEC_Feb_26 %>%
+  dplyr::filter(
+    Treatment == "Control" |
+      Treatment %in% c(
+        "Huhnerberg_2",
+        "Huhnerberg_4",
+        "Huhnerberg_8",
+        "Huhnerberg_12",
+        "Huhnerberg_20",
+        "Huhnerberg_30",
+        "Huhnerberg_50"
+      )
+  ) %>%
+  mutate(
+    Treatment = factor(
+      Treatment,
+      levels = c(
+        "Control",
+        "Huhnerberg_2",
+        "Huhnerberg_4",
+        "Huhnerberg_8",
+        "Huhnerberg_12",
+        "Huhnerberg_20",
+        "Huhnerberg_30",
+        "Huhnerberg_50"
+      ),
+      labels = c(
+        "Control",
+        "2 t ha-1",
+        "4 t ha-1",
+        "8 t ha-1",
+        "12 t ha-1",
+        "20 t ha-1",
+        "30 t ha-1",
+        "50 t ha-1"
+      )
+    )
+  )
+
+
+
+
+
+# ---------------------------------------------------------
+# 13. Calculate mean ± SE
+# ---------------------------------------------------------
+
+CEC_dose_summary <- CEC_dose %>%
+  group_by(Treatment) %>%
+  summarise(
+    across(
+      all_of(cec_properties),
+      list(
+        mean = ~ mean(.x, na.rm = TRUE),
+        se = ~ sd(.x, na.rm = TRUE) /
+          sqrt(sum(!is.na(.x)))
+      ),
+      .names = "{.fn}_{.col}"
+    ),
+    .groups = "drop"
+  )
+
+
+CEC_dose_long <- CEC_dose_summary %>%
+  pivot_longer(
+    cols = -Treatment,
+    names_to = c(".value", "Property"),
+    names_pattern = "^(mean|se)_(.*)$"
+  ) %>%
+  mutate(
+    Treatment = factor(
+      Treatment,
+      levels = c(
+        "Control",
+        "2 t ha-1",
+        "4 t ha-1",
+        "8 t ha-1",
+        "12 t ha-1",
+        "20 t ha-1",
+        "30 t ha-1",
+        "50 t ha-1"
+      )
+    ),
+    Property = as.character(Property)
+  )
+
+
+# ---------------------------------------------------------
+# 14. Plot 2 — Huhnerberg dose-response
+#     Points + SE, no Tukey letters
+# ---------------------------------------------------------
+
+CEC_plot_dose <- ggplot(
+  CEC_dose_long,
+  aes(
+    x = Treatment,
+    y = mean,
+    group = 1
+  )
+) +
+  
+  geom_point(
+    size = 3,
+    shape = 21,
+    fill = "white",
+    colour = "black",
+    stroke = 0.8
+  ) +
+  
+  geom_errorbar(
+    aes(
+      ymin = mean - se,
+      ymax = mean + se
+    ),
+    width = 0.2,
+    linewidth = 0.7,
+    na.rm = TRUE
+  ) +
+  
+  facet_wrap(
+    ~ Property,
+    scales = "free_y",
+    labeller = as_labeller(
+      property_labels,
+      default = label_parsed
+    )
+  ) +
+  
+  scale_y_continuous(
+    expand = expansion(
+      mult = c(0.05, 0.15)
+    )
+  ) +
+  
+  labs(
+    x = "",
+    y = "Mean ± SE",
+    title = "CEC and Exchangeable Cations — Hühnerberg Dose-Response"
+  ) +
+  
+  theme_bw() +
+  
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1,
+      size = 10
+    ),
+    strip.text = element_text(
+      face = "bold",
+      size = 11
+    ),
+    plot.title = element_text(
+      face = "bold",
+      size = 13
+    )
+  )
+
+
+print(CEC_plot_dose)
+
+```
+

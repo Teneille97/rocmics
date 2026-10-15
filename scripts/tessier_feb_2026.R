@@ -380,7 +380,7 @@ anova_tessier_50
 
 # View significant treatment effects
 
-anova_tessier_50 %>%
+c %>%
   filter(
     term == "analysis_group",
     p.value < 0.05
@@ -499,6 +499,7 @@ ggplot(
       label = .group
     ),
     inherit.aes = FALSE,
+    colour = "black",
     size = 3.5,
     vjust = 0
   ) +
