@@ -95,6 +95,9 @@ process_tessier_extract <- function(df, extract_name) {
       Mn = (Mn..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
         Mass.soil..g.,
       
+      Mg = (Mg..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
+        Mass.soil..g.,
+      
       Si = (Si..mg.L. / (1000 / Corrected.extract.volume..mL.)) /
         Mass.soil..g.,
       
@@ -113,10 +116,10 @@ process_tessier_extract <- function(df, extract_name) {
       Tmt,
       App_rate,
       Extract,
-      Fe, Al, Mn, Si, Ca, K, Na
+      Fe, Al, Mn, Mg, Si, Ca, K, Na
     ) %>%
     pivot_longer(
-      cols = c(Fe, Al, Mn, Si, Ca, K, Na),
+      cols = c(Fe, Al, Mn, Mg, Si, Ca, K, Na),
       names_to = "Element",
       values_to = "Concentration (mg g-1 soil)"
     )
@@ -166,7 +169,7 @@ tessier_combined <- bind_rows(
     
     Element = factor(
       Element,
-      levels = c("Fe", "Al", "Mn", "Si", "Ca", "K", "Na")
+      levels = c("Fe", "Al", "Mn", "Mg", "Si", "Ca", "K", "Na")
     )
   )
 
@@ -232,77 +235,6 @@ extract_colors <- c(
 
 
 # ==============================================================================
-# 9. FULL DATASET OVERVIEW — ALL APPLICATION RATES
-# Absolute difference from Control
-# ==============================================================================
-
-ggplot(
-  tessier_combined,
-  aes(
-    x = App_rate,
-    y = Difference_mg_g,
-    fill = Extract
-  )
-) +
-  
-  geom_hline(
-    yintercept = 0,
-    linetype = "dashed",
-    colour = "grey40"
-  ) +
-  
-  geom_boxplot(
-    outlier.shape = NA,
-    alpha = 0.7,
-    position = position_dodge(0.8)
-  ) +
-  
-  geom_point(
-    aes(color = Extract),
-    position = position_jitterdodge(
-      jitter.width = 0.1,
-      dodge.width = 0.8
-    ),
-    size = 1.2,
-    alpha = 0.7
-  ) +
-  
-  facet_grid(Element ~ Tmt, scales = "free_y") +
-  
-  scale_fill_manual(values = extract_colors) +
-  
-  scale_color_manual(values = extract_colors) +
-  
-  scale_x_discrete(
-    labels = c(
-      "0" = "0 (Control)",
-      "2" = "2",
-      "4" = "4",
-      "8" = "8",
-      "12" = "12",
-      "20" = "20",
-      "30" = "30",
-      "50" = "50"
-    )
-  ) +
-  
-  labs(
-    x = expression("Application rate (t ha"^-1*")"),
-    y = expression("Difference from Control (mg g"^-1*" soil)"),
-    title = "Tessier Element Concentrations — Difference from Control",
-    subtitle = "Values are relative to the Control mean for each Element × Extract",
-    fill = "Tessier Extract",
-    color = "Tessier Extract"
-  ) +
-  
-  theme(
-    strip.background = element_rect(fill = "grey90"),
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "top"
-  )
-
-
-# ==============================================================================
 # 10. 50 t/ha TREATMENT COMPARISONS
 # ANOVA + TUKEY HSD
 # ==============================================================================
@@ -330,6 +262,132 @@ plot50_tessier <- tessier_combined %>%
     )
   )
 
+
+# ==============================================================================
+# 10d. STACKED BAR CHARTS — TESSIER EXTRACT POOLS
+# CONTROL VS 50 t/ha TREATMENTS
+# ==============================================================================
+
+# Calculate mean concentration for each Treatment x Element x Extract
+tessier_stacked_summary <- plot50_tessier %>%
+  group_by(analysis_group, Element, Extract) %>%
+  summarise(
+    mean_concentration = if (
+      all(is.na(`Concentration (mg g-1 soil)`))
+    ) {
+      NA_real_
+    } else {
+      mean(`Concentration (mg g-1 soil)`, na.rm = TRUE)
+    },
+    sd_concentration = sd(
+      `Concentration (mg g-1 soil)`,
+      na.rm = TRUE
+    ),
+    n = sum(!is.na(`Concentration (mg g-1 soil)`)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    analysis_group = factor(
+      analysis_group,
+      levels = c(
+        "Control",
+        "Bolsdorfer_50",
+        "Eifelgold_50",
+        "Huhnerberg_50",
+        "Lime_2"
+      )
+    ),
+    Extract = factor(
+      Extract,
+      levels = c(
+        "NH4OAc",
+        "Acetic",
+        "Hydroxylamine",
+        "H2O2"
+      )
+    ),
+    Element = factor(
+      Element,
+      levels = c("Ca", "Na", "K", "Mg", "Fe", "Al", "Mn", "Si")
+    )
+  )
+
+
+# Create stacked bar chart
+plot_tessier_stacked_50 <- ggplot(
+  tessier_stacked_summary %>%
+    filter(!is.na(mean_concentration)),
+  aes(
+    x = analysis_group,
+    y = mean_concentration,
+    fill = Extract
+  )
+) +
+  geom_col(
+    position = "stack",
+    width = 0.7,
+    colour = "white",
+    linewidth = 0.2
+  ) +
+  facet_wrap(
+    ~ Element,
+    scales = "free_y",
+    ncol = 2
+  ) +
+  scale_fill_manual(
+    values = extract_colors,
+    breaks = c(
+      "NH4OAc",
+      "Acetic",
+      "Hydroxylamine",
+      "H2O2"
+    ),
+    drop = FALSE
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "Control" = "Control",
+      "Bolsdorfer_50" = "Bolsdorfer\n50 t/ha",
+      "Eifelgold_50" = "Eifelgold\n50 t/ha",
+      "Huhnerberg_50" = "Hühnerberg\n50 t/ha",
+      "Lime_2" = "Lime\n2 t/ha"
+    ),
+    drop = FALSE
+  ) +
+  labs(
+    x = "Treatment",
+    y = expression(
+      "Extracted concentration (mg g"^{-1}*" soil)"
+    ),
+    title = "Tessier Extract Pools — 50 t/ha Treatment Comparisons",
+    subtitle = paste(
+      "Mean elemental concentration across the four extraction steps;",
+      "bars stacked by extract"
+    ),
+    fill = "Extract pool"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
+    legend.position = "top",
+    strip.background = element_rect(
+      fill = "grey90",
+      colour = "grey50"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    plot.title = element_text(
+      face = "bold"
+    ),
+    panel.spacing = grid::unit(1, "lines")
+  )
+
+# Display plot
+plot_tessier_stacked_50
 
 # ==============================================================================
 # 10a. ANOVA FOR EACH ELEMENT x EXTRACT
@@ -380,7 +438,7 @@ anova_tessier_50
 
 # View significant treatment effects
 
-c %>%
+anova_tessier_50 %>%
   filter(
     term == "analysis_group",
     p.value < 0.05
@@ -548,6 +606,132 @@ ggplot(
 
 
 # ==============================================================================
+# 10d. STACKED BAR CHARTS — TESSIER EXTRACT POOLS
+# CONTROL VS 50 t/ha TREATMENTS
+# ==============================================================================
+
+# Calculate mean concentration for each Treatment x Element x Extract
+tessier_stacked_summary <- plot50_tessier %>%
+  group_by(analysis_group, Element, Extract) %>%
+  summarise(
+    mean_concentration = if (
+      all(is.na(`Concentration (mg g-1 soil)`))
+    ) {
+      NA_real_
+    } else {
+      mean(`Concentration (mg g-1 soil)`, na.rm = TRUE)
+    },
+    sd_concentration = sd(
+      `Concentration (mg g-1 soil)`,
+      na.rm = TRUE
+    ),
+    n = sum(!is.na(`Concentration (mg g-1 soil)`)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    analysis_group = factor(
+      analysis_group,
+      levels = c(
+        "Control",
+        "Bolsdorfer_50",
+        "Eifelgold_50",
+        "Huhnerberg_50",
+        "Lime_2"
+      )
+    ),
+    Extract = factor(
+      Extract,
+      levels = c(
+        "NH4OAc",
+        "Acetic",
+        "Hydroxylamine",
+        "H2O2"
+      )
+    ),
+    Element = factor(
+      Element,
+      levels = c("Ca", "Na", "K", "Mg", "Fe", "Al", "Mn", "Si")
+    )
+  )
+
+
+# Create stacked bar chart
+plot_tessier_stacked_50 <- ggplot(
+  tessier_stacked_summary %>%
+    filter(!is.na(mean_concentration)),
+  aes(
+    x = analysis_group,
+    y = mean_concentration,
+    fill = Extract
+  )
+) +
+  geom_col(
+    position = "stack",
+    width = 0.7,
+    colour = "white",
+    linewidth = 0.2
+  ) +
+  facet_wrap(
+    ~ Element,
+    scales = "free_y",
+    ncol = 2
+  ) +
+  scale_fill_manual(
+    values = extract_colors,
+    breaks = c(
+      "NH4OAc",
+      "Acetic",
+      "Hydroxylamine",
+      "H2O2"
+    ),
+    drop = FALSE
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "Control" = "Control",
+      "Bolsdorfer_50" = "Bolsdorfer\n50 t/ha",
+      "Eifelgold_50" = "Eifelgold\n50 t/ha",
+      "Huhnerberg_50" = "Hühnerberg\n50 t/ha",
+      "Lime_2" = "Lime\n2 t/ha"
+    ),
+    drop = FALSE
+  ) +
+  labs(
+    x = "Treatment",
+    y = expression(
+      "Extracted concentration (mg g"^{-1}*" soil)"
+    ),
+    title = "Tessier Extract Pools — 50 t/ha Treatment Comparisons",
+    subtitle = paste(
+      "Mean elemental concentration across the four extraction steps;",
+      "bars stacked by extract"
+    ),
+    fill = "Extract pool"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
+    legend.position = "top",
+    strip.background = element_rect(
+      fill = "grey90",
+      colour = "grey50"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    plot.title = element_text(
+      face = "bold"
+    ),
+    panel.spacing = grid::unit(1, "lines")
+  )
+
+# Display plot
+plot_tessier_stacked_50
+
+# ==============================================================================
 # 11. HÜHNERBERG DOSE-RESPONSE
 # CONTROL VS BASALT APPLICATION RATES
 # NO TUKEY: UNREPLICATED DOSE-RESPONSE TREATMENTS
@@ -628,3 +812,135 @@ ggplot(
     legend.position = "top"
   )
 
+
+# ==============================================================================
+# 11b. STACKED BAR CHARTS — HÜHNERBERG DOSE-RESPONSE
+# CONTROL VS HÜHNERBERG APPLICATION RATES
+# ==============================================================================
+
+# Summarise mean concentration for each dose x Element x Extract
+tessier_stacked_dose_summary <- dose_resp_tessier %>%
+  group_by(Treatment, Element, Extract) %>%
+  summarise(
+    mean_concentration = if (
+      all(is.na(`Concentration (mg g-1 soil)`))
+    ) {
+      NA_real_
+    } else {
+      mean(`Concentration (mg g-1 soil)`, na.rm = TRUE)
+    },
+    sd_concentration = sd(
+      `Concentration (mg g-1 soil)`,
+      na.rm = TRUE
+    ),
+    n = sum(!is.na(`Concentration (mg g-1 soil)`)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Treatment = factor(
+      Treatment,
+      levels = c(
+        "Control (0 t/ha)",
+        "2 t/ha",
+        "4 t/ha",
+        "8 t/ha",
+        "12 t/ha",
+        "20 t/ha",
+        "30 t/ha",
+        "50 t/ha"
+      )
+    ),
+    Extract = factor(
+      Extract,
+      levels = c(
+        "NH4OAc",
+        "Acetic",
+        "Hydroxylamine",
+        "H2O2"
+      )
+    ),
+    Element = factor(
+      Element,
+      levels = c("Ca", "Na", "K", "Mg", "Fe", "Al", "Mn", "Si")
+    )
+  )
+
+
+# Create stacked bar chart
+plot_tessier_stacked_dose <- ggplot(
+  tessier_stacked_dose_summary %>%
+    filter(!is.na(mean_concentration)),
+  aes(
+    x = Treatment,
+    y = mean_concentration,
+    fill = Extract
+  )
+) +
+  geom_col(
+    position = "stack",
+    width = 0.7,
+    colour = "white",
+    linewidth = 0.2
+  ) +
+  facet_wrap(
+    ~ Element,
+    scales = "free_y",
+    ncol = 2
+  ) +
+  scale_fill_manual(
+    values = extract_colors,
+    breaks = c(
+      "NH4OAc",
+      "Acetic",
+      "Hydroxylamine",
+      "H2O2"
+    ),
+    drop = FALSE
+  ) +
+  scale_x_discrete(
+    labels = c(
+      "Control (0 t/ha)" = "0",
+      "2 t/ha" = "2",
+      "4 t/ha" = "4",
+      "8 t/ha" = "8",
+      "12 t/ha" = "12",
+      "20 t/ha" = "20",
+      "30 t/ha" = "30",
+      "50 t/ha" = "50"
+    ),
+    drop = FALSE
+  ) +
+  labs(
+    x = expression("Hühnerberg application rate (t ha"^{-1}*")"),
+    y = expression(
+      "Extracted concentration (mg g"^{-1}*" soil)"
+    ),
+    title = "Tessier Extract Pools — Hühnerberg Dose-Response",
+    subtitle = paste(
+      "Mean elemental concentration across the four extraction steps;",
+      "bars stacked by extract"
+    ),
+    fill = "Extract pool"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(
+      angle = 0,
+      hjust = 0.5
+    ),
+    legend.position = "top",
+    strip.background = element_rect(
+      fill = "grey90",
+      colour = "grey50"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    plot.title = element_text(
+      face = "bold"
+    ),
+    panel.spacing = grid::unit(1, "lines")
+  )
+
+# Display plot
+plot_tessier_stacked_dose
