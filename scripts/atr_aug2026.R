@@ -47,7 +47,7 @@ metadata_analysis <- metadata %>%
   filter(!is.na(analysis_group))
 
 metadata_join <- metadata %>%
-  select(
+  dplyr::select(
     sample,
     Treatment,
     Basalt_type_exp,
@@ -83,7 +83,7 @@ process_spectra <- function(path){
       sample = gsub("\\.", "", sample_no),
       sample_rep = paste(sample, rep_no, sep = "_")
     ) %>%
-    rename(
+    dplyr::rename(
       wave = wavenumber,
       abs = absorbance,
       filename = filename
@@ -446,7 +446,7 @@ before_areas <- before_scan_areas %>%
     COO_total = COO_sym + COO_asym,
     dataset = "before"
   ) %>%
-  select(
+  dplyr::select(
     -CH_assym,
     -CH_sym,
     -COO_sym,
@@ -469,7 +469,7 @@ after_areas <- after_scan_areas %>%
     COO_total = COO_sym + COO_asym,
     dataset = "after"
   ) %>%
-  select(
+  dplyr::select(
     -CH_assym,
     -CH_sym,
     -COO_sym,
@@ -489,7 +489,7 @@ after_areas <- after_areas %>%
 band_compare <- before_areas %>%
   
   # Rename spectral variables from BEFORE
-  rename_with(
+  dplyr::rename_with(
     ~ paste0(.x, "_before"),
     -c(sample, Treatment, analysis_group, Dose)
   ) %>%
@@ -497,14 +497,14 @@ band_compare <- before_areas %>%
   # Join AFTER spectral data
   left_join(
     after_areas %>%
-      select(
+      dplyr::select(
         sample,
         Treatment,
         analysis_group,
         everything()
       ) %>%
-      select(-Dose) %>%
-      rename_with(
+      dplyr::select(-Dose) %>%
+      dplyr::rename_with(
         ~ paste0(.x, "_after"),
         -c(sample, Treatment, analysis_group)
       ),
@@ -771,13 +771,13 @@ band_compare_pct <- before_areas %>%
   # Join AFTER spectral data
   left_join(
     after_areas %>%
-      select(
+      dplyr::select(
         sample,
         Treatment,
         analysis_group,
         everything()
       ) %>%
-      select(-Dose) %>%
+      dplyr::select(-Dose) %>%
       rename_with(
         ~ paste0(.x, "_after"),
         -c(sample, Treatment, analysis_group)
@@ -805,7 +805,11 @@ band_compare_pct <- before_areas %>%
       Aliphatic_total_before * 100
   )
 
-
+write.csv(
+  band_compare_pct,
+  here("outputs", "ftir_peak_changes_feb2026.csv"),
+  row.names = FALSE
+)
 # ---------------------------------------------------------
 # Convert to long format for plotting
 # ---------------------------------------------------------
@@ -1162,7 +1166,7 @@ cld_df_pct <- cld_df_pct %>%
   
   left_join(
     pos_df_pct %>%
-      select(
+      dplyr::select(
         functional_group,
         analysis_group,
         y_pos

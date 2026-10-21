@@ -10,7 +10,7 @@ ATR-FTIR measurements of soil samples were taken before and after extractions of
 
 ATR measurements were imported to R and the data was cleaned by trimming to 800-3000 cm $^-1$, baseline correction by asymmetric least squares algorithm (improves signal dampened by noise and spectral drift) and vector normalization (relative peak intensities to account for different sample thickness).
 
-We wanted to investigate whether the following mechanisms of SOM stabilization may be occuring: 
+We wanted to investigate whether the following mechanisms of SOM stabilization may be occuring:
 
 ```{r}
 #| echo: false
@@ -322,8 +322,7 @@ ggplot(
 
 ```
 
-Integrated areas were calculated over the spectral ranges associated with functional groups typically found in aliphatics (2898-2976 and 2939-2870 cm$^{-1}$), aromatics (1500-1550 cm$^{-1}$), carboxylates (1380-1425 and 1580-1650  cm$^{-1}$) and carbonyl (1570-1710  cm$^{-1}$) groups. Areas of replicate scans were averaged to yield mean change in areas before and after extraction.
-
+Integrated areas were calculated over the spectral ranges associated with functional groups typically found in aliphatics (2898-2976 and 2939-2870 cm$^{-1}$), aromatics (1500-1550 cm$^{-1}$), carboxylates (1380-1425 and 1580-1650 cm$^{-1}$) and carbonyl (1570-1710 cm$^{-1}$) groups. Areas of replicate scans were averaged to yield mean change in areas before and after extraction.
 
 ```{r}
 #| echo: false
@@ -943,11 +942,8 @@ levene_results_pct <- band_compare_pct_long %>%
 
 ## Interpration
 
-**Control and lime behave same**
-Both control and lime treatments undergo loss of band areas across almost all functional groups after extraction (COO, carbonyl and CH). Liming doesn't change extractability of SOM. Cation extraction results in loss of organic compounds that were loosely bound via weak cation bridging (Ca, Mg).
+**Control and lime behave same** Both control and lime treatments undergo loss of band areas across almost all functional groups after extraction (COO, carbonyl and CH). Liming doesn't change extractability of SOM. Cation extraction results in loss of organic compounds that were loosely bound via weak cation bridging (Ca, Mg).
 
-**Bolsdorfer and Hühnerberg rock dusts mitigate SOM loss**
-Almost no aliphatic loss and reduced COO loss. Silicate rock dusts introduce reactive mineral surfaces (silicates, sesquioxides) that form stronger complexes with SOM that resist being stripped during cation extraction. Eifelgold only had intermediate effect.
+**Bolsdorfer and Hühnerberg rock dusts mitigate SOM loss** Almost no aliphatic loss and reduced COO loss. Silicate rock dusts introduce reactive mineral surfaces (silicates, sesquioxides) that form stronger complexes with SOM that resist being stripped during cation extraction. Eifelgold only had intermediate effect.
 
-**Dose-response experiment**
-Increase in SOM extraction loss up to 30 t/ha, perhaps the increasing amount of cation bridges resulted in a bigger potential pool of NH4OAc-extractable SOM. Then at 50 t/ha, a critical saturation threshold may have been reached that resulted in formation of secondary minerals that formed organo-mineral complexes that are resistant to extraction  (or phsyical entrapment occurred). 
+**Dose-response experiment** Increase in SOM extraction loss up to 30 t/ha, perhaps the increasing amount of cation bridges resulted in a bigger potential pool of NH4OAc-extractable SOM. Then at 50 t/ha, a critical saturation threshold may have been reached that resulted in formation of secondary minerals that formed organo-mineral complexes that are resistant to extraction (or phsyical entrapment occurred).
