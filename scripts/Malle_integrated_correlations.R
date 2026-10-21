@@ -95,7 +95,7 @@ calc_D <- function(gt2, gt025, gt0063, lt0063) {
 read_aggstab <- function(filename, extract_label) {
   dat <- read_csv_optional(filename)
   if (is.null(dat)) return(NULL)
-  
+
   required_cols <- c("sample", "% >0.25mm fraction",
                      "% >0.063mm fraction", "% <0.063mm fraction",
                      "% >2mm fraction")
@@ -105,7 +105,7 @@ read_aggstab <- function(filename, extract_label) {
             paste(missing_cols, collapse = ", "), "; skipping.")
     return(NULL)
   }
-  
+
   dat %>%
     mutate(
       sample = as.integer(sample),
@@ -114,8 +114,8 @@ read_aggstab <- function(filename, extract_label) {
         (`% >0.063mm fraction` / 100) * 0.1565 +
         (`% <0.063mm fraction` / 100) * 0.0315,
       GMD = exp((`% >0.25mm fraction` / 100) * log(1.125) +
-                  (`% >0.063mm fraction` / 100) * log(0.1565) +
-                  (`% <0.063mm fraction` / 100) * log(0.0315)),
+        (`% >0.063mm fraction` / 100) * log(0.1565) +
+        (`% <0.063mm fraction` / 100) * log(0.0315)),
       D = pmap_dbl(
         list(`% >2mm fraction`, `% >0.25mm fraction`,
              `% >0.063mm fraction`, `% <0.063mm fraction`), calc_D
@@ -184,11 +184,11 @@ if (file.exists(ftir_path)) {
   ftir_raw <- readr::read_csv(
     ftir_path, show_col_types = FALSE, na = c("", "NA", "#VALUE!")
   )
-  
+
   if (!"sample" %in% names(ftir_raw)) {
     stop("FTIR file must contain a `sample` column with values such as soil1 ... soil21.")
   }
-  
+
   # Convert IDs like soil10 to numeric plot IDs (10). Numeric IDs are also accepted.
   ftir <- ftir_raw %>%
     mutate(
@@ -197,7 +197,7 @@ if (file.exists(ftir_path)) {
                        str_remove(sample, "^soil"), sample),
       sample = as.integer(sample)
     )
-  
+
   if (anyNA(ftir$sample)) {
     stop("Could not convert one or more FTIR sample IDs to plot numbers 1-21.")
   }
@@ -207,7 +207,7 @@ if (file.exists(ftir_path)) {
   if (any(!ftir$sample %in% 1:21)) {
     stop("FTIR sample IDs must correspond to plot numbers 1-21.")
   }
-  
+
   # Prefer existing change/delta variables in the source table. Calculate a
   # change from *_before / *_after only when no equivalent change variable
   # already exists, avoiding duplicate representations of the same FTIR result.
@@ -231,11 +231,11 @@ if (file.exists(ftir_path)) {
     key
   }
   existing_change_keys <- normalise_band_name(change_cols_existing)
-  
+
   before_cols <- names(ftir)[str_ends(names(ftir), "_before")]
   paired_bands <- str_remove(before_cols, "_before")
   paired_bands <- paired_bands[paste0(paired_bands, "_after") %in% names(ftir)]
-  
+
   for (band in paired_bands) {
     band_key <- normalise_band_name(band)
     has_existing_delta <- any(
@@ -246,12 +246,12 @@ if (file.exists(ftir_path)) {
       str_detect(str_to_lower(change_cols_existing), "change_pct|pct_change|percent_change") &
         existing_change_keys == band_key
     )
-    
+
     before_name <- paste0(band, "_before")
     after_name <- paste0(band, "_after")
     before_val <- suppressWarnings(as.numeric(ftir[[before_name]]))
     after_val <- suppressWarnings(as.numeric(ftir[[after_name]]))
-    
+
     if (!has_existing_delta) {
       ftir[[paste0("FTIR_delta_", make.names(band))]] <- after_val - before_val
     }
@@ -265,7 +265,7 @@ if (file.exists(ftir_path)) {
       )
     }
   }
-  
+
   # Keep ONE FTIR change metric per underlying band. If both an absolute
   # delta and a percentage-change column exist for the same band, prefer the
   # absolute delta. If no delta exists, retain the percentage-change metric.
@@ -278,7 +278,7 @@ if (file.exists(ftir_path)) {
     c("COO_change_pct", "carbonyl_change_pct", "aromatic_change_pct", "CH_change_pct"),
     names(ftir)
   ))
-  
+
   if (length(change_cols)) {
     change_keys <- normalise_band_name(change_cols)
     change_priority <- case_when(
@@ -297,7 +297,7 @@ if (file.exists(ftir_path)) {
   } else {
     selected_change_cols <- character(0)
   }
-  
+
   ftir_out <- ftir %>% dplyr::select(sample, all_of(selected_change_cols))
   # Prefix source variables to make their origin clear and avoid collisions.
   names(ftir_out) <- ifelse(
@@ -305,7 +305,7 @@ if (file.exists(ftir_path)) {
     names(ftir_out), paste0("FTIR_", names(ftir_out))
   )
   ftir <- ftir_out
-  
+
   write_csv(ftir, file.path(out_dir, "ftir_peak_changes_calculated.csv"))
   message("FTIR loaded from: ", ftir_path, " (", nrow(ftir),
           " plots; existing delta/change variables retained and duplicate changes avoided).")
@@ -333,18 +333,18 @@ correlate_vars <- function(dat, group_name) {
     dplyr::select(where(is.numeric)) %>%
     dplyr::select(-any_of(c("sample", names(dat)[str_detect(names(dat), "^n_agg_reps")])) ) %>%
     dplyr::select(where(~sum(is.finite(.x)) >= 3 && is.finite(sd(.x, na.rm = TRUE)) && sd(.x, na.rm = TRUE) > 0))
-  
+
   if (ncol(numeric_data) < 2) {
     message("Not enough numeric variables for correlations in ", group_name)
     return(invisible(NULL))
   }
-  
+
   vars <- names(numeric_data)
   cor_mat <- matrix(NA_real_, nrow = length(vars), ncol = length(vars),
                     dimnames = list(vars, vars))
   p_mat <- cor_mat
   n_mat <- cor_mat
-  
+
   for (i in seq_along(vars)) {
     for (j in seq_along(vars)) {
       x <- numeric_data[[i]]
@@ -362,7 +362,7 @@ correlate_vars <- function(dat, group_name) {
       }
     }
   }
-  
+
   pairs <- expand_grid(var1 = vars, var2 = vars) %>%
     filter(match(var1, vars) < match(var2, vars)) %>%
     mutate(
@@ -373,18 +373,18 @@ correlate_vars <- function(dat, group_name) {
       abs_rho = abs(rho)
     ) %>%
     arrange(p_adj_BH, desc(abs_rho))
-  
+
   write_csv(pairs, file.path(out_dir, paste0("spearman_pairs_", group_name, ".csv")))
   write.csv(cor_mat, file.path(out_dir, paste0("spearman_rho_", group_name, ".csv")))
   write.csv(p_mat, file.path(out_dir, paste0("spearman_p_", group_name, ".csv")))
   write.csv(n_mat, file.path(out_dir, paste0("spearman_n_", group_name, ".csv")))
-  
+
   png(file.path(out_dir, paste0("spearman_heatmap_", group_name, ".png")),
       width = 2600, height = 2400, res = 220)
   corrplot(cor_mat, method = "color", type = "upper", order = "hclust",
            tl.col = "black", tl.cex = 0.55, tl.srt = 45, na.label = " ")
   dev.off()
-  
+
   invisible(list(cor = cor_mat, p = p_mat, n = n_mat, pairs = pairs, variables = vars))
 }
 
@@ -394,57 +394,128 @@ all_results <- correlate_vars(integrated, "all_plots")
 basalt_results <- correlate_vars(filter(integrated, Basalt_type_exp), "basalt_type_exp")
 dose_results <- correlate_vars(filter(integrated, Dose_resp_exp), "dose_response_exp")
 
-# ---- Scatterplots for strongest overall relationships -----------------------
+# ---- Scatterplots between variables from different analyses ------------------
+# Only plot cross-domain pairs (e.g. FTIR vs aggregate stability, or FTIR vs
+# oxalate/DCB variables). Do not plot pairs within the same analysis/domain.
+# PCA variable selection uses cross-analysis pairs with |Spearman rho| >= 0.5.
+# Scatterplots are restricted to cross-analysis pairs with |Spearman rho| >= 0.7.
+# (The negative cut-offs indicate that these thresholds refer to rho, not p-values.)
+classify_analysis <- function(variable) {
+  dplyr::case_when(
+    stringr::str_starts(variable, "FTIR_") ~ "FTIR",
+    stringr::str_detect(variable, "^(MWD|GMD|D)_") ~ "Aggregate_stability",
+    stringr::str_detect(variable, "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$") ~ "Oxalate_DCB",
+    stringr::str_starts(variable, "C_") ~ "C_fractions",
+    TRUE ~ "Other"
+  )
+}
+
 if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
-  # Use an explicit palette so global ggthemr settings cannot trigger an
-  # "11 colours but swatch only has 8" error when Treatment has many levels.
   treatment_levels <- sort(unique(stats::na.omit(as.character(integrated$Treatment))))
   treatment_palette <- stats::setNames(
-    grDevices::hcl.colors(length(treatment_levels), palette = "Dynamic"),
+    grDevices::hcl.colors(max(1, length(treatment_levels)), palette = "Dynamic"),
     treatment_levels
   )
-  
-  top_pairs <- all_results$pairs %>%
-    filter(is.finite(rho), is.finite(p_adj_BH)) %>%
-    slice_head(n = 12)
-  
-  for (k in seq_len(nrow(top_pairs))) {
-    xvar <- top_pairs$var1[k]
-    yvar <- top_pairs$var2[k]
-    p <- ggplot(integrated, aes(x = .data[[xvar]], y = .data[[yvar]])) +
-      geom_point(aes(color = Treatment), size = 2.5, alpha = 0.85, na.rm = TRUE) +
-      geom_smooth(method = "lm", se = TRUE, color = "black", linewidth = 0.7,
-                  na.rm = TRUE) +
-      labs(
-        title = paste0(yvar, " vs ", xvar),
-        subtitle = paste0("Spearman rho = ", round(top_pairs$rho[k], 2),
-                          "; BH-adjusted p = ", signif(top_pairs$p_adj_BH[k], 2),
-                          "; paired n = ", top_pairs$n[k]),
-        x = xvar, y = yvar, color = "Treatment"
-      ) +
-      scale_colour_manual(values = treatment_palette, na.translate = FALSE) +
-      theme_bw(base_size = 11) +
-      theme(legend.position = "bottom")
-    
-    ggsave(file.path(out_dir, paste0("scatter_", k, "_",
-                                     make.names(xvar), "_", make.names(yvar), ".png")),
-           p, width = 7, height = 5, dpi = 300)
+
+  cross_analysis_pairs_all <- all_results$pairs %>%
+    dplyr::mutate(
+      analysis_1 = classify_analysis(var1),
+      analysis_2 = classify_analysis(var2)
+    ) %>%
+    dplyr::filter(
+      is.finite(rho), is.finite(p_value),
+      analysis_1 != analysis_2,
+      analysis_1 != "Other", analysis_2 != "Other"
+    ) %>%
+    dplyr::arrange(p_value, dplyr::desc(abs_rho))
+
+  # Save all cross-analysis pairs for reference, plus the subset used for plots.
+  readr::write_csv(
+    cross_analysis_pairs_all,
+    file.path(out_dir, "spearman_pairs_all_cross_analysis.csv")
+  )
+
+  # Variables entering PCA: any variable involved in at least one cross-analysis
+  # association with an absolute Spearman rho of 0.5 or greater.
+  selected_cross_pca_vars <- cross_analysis_pairs_all %>%
+    dplyr::filter(abs_rho >= 0.5) %>%
+    dplyr::select(var1, var2) %>%
+    unlist(use.names = FALSE) %>%
+    unique() %>%
+    intersect(all_results$variables)
+  readr::write_csv(
+    tibble::tibble(variable = selected_cross_pca_vars),
+    file.path(out_dir, "PCA_variables_cross_analysis_abs_rho_ge_0.5.csv")
+  )
+
+  # Scatterplots only for stronger cross-analysis relationships: |rho| >= 0.7.
+  cross_analysis_pairs <- cross_analysis_pairs_all %>%
+    dplyr::filter(abs_rho >= 0.7) %>%
+    dplyr::arrange(p_value, dplyr::desc(abs_rho))
+
+  readr::write_csv(
+    cross_analysis_pairs,
+    file.path(out_dir, "spearman_pairs_cross_analysis_scatterplots_abs_rho_ge_0.7.csv")
+  )
+
+  if (nrow(cross_analysis_pairs) > 0) {
+    for (k in seq_len(nrow(cross_analysis_pairs))) {
+      pair <- cross_analysis_pairs[k, ]
+      xvar <- pair$var1[[1]]
+      yvar <- pair$var2[[1]]
+      plot_data <- integrated %>%
+        dplyr::select(Treatment, dplyr::all_of(c(xvar, yvar))) %>%
+        dplyr::filter(is.finite(.data[[xvar]]), is.finite(.data[[yvar]]))
+
+      p <- ggplot(plot_data, aes(x = .data[[xvar]], y = .data[[yvar]])) +
+        geom_point(aes(color = Treatment), size = 2.5, alpha = 0.85, na.rm = TRUE) +
+        geom_smooth(method = "lm", se = TRUE, color = "black", linewidth = 0.7,
+                    na.rm = TRUE) +
+        labs(
+          title = paste0(yvar, " vs ", xvar),
+          subtitle = paste0(
+            pair$analysis_1[[1]], " vs ", pair$analysis_2[[1]],
+            " | Spearman rho = ", round(pair$rho[[1]], 2),
+            "; raw p = ", signif(pair$p_value[[1]], 2),
+            "; BH-adjusted p = ", signif(pair$p_adj_BH[[1]], 2),
+            "; paired n = ", pair$n[[1]]
+          ),
+          x = xvar, y = yvar, color = "Treatment"
+        ) +
+        scale_colour_manual(values = treatment_palette, na.translate = FALSE) +
+        theme_bw(base_size = 11) +
+        theme(legend.position = "bottom")
+
+      ggsave(
+        file.path(out_dir, paste0(
+          "scatter_cross_analysis_", sprintf("%03d", k), "_",
+          make.names(xvar), "_vs_", make.names(yvar), ".png"
+        )),
+        p, width = 7, height = 5, dpi = 300
+      )
+    }
+    message("Created ", nrow(cross_analysis_pairs),
+            " scatterplots between different analysis domains.")
+  } else {
+    message("No cross-analysis variable pairs met the plotting criteria.")
   }
 }
 
-# ---- Two subset-specific PCAs: dose response and application-rate 50 t/ha ----
-# Both PCAs start from the same numeric variables retained for the all-plots
-# correlation analysis, but each PCA is fitted independently within its subset.
+# ---- Two subset-specific PCAs using strong cross-analysis variables ---------
+# Each PCA uses only variables involved in at least one cross-analysis pair with
+# |Spearman rho| >= 0.5, and is fitted independently within its experiment.
 # The experiment flags intentionally overlap: controls and Huhnerberg 50 t/ha
 # plots may occur in both analyses when marked that way in treatment_names.csv.
-run_subset_pca <- function(data_subset, subset_name, plot_title) {
+run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
   safe_name <- make.names(subset_name)
-  if (nrow(data_subset) < 3 || length(all_results$variables) < 2) {
-    message("PCA skipped for ", subset_name, ": fewer than 3 plots or 2 correlation variables.")
+  available_vars <- intersect(variable_set, names(data_subset))
+  if (nrow(data_subset) < 3 || length(available_vars) < 2) {
+    message("PCA skipped for ", subset_name,
+            ": fewer than 3 plots or fewer than 2 selected cross-analysis variables.")
     return(invisible(NULL))
   }
-  
-  pca_input <- data_subset %>% dplyr::select(all_of(all_results$variables))
+
+  pca_input <- data_subset %>% dplyr::select(dplyr::all_of(available_vars))
   pca_missing <- tibble(
     variable = names(pca_input),
     n_missing_before_imputation = vapply(pca_input, function(x) sum(!is.finite(x)), integer(1)),
@@ -453,7 +524,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title) {
       if (all(!is.finite(x))) NA_real_ else median(x[is.finite(x)])
     }, numeric(1))
   )
-  
+
   usable_vars <- pca_missing %>%
     filter(n_observed >= 3, is.finite(median_imputed_value)) %>%
     pull(variable)
@@ -467,12 +538,12 @@ run_subset_pca <- function(data_subset, subset_name, plot_title) {
     is.finite(sd(x)) && sd(x) > 0
   }, logical(1))]
   pca_matrix <- pca_matrix[, nonconstant, drop = FALSE]
-  
+
   if (ncol(pca_matrix) < 2) {
     message("PCA skipped for ", subset_name, ": fewer than two usable non-constant variables.")
     return(invisible(NULL))
   }
-  
+
   pca_fit <- prcomp(pca_matrix, center = TRUE, scale. = TRUE)
   variance_pct <- 100 * (pca_fit$sdev^2 / sum(pca_fit$sdev^2))
   pca_scores <- as_tibble(pca_fit$x, .name_repair = "minimal") %>%
@@ -489,13 +560,13 @@ run_subset_pca <- function(data_subset, subset_name, plot_title) {
   )
   contribution <- as_tibble(pca_fit$rotation^2, rownames = "variable") %>%
     mutate(across(-variable, ~100 * .x / sum(.x)))
-  
+
   write_csv(pca_scores, file.path(out_dir, paste0("PCA_scores_", safe_name, ".csv")))
   write_csv(pca_loadings, file.path(out_dir, paste0("PCA_loadings_", safe_name, ".csv")))
   write_csv(contribution, file.path(out_dir, paste0("PCA_variable_contributions_pct_", safe_name, ".csv")))
   write_csv(pca_variance, file.path(out_dir, paste0("PCA_variance_explained_", safe_name, ".csv")))
   write_csv(pca_missing, file.path(out_dir, paste0("PCA_variable_coverage_and_imputation_", safe_name, ".csv")))
-  
+
   treatment_levels <- sort(unique(stats::na.omit(pca_scores$Treatment)))
   treatment_palette <- stats::setNames(
     grDevices::hcl.colors(length(treatment_levels), palette = "Dynamic"),
@@ -508,7 +579,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title) {
   arrow_scale <- if (is.finite(loading_range) && loading_range > 0) 0.72 * score_range / loading_range else 1
   arrow_df <- pca_loadings %>%
     transmute(variable, PC1 = PC1 * arrow_scale, PC2 = PC2 * arrow_scale)
-  
+
   p_biplot <- ggplot(pca_scores, aes(x = PC1, y = PC2)) +
     geom_hline(yintercept = 0, linewidth = 0.35, colour = "grey78") +
     geom_vline(xintercept = 0, linewidth = 0.35, colour = "grey78") +
@@ -533,7 +604,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title) {
     theme(legend.position = "bottom", legend.box = "vertical")
   ggsave(file.path(out_dir, paste0("PCA_biplot_", safe_name, ".png")),
          p_biplot, width = 13, height = 10, dpi = 300)
-  
+
   p_scores <- ggplot(pca_scores, aes(x = PC1, y = PC2, colour = Treatment)) +
     geom_hline(yintercept = 0, linewidth = 0.35, colour = "grey78") +
     geom_vline(xintercept = 0, linewidth = 0.35, colour = "grey78") +
@@ -549,7 +620,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title) {
     theme_bw(base_size = 11) + theme(legend.position = "bottom")
   ggsave(file.path(out_dir, paste0("PCA_scores_", safe_name, ".png")),
          p_scores, width = 9, height = 7, dpi = 300)
-  
+
   scree_df <- pca_variance %>% slice_head(n = min(10, n()))
   p_scree <- ggplot(scree_df, aes(x = factor(PC, levels = PC), y = variance_explained_pct)) +
     geom_col(fill = "grey45") +
@@ -560,28 +631,30 @@ run_subset_pca <- function(data_subset, subset_name, plot_title) {
     theme_bw(base_size = 11)
   ggsave(file.path(out_dir, paste0("PCA_scree_plot_", safe_name, ".png")),
          p_scree, width = 8, height = 5, dpi = 300)
-  
+
   message("PCA complete for ", subset_name, ": ", ncol(pca_matrix), " variables, ",
           nrow(pca_scores), " plots.")
   invisible(list(scores = pca_scores, loadings = pca_loadings,
                  contribution = contribution, variance = pca_variance))
 }
 
-if (!is.null(all_results) && length(all_results$variables) >= 2) {
+if (!is.null(all_results) && exists("selected_cross_pca_vars") && length(selected_cross_pca_vars) >= 2) {
   # Basalt_type_exp is the application-rate 50 t/ha experiment; Dose_resp_exp
   # is the Huhnerberg dose-response series. Metadata flags define membership.
   pca_application_50 <- run_subset_pca(
     filter(integrated, Basalt_type_exp),
     "application_50_t_ha",
-    "PCA — basalt types at 50 t/ha"
+    "PCA — basalt types at 50 t/ha (strong cross-analysis variables)",
+    selected_cross_pca_vars
   )
   pca_dose_response <- run_subset_pca(
     filter(integrated, Dose_resp_exp),
     "dose_response",
-    "PCA — Huhnerberg dose response"
+    "PCA — Huhnerberg dose response (strong cross-analysis variables)",
+    selected_cross_pca_vars
   )
 } else {
-  message("Subset PCAs skipped: run the all-plots correlations first and ensure at least two variables are available.")
+  message("Subset PCAs skipped: fewer than two variables occur in cross-analysis pairs with |Spearman rho| >= 0.5.")
 }
 
 # ---- Data coverage and reproducibility --------------------------------------
