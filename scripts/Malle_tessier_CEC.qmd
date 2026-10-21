@@ -21,8 +21,8 @@ After normalizing the cations extracted from basalt and lime treatments to the c
 #| message: false
 #| label: Tessier
 #| warning: FALSE
-#| fig-width: 10
-#| fig-height: 14
+#| fig-width: 12
+#| fig-height: 16
 #| out-width: 100%
 #| 
 # ==============================================================================
@@ -838,6 +838,9 @@ Basalts have higher CEC and exchangeable Ca content. Bolsdorfer and Huhnerberg h
 #| message: false
 #| label: CEC
 #| warning: FALSE
+#| fig-width: 14
+#| fig-height: 22
+#| out-width: 100%
 
 # =========================================================
 # CEC AND EXCHANGEABLE CATIONS — FEBRUARY 2026
@@ -1162,91 +1165,6 @@ letter_positions <- letter_positions %>%
     is.finite(y_position)
   )
 
-# ---------------------------------------------------------
-# 14. Plot CEC and exchangeable cations
-# ---------------------------------------------------------
-
-CEC_plot <- ggplot(
-  CEC_long,
-  aes(
-    x = Treatment,
-    y = mean
-  )
-) +
-  
-  # Mean bars
-  geom_col(
-    width = 0.7
-  ) +
-  
-  # Standard error
-  geom_errorbar(
-    aes(
-      ymin = mean - se,
-      ymax = mean + se
-    ),
-    width = 0.2,
-    na.rm = TRUE
-  ) +
-  
-  # Tukey letters
-  geom_text(
-    data = letter_positions,
-    aes(
-      x = Treatment,
-      y = y_position,
-      label = Letters
-    ),
-    inherit.aes = FALSE,
-    fontface = "bold",
-    size = 4,
-    vjust = 0
-  ) +
-  
-  # Separate panel for each property
-  facet_wrap(
-    ~ Property,
-    scales = "free_y",
-    labeller = as_labeller(
-      property_labels,
-      default = label_parsed
-    )
-  ) +
-  
-  # Extra space above bars for Tukey letters
-  scale_y_continuous(
-    expand = expansion(
-      mult = c(0.05, 0.25)
-    )
-  ) +
-  
-  labs(
-    x = "Treatment",
-    y = "Mean ± SE"
-  ) +
-  
-  theme_bw() +
-  
-  theme(
-    axis.text.x = element_text(
-      angle = 45,
-      hjust = 1
-    ),
-    strip.text = element_text(
-      face = "bold"
-    )
-  )
-
-# ---------------------------------------------------------
-# 15. Display plot
-# ---------------------------------------------------------
-options(
-  repr.plot.width = 10,
-  repr.plot.height = 14
-)
-
-print(CEC_plot)
-
 
 # =========================================================
 # CEC AND EXCHANGEABLE CATIONS — FEBRUARY 2026
@@ -1532,13 +1450,14 @@ CEC_plot_50 <- ggplot(
   ) +
   
   facet_wrap(
-    ~ Property,
-    scales = "free_y",
-    labeller = as_labeller(
-      property_labels,
-      default = label_parsed
-    )
-  ) +
+  ~ Property,
+  scales = "free_y",
+  ncol = 2,
+  labeller = as_labeller(
+    property_labels,
+    default = label_parsed
+  )
+) +
   
   scale_y_continuous(
     expand = expansion(
@@ -1555,24 +1474,31 @@ CEC_plot_50 <- ggplot(
   theme_bw() +
   
   theme(
-    axis.text.x = element_text(
-      angle = 45,
-      hjust = 1,
-      size = 10
-    ),
-    strip.text = element_text(
-      face = "bold",
-      size = 11
-    ),
-    plot.title = element_text(
-      face = "bold",
-      size = 13
-    )
-  )
+  axis.text.x = element_text(
+    angle = 45,
+    hjust = 1,
+    size = 9
+  ),
+  strip.text = element_text(
+    face = "bold",
+    size = 10,
+    margin = margin(6, 4, 6, 4)
+  ),
+  strip.text.x = element_text(
+    hjust = 0.5
+  ),
+  plot.title = element_text(
+    face = "bold",
+    size = 13
+  ),
+  panel.spacing.x = grid::unit(1.2, "lines"),
+  panel.spacing.y = grid::unit(1, "lines"),
+  plot.margin = margin(10, 15, 10, 10)
+)
 
 options(
-  repr.plot.width = 10,
-  repr.plot.height = 14
+  repr.plot.width = 12,
+  repr.plot.height = 16
 )
 
 print(CEC_plot_50)
@@ -1707,14 +1633,14 @@ CEC_plot_dose <- ggplot(
   ) +
   
   facet_wrap(
-    ~ Property,
-    scales = "free_y",
-    labeller = as_labeller(
-      property_labels,
-      default = label_parsed
-    )
-  ) +
-  
+  ~ Property,
+  scales = "free_y",
+  ncol = 2,
+  labeller = as_labeller(
+    property_labels,
+    default = label_parsed
+  )
+) +
   scale_y_continuous(
     expand = expansion(
       mult = c(0.05, 0.15)
@@ -1746,8 +1672,8 @@ CEC_plot_dose <- ggplot(
   )
 
 options(
-  repr.plot.width = 10,
-  repr.plot.height = 14
+  repr.plot.width = 12,
+  repr.plot.height = 16
 )
 
 print(CEC_plot_dose)

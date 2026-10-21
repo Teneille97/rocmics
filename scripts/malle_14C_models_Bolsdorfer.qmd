@@ -16,7 +16,6 @@ We wanted to test whether the treatments are potentially enhancing SOC stabiliza
 
 ## Results
 
-
 The parameters results for all the models were as follows.
 
 | Treatment  | (k_1)    | (k_2)    | (k_3)    | (a\_{21}) | (a\_{32}) |

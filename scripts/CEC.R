@@ -359,6 +359,7 @@ CEC_plot <- ggplot(
     ),
     inherit.aes = FALSE,
     fontface = "bold",
+    colour = "black",
     size = 4,
     vjust = 0
   ) +
@@ -692,6 +693,7 @@ CEC_plot_50 <- ggplot(
     ),
     inherit.aes = FALSE,
     fontface = "bold",
+    colour = "black",
     size = 4,
     vjust = 0
   ) +

@@ -1,0 +1,491 @@
+---
+title: "Pipette 2026"
+author: "Teneille Nel"
+format: html
+editor: visual
+---
+
+## ROCMICS
+
+Teneille's data analysis repository is available at <https://github.com/Teneille97/rocmics>.
+
+## Pipette method
+
+Soil samples were dispersed by ultrasonication at low, medium and high energy to disperse aggregates to an increasing degree, where the highest energy level is assumed to disperse the aggregates completely. 
+
+After sonication, the samples were mixed in sedimentation cylinders and the heavier particles were allowed to settle for several hours, such that only the clay fraction remained in suspension. This was sampled, dried and weighed to determine the % clay released from aggregates at different energy levels.
+
+## Results
+
+At highest energy level, most treatments release more clay than at lower energy levels (but not Bolsdorfer). Energy released at highest energy level, had moderate positive correlation with oPOM and negative correlation with MAOM (fractions determined by density fractionation).
+
+```{r}
+#| echo: false
+#| message: false
+#| label: Sedimentation
+#| warning: FALSE
+
+
+# SOM decomposition models for Malle soil
+
+# ============================================================
+# LOAD LIBRARIES
+# ============================================================
+
+library(here)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+library(emmeans)
+library(stringr)
+
+
+# ============================================================
+# DATA CLEANING
+# ============================================================
+
+radiocarbon_samples <- read.csv(
+  here("outputs", "radiocarbon_samples.csv")
+)
+
+aggstab_h2o <- read.csv(
+  here("outputs", "aggstab_h2o.csv")
+)
+
+SOM_fraction_data <- radiocarbon_samples[
+  radiocarbon_samples$Sampling_year == "2026",
+]
+
+
+# ============================================================
+# LOAD PIPETTE DATA
+# ============================================================
+
+pipette_rawdata <- read.csv(
+  here("csv_files", "Pipette_rawdata.csv")
+)
+
+
+# ============================================================
+# LOAD METADATA
+# ============================================================
+
+metadata <- read.csv(
+  here("csv_files", "treatment_names.csv")
+) %>%
+  mutate(
+    analysis_group = case_when(
+      Treatment == "Control" ~ "Control",
+      Treatment == "Eifelgold_50" ~ "Eifelgold_50",
+      Treatment == "Bolsdorfer_50" ~ "Bolsdorfer_50",
+      Treatment == "Lime_2" ~ "Lime_2",
+      Treatment == "Huhnerberg_50" ~ "Huhnerberg_50",
+      TRUE ~ NA_character_
+    )
+  )
+
+
+# ============================================================
+# JOIN METADATA TO PIPETTE DATA
+# ============================================================
+
+pipette_with_metadata <- merge(
+  pipette_rawdata,
+  metadata,
+  by.x = "Sample",
+  by.y = "sample",
+  all.x = TRUE
+)
+
+# Remove clay outlier: Sample 16, Rep B, Energy III
+pipette_with_metadata <- pipette_with_metadata %>%
+  filter(
+    !(Sample == 16 & Rep == "b" & Energy == "iii")
+  ) %>%
+  filter(
+    !(X.clay_corrected ==- 0)
+  )
+
+
+# ============================================================
+# LOAD SOM FRACTION DATA
+# ============================================================
+
+SOM_wide <- SOM_fraction_data %>%
+  mutate(
+    sample_id = as.integer(
+      str_extract(sample, "^[0-9]+")
+    )
+  ) %>%
+  pivot_wider(
+    id_cols = sample_id,
+    names_from = SOM_fraction,
+    values_from = fraction_prop
+  )
+
+
+# ============================================================
+# JOIN SOM FRACTIONS
+# ============================================================
+
+pipette_with_metadata <- pipette_with_metadata %>%
+  left_join(
+    SOM_wide,
+    by = c("Sample" = "sample_id")
+  )
+
+
+# ============================================================
+# PREPARE AGGREGATE STABILITY DATA
+# ============================================================
+
+aggstab_fractions <- aggstab_h2o %>%
+  filter(
+    fraction_type %in% c(
+      ">0.25",
+      ">0.063",
+      "<0.063"
+    )
+  ) %>%
+  group_by(
+    sample,
+    fraction_type
+  ) %>%
+  summarise(
+    fraction_mean = mean(
+      fraction,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    fraction_type = case_when(
+      fraction_type == ">0.25" ~ "fraction_more_0.25",
+      fraction_type == ">0.063" ~ "fraction_more_0.063",
+      fraction_type == "<0.063" ~ "fraction_less_0.063"
+    )
+  ) %>%
+  pivot_wider(
+    names_from = fraction_type,
+    values_from = fraction_mean
+  ) %>%
+  rename(
+    sample_id = sample
+  )
+
+
+# ============================================================
+# JOIN AGGREGATE STABILITY DATA
+# ============================================================
+
+pipette_with_metadata <- pipette_with_metadata %>%
+  left_join(
+    aggstab_fractions,
+    by = c("Sample" = "sample_id")
+  )
+
+pipette_with_metadata$Treatment<-as.factor(pipette_with_metadata$Treatment)
+
+# clay normalized to oPOM
+
+pipette_with_metadata <- pipette_with_metadata %>%
+  mutate(
+    clay_to_oPOM_ratio =
+      X.clay_corrected / oPOM
+  )
+
+# ============================================================
+# SUMMARISE
+# ============================================================
+
+summary_data <- pipette_with_metadata %>%
+  group_by(
+    Treatment,
+    Energy
+  ) %>%
+  summarise(
+    
+    mean_X.clay_corrected = mean(
+      X.clay_corrected,
+      na.rm = TRUE
+    ),
+    
+    sd_X.clay_corrected = sd(
+      X.clay_corrected,
+      na.rm = TRUE
+    ),
+    
+    n = sum(
+      !is.na(X.clay_corrected)
+    ),
+    
+    Bulk_prop = mean(
+      Bulk,
+      na.rm = TRUE
+    ),
+    
+    fPOM_prop = mean(
+      fPOM,
+      na.rm = TRUE
+    ),
+    
+    oPOM_prop = mean(
+      oPOM,
+      na.rm = TRUE
+    ),
+    
+    MAOM_prop = mean(
+      MAOM,
+      na.rm = TRUE
+    ),
+    
+    clay_to_oPOM_ratio = mean(
+      X.clay_corrected/oPOM,
+      na.rm = TRUE
+    ),
+    
+    fraction_more_0.25 = mean(
+      fraction_more_0.25,
+      na.rm = TRUE
+    ),
+    
+    fraction_more_0.063 = mean(
+      fraction_more_0.063,
+      na.rm = TRUE
+    ),
+    
+    fraction_less_0.063 = mean(
+      fraction_less_0.063,
+      na.rm = TRUE
+    ),
+    
+    .groups = "drop"
+  )
+
+summary_data$Treatment<-as.factor(summary_data$Treatment)
+
+# ============================================================
+# FILTER INTO TREATMENT AND DOSE-RESPONSE DATAFRAMES
+# ============================================================
+
+pipette_app50_df <- summary_data %>%
+  filter(
+    !str_detect(Treatment, "Huhnerberg") |
+      Treatment == "Huhnerberg_50"
+  )
+pipette_app50_df$Treatment<-as.factor(pipette_app50_df$Treatment)
+
+dose_response_df <- summary_data %>%
+  filter(
+    Treatment == "Control" |
+      str_detect(Treatment, "Huhnerberg")
+  )
+dose_response_df$Treatment<-as.factor(dose_response_df$Treatment)
+
+
+# ============================================================
+# PLOT CLAY
+# ============================================================
+
+ggplot(
+  pipette_app50_df,
+  aes(
+    x = Energy,
+    y = mean_X.clay_corrected,
+    fill = Energy
+  )
+) +
+  geom_col(
+    color = "black",
+    alpha = 0.8,
+    width = 0.6
+  ) +
+  geom_errorbar(
+    aes(
+      ymin = pmax(
+        0,
+        mean_X.clay_corrected - sd_X.clay_corrected
+      ),
+      ymax = mean_X.clay_corrected + sd_X.clay_corrected
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+  facet_wrap(~ Treatment) +
+  labs(
+    x = "Energy Level",
+    y = "Mean % Clay (Corrected)",
+    title = "Mean % Clay ± SD by Energy Level Across Treatments"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none"
+  )
+
+
+# ============================================================
+# filter out dose-response
+# ============================================================
+pipette_with_metadata_50 <- pipette_with_metadata %>%
+  filter(
+    !str_detect(Treatment, "Huhnerberg") |
+      Treatment == "Huhnerberg_50"
+  )
+
+
+# ============================================================
+# CORRELATION HEATMAPS: CONSISTENT SAMPLE-LEVEL DATA
+# ============================================================
+
+# 1. Calculate the Energy III - Energy I difference per sample
+clay_difference_data <- pipette_with_metadata_50 %>%
+  filter(Energy %in% c("i", "iii")) %>%
+  group_by(Sample, Energy) %>%
+  summarise(
+    mean_clay = mean(X.clay_corrected, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    names_from = Energy,
+    values_from = mean_clay,
+    names_prefix = "clay_energy_"
+  ) %>%
+  mutate(
+    clay_difference = clay_energy_iii - clay_energy_i
+  ) %>%
+  dplyr::select(Sample, clay_difference)
+
+
+# 2. Create one row per sample for sample-level variables
+sample_level_data <- pipette_with_metadata_50 %>%
+  group_by(Sample) %>%
+  summarise(
+    Treatment = first(Treatment),
+    oPOM = first(oPOM),
+    MAOM = first(MAOM),
+    fraction_more_0.25 = first(fraction_more_0.25),
+    fraction_more_0.063 = first(fraction_more_0.063),
+    fraction_less_0.063 = first(fraction_less_0.063),
+    .groups = "drop"
+  ) %>%
+  left_join(clay_difference_data, by = "Sample")
+
+
+# 3. Function to create heatmaps with consistent sample-level data
+make_correlation_heatmap <- function(
+    data,
+    energy,
+    title_text
+) {
+  
+  # Select clay release for the requested energy
+  clay_energy_data <- pipette_with_metadata_50 %>%
+    filter(Energy == energy) %>%
+    group_by(Sample) %>%
+    summarise(
+      X.clay_corrected = mean(
+        X.clay_corrected,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
+  
+  # Join the energy-specific clay values to the same sample-level data
+  correlation_data <- data %>%
+    dplyr::select(
+      Sample,
+      oPOM,
+      MAOM,
+      fraction_more_0.25,
+      fraction_more_0.063,
+      fraction_less_0.063
+    ) %>%
+    left_join(clay_energy_data, by = "Sample") %>%
+    dplyr::select(
+      X.clay_corrected,
+      oPOM,
+      MAOM,
+      fraction_more_0.25,
+      fraction_more_0.063,
+      fraction_less_0.063
+    )
+  
+  cor_matrix <- cor(
+    correlation_data,
+    method = "spearman",
+    use = "pairwise.complete.obs"
+  )
+  
+  cor_long <- as.data.frame(cor_matrix) %>%
+    mutate(variable1 = rownames(.)) %>%
+    pivot_longer(
+      cols = -variable1,
+      names_to = "variable2",
+      values_to = "correlation"
+    )
+  
+  variable_order <- c(
+    "X.clay_corrected",
+    "oPOM",
+    "MAOM",
+    "fraction_more_0.25",
+    "fraction_more_0.063",
+    "fraction_less_0.063"
+  )
+  
+  variable_labels <- c(
+    X.clay_corrected = "Clay released (%)",
+    oPOM = "oPOM",
+    MAOM = "MAOM",
+    fraction_more_0.25 = ">0.25 mm",
+    fraction_more_0.063 = ">0.063 mm",
+    fraction_less_0.063 = "<0.063 mm"
+  )
+  
+  cor_long <- cor_long %>%
+    mutate(
+      variable1 = factor(variable1, levels = variable_order),
+      variable2 = factor(variable2, levels = variable_order)
+    )
+  
+  ggplot(
+    cor_long,
+    aes(x = variable1, y = variable2, fill = correlation)
+  ) +
+    geom_tile(colour = "white") +
+    geom_text(
+      aes(label = sprintf("%.2f", correlation)),
+      size = 3.2
+    ) +
+    scale_fill_gradient2(
+      limits = c(-1, 1),
+      midpoint = 0,
+      name = "Spearman\n\u03C1"
+    ) +
+    scale_x_discrete(labels = variable_labels) +
+    scale_y_discrete(labels = variable_labels) +
+    coord_equal() +
+    labs(
+      title = title_text,
+      x = NULL,
+      y = NULL
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      panel.grid = element_blank()
+    )
+}
+
+
+# 4. Create the heatmap
+correlation_heatmap_Energy_III <- make_correlation_heatmap(
+  sample_level_data,
+  energy = "iii",
+  title_text = "Correlations at Energy III (App50 Subset)"
+)
+
+correlation_heatmap_Energy_III
+
+```

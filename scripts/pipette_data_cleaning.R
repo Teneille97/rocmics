@@ -159,6 +159,14 @@ pipette_with_metadata <- pipette_with_metadata %>%
 
 pipette_with_metadata$Treatment<-as.factor(pipette_with_metadata$Treatment)
 
+# clay normalized to oPOM
+
+pipette_with_metadata <- pipette_with_metadata %>%
+  mutate(
+    clay_to_oPOM_ratio =
+      X.clay_corrected / oPOM
+  )
+
 # ============================================================
 # SUMMARISE
 # ============================================================
@@ -201,6 +209,11 @@ summary_data <- pipette_with_metadata %>%
     
     MAOM_prop = mean(
       MAOM,
+      na.rm = TRUE
+    ),
+    
+    clay_to_oPOM_ratio = mean(
+      X.clay_corrected/oPOM,
       na.rm = TRUE
     ),
     
@@ -284,65 +297,87 @@ ggplot(
 
 
 # ============================================================
-# CLAY NORMALISED TO oPOM FRACTION
+# filter out dose-response
+# ============================================================
+pipette_with_metadata_50 <- pipette_with_metadata %>%
+  filter(
+    !str_detect(Treatment, "Huhnerberg") |
+      Treatment == "Huhnerberg_50"
+  )
+
+
+# ============================================================
+# CORRELATION HEATMAPS: CONSISTENT SAMPLE-LEVEL DATA
 # ============================================================
 
-pipette_app50_df <- pipette_app50_df %>%
+# 1. Calculate the Energy III - Energy I difference per sample
+clay_difference_data <- pipette_with_metadata_50 %>%
+  filter(Energy %in% c("i", "iii")) %>%
+  group_by(Sample, Energy) %>%
+  summarise(
+    mean_clay = mean(X.clay_corrected, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    names_from = Energy,
+    values_from = mean_clay,
+    names_prefix = "clay_energy_"
+  ) %>%
   mutate(
-    clay_to_oPOM_ratio =
-      mean_X.clay_corrected / oPOM_prop,
-    
-    sd_clay_to_oPOM_ratio =
-      sd_X.clay_corrected / oPOM_prop
-  )
+    clay_difference = clay_energy_iii - clay_energy_i
+  ) %>%
+  dplyr::select(Sample, clay_difference)
 
 
-ggplot(
-  pipette_app50_df,
-  aes(
-    x = Energy,
-    y = clay_to_oPOM_ratio,
-    fill = Energy
-  )
-) +
-  geom_col(
-    color = "black",
-    alpha = 0.8,
-    width = 0.6
-  ) +
-  geom_errorbar(
-    aes(
-      ymin = pmax(
-        0,
-        clay_to_oPOM_ratio - sd_clay_to_oPOM_ratio
-      ),
-      ymax =
-        clay_to_oPOM_ratio + sd_clay_to_oPOM_ratio
-    ),
-    width = 0.2,
-    linewidth = 0.6
-  ) +
-  facet_wrap(~ Treatment) +
-  labs(
-    x = "Energy Level",
-    y = "Mean % Clay / oPOM",
-    title = "Clay Normalised to oPOM Fraction"
-  ) +
-  theme_bw() +
-  theme(
-    legend.position = "none"
-  )
+# 2. Create one row per sample for sample-level variables
+sample_level_data <- pipette_with_metadata_50 %>%
+  group_by(Sample) %>%
+  summarise(
+    Treatment = first(Treatment),
+    oPOM = first(oPOM),
+    MAOM = first(MAOM),
+    fraction_more_0.25 = first(fraction_more_0.25),
+    fraction_more_0.063 = first(fraction_more_0.063),
+    fraction_less_0.063 = first(fraction_less_0.063),
+    .groups = "drop"
+  ) %>%
+  left_join(clay_difference_data, by = "Sample")
 
 
-# corr heatmaps
-
-make_correlation_heatmap <- function(data, title_text) {
+# 3. Function to create heatmaps with consistent sample-level data
+make_correlation_heatmap <- function(
+    data,
+    energy,
+    title_text
+) {
   
+  # Select clay release for the requested energy
+  clay_energy_data <- pipette_with_metadata_50 %>%
+    filter(Energy == energy) %>%
+    group_by(Sample) %>%
+    summarise(
+      X.clay_corrected = mean(
+        X.clay_corrected,
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    )
+  
+  # Join the energy-specific clay values to the same sample-level data
   correlation_data <- data %>%
     dplyr::select(
-      X.clay_corrected,     # Raw sample clay %
-      oPOM,                 # Raw sample oPOM fraction
-      MAOM,                 # Raw sample MAOM fraction
+      Sample,
+      oPOM,
+      MAOM,
+      fraction_more_0.25,
+      fraction_more_0.063,
+      fraction_less_0.063
+    ) %>%
+    left_join(clay_energy_data, by = "Sample") %>%
+    dplyr::select(
+      X.clay_corrected,
+      oPOM,
+      MAOM,
       fraction_more_0.25,
       fraction_more_0.063,
       fraction_less_0.063
@@ -372,7 +407,7 @@ make_correlation_heatmap <- function(data, title_text) {
   )
   
   variable_labels <- c(
-    X.clay_corrected = "Clay (%)",
+    X.clay_corrected = "Clay released (%)",
     oPOM = "oPOM",
     MAOM = "MAOM",
     fraction_more_0.25 = ">0.25 mm",
@@ -386,14 +421,28 @@ make_correlation_heatmap <- function(data, title_text) {
       variable2 = factor(variable2, levels = variable_order)
     )
   
-  ggplot(cor_long, aes(x = variable1, y = variable2, fill = correlation)) +
+  ggplot(
+    cor_long,
+    aes(x = variable1, y = variable2, fill = correlation)
+  ) +
     geom_tile(colour = "white") +
-    geom_text(aes(label = sprintf("%.2f", correlation)), size = 3.5) +
-    scale_fill_gradient2(limits = c(-1, 1), midpoint = 0, name = "Spearman\nρ") +
+    geom_text(
+      aes(label = sprintf("%.2f", correlation)),
+      size = 3.2
+    ) +
+    scale_fill_gradient2(
+      limits = c(-1, 1),
+      midpoint = 0,
+      name = "Spearman\n\u03C1"
+    ) +
     scale_x_discrete(labels = variable_labels) +
     scale_y_discrete(labels = variable_labels) +
     coord_equal() +
-    labs(title = title_text, x = NULL, y = NULL) +
+    labs(
+      title = title_text,
+      x = NULL,
+      y = NULL
+    ) +
     theme_minimal() +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
@@ -401,65 +450,12 @@ make_correlation_heatmap <- function(data, title_text) {
     )
 }
 
-# correlation heatmaps per energy level
 
-pipette_with_metadata_50<-pipette_with_metadata%>%
-  filter(
-    !str_detect(Treatment, "Huhnerberg") |
-      Treatment == "Huhnerberg_50"
-  )
-
-correlation_heatmap_Energy_I <- make_correlation_heatmap(
-  pipette_with_metadata_50 %>% filter(Energy == "i"),
-  "Correlations at Energy I (App50 Subset - Replicates)"
-)
-
-# view
-correlation_heatmap_Energy_I
-
-correlation_heatmap_Energy_II <- make_correlation_heatmap(
-  pipette_with_metadata_50 %>% filter(Energy == "ii"),
-  "Correlations at Energy II (App50 Subset - Replicates)"
-)
-
-# view
-correlation_heatmap_Energy_II
-
+# 4. Create the heatmap
 correlation_heatmap_Energy_III <- make_correlation_heatmap(
-  pipette_with_metadata_50 %>% filter(Energy == "iii"),
-  "Correlations at Energy III (App50 Subset - Replicates)"
+  sample_level_data,
+  energy = "iii",
+  title_text = "Correlations at Energy III (App50 Subset)"
 )
 
-# view
 correlation_heatmap_Energy_III
-
-# plot clay energy vs opom
-plot_clay_vs_oPOM_Energy_III <- pipette_with_metadata_50 %>%
-  filter(Energy == "iii") %>%
-  ggplot(aes(x = X.clay_corrected, y = oPOM)) +
-  geom_point(size = 3, alpha = 0.8) +
-  geom_smooth(aes(group = 1), method = "lm", se = TRUE, color = "black") + # overall trend across replicates
-  labs(
-    x = "Clay (%)",
-    y = "oPOM (%)",
-    title = "Clay vs oPOM — Energy III (All Replicates)"
-  ) +
-  theme_minimal()
-
-plot_clay_vs_oPOM_Energy_III
-
-# plot clay energy vs maom
-plot_clay_vs_MAOM_Energy_III <- pipette_with_metadata_50 %>%
-  filter(Energy == "iii") %>%
-  ggplot(aes(x = X.clay_corrected, y = MAOM)) +
-  geom_point(size = 3, alpha = 0.8) +
-  geom_smooth(aes(group = 1), method = "lm", se = TRUE, color = "black") + # overall trend across replicates
-  labs(
-    x = "Clay (%)",
-    y = "MAOM (%)",
-    title = "Clay vs MAOM — Energy III (All Replicates)"
-  ) +
-  theme_minimal()
-
-plot_clay_vs_MAOM_Energy_III
-
