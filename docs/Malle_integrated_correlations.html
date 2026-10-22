@@ -72,12 +72,26 @@ ul.task-list li input[type="checkbox"] {
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Teneille’s full project repository is available at <a href="https://github.com/Teneille97/rocmics" class="uri">https://github.com/Teneille97/rocmics</a>.</p>
-<p>This analysis integrates soil carbon concentrations in MAOM and oPOM, aggregate stability metrics, FTIR peak-area changes after cation extraction, and DCB- and oxalate-extractable Fe, Al, Mn and Si from the Malle enhanced rock weathering field trial. It displays Spearman correlation heatmaps, scatterplots for strong cross-analysis relationships, and PCA plots for the 50 t/ha basalt-type experiment and the Hühnerberg dose-response experiment. All plots are displayed directly in the rendered HTML. No CSV, image, or other analysis output files are written to disk.</p>
+<p>This analysis integrates soil carbon concentrations in MAOM and oPOM, aggregate stability metrics, FTIR peak-area changes after cation extraction, DCB- and oxalate-extractable Fe, Al, Mn and Si, and soil organic matter fraction Δ¹⁴C measurements from the Malle enhanced rock weathering field trial.</p>
+<p>Only radiocarbon measurements collected in 2026 are included in the integrated correlations. Δ¹⁴C is evaluated for each available SOM fraction (Bulk, MAOM, fPOM and oPOM).</p>
 </section>
 <section id="integrated-correlations-and-visualisations" class="level2">
 <h2 class="anchored" data-anchor-id="integrated-correlations-and-visualisations">Integrated correlations and visualisations</h2>
-<p>The heatmaps show pairwise Spearman correlations across the full dataset and each experiment subset. Scatterplots are limited to cross-analysis pairs with (|| ), while PCA uses variables involved in at least one cross-analysis relationship with (|| ). Missing values in PCA inputs are median-imputed within each subset; PCA is based on scaled variables.</p>
+<p>The analysis displays Spearman correlation heatmaps, scatterplots for strong cross-analysis relationships (rho &gt; abs(0.7)), and PCA plots for the 50 t/ha basalt-type experiment and the Hühnerberg dose-response experiment. PCA variable selection includes variables involved in at least one cross-analysis relationship with (|| ).</p>
+<p>The heatmaps show pairwise Spearman correlations across the full dataset and each experiment subset. Radiocarbon variables represent only 2026 Δ¹⁴C measurements, separated by SOM fraction. Missing values in PCA inputs are median-imputed within each subset, and PCA is based on scaled variables. Radiocarbon variables are treated as a separate analysis domain, allowing their relationships with carbon concentrations, aggregate stability, FTIR changes, and extractable elements to be evaluated explicitly.</p>
 <div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 4
+  d14C_2026_Bulk d14C_2026_MAOM d14C_2026_fPOM d14C_2026_oPOM
+           &lt;int&gt;          &lt;int&gt;          &lt;int&gt;          &lt;int&gt;
+1             21             16             21             21</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 1 × 4
+  d14C_2026_Bulk d14C_2026_MAOM d14C_2026_fPOM d14C_2026_oPOM
+           &lt;int&gt;          &lt;int&gt;          &lt;int&gt;          &lt;int&gt;
+1             21             16             21             21</code></pre>
+</div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -348,6 +362,41 @@ ul.task-list li input[type="checkbox"] {
 <div>
 <figure class="figure">
 <p><img src="Malle_integrated_correlations_files/figure-html/unnamed-chunk-1-39.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_integrated_correlations_files/figure-html/unnamed-chunk-1-40.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_integrated_correlations_files/figure-html/unnamed-chunk-1-41.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_integrated_correlations_files/figure-html/unnamed-chunk-1-42.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_integrated_correlations_files/figure-html/unnamed-chunk-1-43.png" class="img-fluid figure-img" style="width:100.0%"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="Malle_integrated_correlations_files/figure-html/unnamed-chunk-1-44.png" class="img-fluid figure-img" style="width:100.0%"></p>
 </figure>
 </div>
 </div>

@@ -616,10 +616,114 @@ integrated <- integrated %>%
     )
   )
 
-write_csv(
+
+# ============================================================
+# LOAD 2026 RADIOCARBON DATA (DELTA-14C)
+# ============================================================
+
+radiocarbon_file <- here::here("outputs", "radiocarbon_samples.csv")
+
+if (!file.exists(radiocarbon_file)) {
+  stop("Radiocarbon file not found: ", radiocarbon_file)
+}
+
+radiocarbon_samples <- readr::read_csv(
+  radiocarbon_file,
+  show_col_types = FALSE,
+  na = c("", "NA", "#VALUE!")
+)
+
+# Check that the required columns exist
+required_14c_cols <- c(
+  "Plot", "Sampling_year", "SOM_fraction", "X.14C....."
+)
+
+missing_14c_cols <- setdiff(
+  required_14c_cols,
+  names(radiocarbon_samples)
+)
+
+if (length(missing_14c_cols) > 0) {
+  stop(
+    "Missing required radiocarbon columns: ",
+    paste(missing_14c_cols, collapse = ", ")
+  )
+}
+
+# Keep ONLY 2026 measurements before reshaping
+radiocarbon_2026 <- radiocarbon_samples %>%
+  filter(Sampling_year == 2026) %>%
+  transmute(
+    sample = as.integer(Plot),
+    SOM_fraction = as.character(SOM_fraction),
+    d14C = readr::parse_number(as.character(X.14C.....))
+  ) %>%
+  filter(
+    !is.na(sample),
+    !is.na(SOM_fraction),
+    SOM_fraction %in% c("Bulk", "MAOM", "oPOM", "fPOM")
+  )
+
+# Check for duplicate plot × fraction combinations rather than
+# silently discarding measurements
+duplicate_14c <- radiocarbon_2026 %>%
+  count(sample, SOM_fraction) %>%
+  filter(n > 1)
+
+if (nrow(duplicate_14c) > 0) {
+  print(duplicate_14c)
+  stop(
+    "Duplicate 2026 radiocarbon measurements found for plot/fraction. ",
+    "Resolve these before joining."
+  )
+}
+
+# Reshape to one row per plot
+radiocarbon_2026_wide <- radiocarbon_2026 %>%
+  mutate(
+    variable = paste0("d14C_2026_", SOM_fraction)
+  ) %>%
+  select(sample, variable, d14C) %>%
+  tidyr::pivot_wider(
+    names_from = variable,
+    values_from = d14C
+  )
+
+# Join the 2026 Δ14C values to the integrated dataset
+integrated <- integrated %>%
+  left_join(radiocarbon_2026_wide, by = "sample")
+
+# Check data coverage
+d14c_cols <- grep("^d14C_2026_", names(integrated), value = TRUE)
+
+if (length(d14c_cols) == 0) {
+  warning("No 2026 Δ14C columns were created. Check the source data.")
+} else {
+  message(
+    "Plots with at least one non-missing 2026 Δ14C value: ",
+    sum(
+      rowSums(!is.na(integrated[, d14c_cols, drop = FALSE])) > 0
+    )
+  )
+  
+  message("Non-missing 2026 Δ14C values by fraction:")
+  print(
+    integrated %>%
+      summarise(
+        across(
+          all_of(d14c_cols),
+          ~ sum(!is.na(.x))
+        )
+      )
+  )
+}
+
+# Save the integrated dataset including the 2026 radiocarbon data
+readr::write_csv(
   integrated,
   file.path(out_dir, "integrated_sample_level_data.csv")
 )
+
 
 
 # ---- Correlation analysis ----------------------------------------------------
@@ -705,6 +809,8 @@ classify_analysis <- function(variable) {
     stringr::str_starts(variable, "Tessier_") ~ "Tessier",
     
     stringr::str_starts(variable, "CEC_") ~ "CEC",
+    
+    stringr::str_starts(variable, "d14C_") ~ "Radiocarbon",
     
     stringr::str_detect(variable, "^(MWD|GMD|D)_") ~
       "Aggregate_stability",
@@ -994,6 +1100,13 @@ coverage <- tibble(
   
   plots_with_any_FTIR = {
     cols <- grep("^FTIR_", names(integrated), value = TRUE)
+    if (length(cols))
+      sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
+    else 0
+  },
+  
+  plots_with_any_d14C = {
+    cols <- grep("^d14C_", names(integrated), value = TRUE)
     if (length(cols))
       sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
     else 0
