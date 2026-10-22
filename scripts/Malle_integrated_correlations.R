@@ -95,7 +95,7 @@ calc_D <- function(gt2, gt025, gt0063, lt0063) {
 read_aggstab <- function(filename, extract_label) {
   dat <- read_csv_optional(filename)
   if (is.null(dat)) return(NULL)
-
+  
   required_cols <- c("sample", "% >0.25mm fraction",
                      "% >0.063mm fraction", "% <0.063mm fraction",
                      "% >2mm fraction")
@@ -105,7 +105,7 @@ read_aggstab <- function(filename, extract_label) {
             paste(missing_cols, collapse = ", "), "; skipping.")
     return(NULL)
   }
-
+  
   dat %>%
     mutate(
       sample = as.integer(sample),
@@ -114,8 +114,8 @@ read_aggstab <- function(filename, extract_label) {
         (`% >0.063mm fraction` / 100) * 0.1565 +
         (`% <0.063mm fraction` / 100) * 0.0315,
       GMD = exp((`% >0.25mm fraction` / 100) * log(1.125) +
-        (`% >0.063mm fraction` / 100) * log(0.1565) +
-        (`% <0.063mm fraction` / 100) * log(0.0315)),
+                  (`% >0.063mm fraction` / 100) * log(0.1565) +
+                  (`% <0.063mm fraction` / 100) * log(0.0315)),
       D = pmap_dbl(
         list(`% >2mm fraction`, `% >0.25mm fraction`,
              `% >0.063mm fraction`, `% <0.063mm fraction`), calc_D
@@ -175,6 +175,277 @@ for (el in c("Fe", "Al", "Mn", "Si")) {
     mineral_data[[dcb_col]] - mineral_data[[ox_col]]
   mineral_data[[paste0(el, "_ox_over_DCB")]] <-
     mineral_data[[ox_col]] / mineral_data[[dcb_col]]
+}
+
+
+# ---- Tessier sequential extraction ------------------------------------------
+# Expected files in csv_files/:
+# tessier_feb2026_nh4oac.csv
+# tessier_feb2026_acetic.csv
+# tessier_feb2026_hydroxylamine.csv
+# tessier_feb2026_h2o2.csv
+
+read_tessier <- function(filename, extract_label) {
+  dat <- read_csv_required(filename)
+  
+  # Accommodate common variations in imported CSV column names.
+  names(dat) <- make.names(names(dat), unique = TRUE)
+  nm <- names(dat)
+  
+  sample_col <- intersect(c("sample", "Sample", "Plot", "plot"), nm)[1]
+  if (is.na(sample_col)) {
+    stop(filename, ": cannot identify the sample/plot column.")
+  }
+  
+  element_map <- c(
+    Fe = "Fe..mg.L.",
+    Al = "Al..mg.L.",
+    Mn = "Mn..mg.L.",
+    Si = "Si..mg.L.",
+    Ca = "Ca..mg.L.",
+    K  = "K..mg.L.",
+    Na = "Na..mg.L.",
+    Mg = "Mg..mg.L."
+  )
+  
+  # Also support alternative column names after make.names().
+  find_col <- function(candidates) {
+    found <- intersect(candidates, names(dat))
+    if (length(found)) found[1] else NA_character_
+  }
+  
+  volume_col <- find_col(c(
+    "Corrected.extract.volume..mL.",
+    "Corrected.extract.volume.mL.",
+    "Corrected.extract.volume..mL",
+    "Extract.volume..mL.",
+    "Extract.volume.mL."
+  ))
+  
+  mass_col <- find_col(c(
+    "Mass.soil..g.",
+    "Mass.soil.g.",
+    "Soil.mass..g.",
+    "Soil.mass.g."
+  ))
+  
+  if (is.na(volume_col) || is.na(mass_col)) {
+    stop(filename,
+         ": cannot identify corrected extract volume and soil mass columns. ",
+         "Check names(dat) and update volume_col/mass_col candidates.")
+  }
+  
+  # Match element concentration columns flexibly.
+  find_element_col <- function(element) {
+    candidates <- c(
+      paste0(element, "..mg.L."),
+      paste0(element, ".mg.L."),
+      paste0(element, "..mg.L"),
+      paste0(element, ".mg.L")
+    )
+    find_col(candidates)
+  }
+  
+  out <- tibble(
+    sample = as.integer(dat[[sample_col]]),
+    extract_volume_mL = readr::parse_number(
+      as.character(dat[[volume_col]])
+    ),
+    soil_mass_g = readr::parse_number(
+      as.character(dat[[mass_col]])
+    )
+  )
+  
+  for (el in names(element_map)) {
+    el_col <- find_element_col(el)
+    
+    if (!is.na(el_col)) {
+      conc_mg_L <- readr::parse_number(as.character(dat[[el_col]]))
+      
+      # mg/L × mL / 1000 = mg extracted; divide by soil mass (g).
+      out[[paste0(el, "_mg_g")]] <- ifelse(
+        is.finite(conc_mg_L) &
+          is.finite(out$extract_volume_mL) &
+          out$extract_volume_mL > 0 &
+          is.finite(out$soil_mass_g) &
+          out$soil_mass_g > 0,
+        conc_mg_L * out$extract_volume_mL / 1000 / out$soil_mass_g,
+        NA_real_
+      )
+    }
+  }
+  
+  value_cols <- setdiff(
+    names(out), c("sample", "extract_volume_mL", "soil_mass_g")
+  )
+  if (!length(value_cols)) {
+    stop(filename, ": no recognised element concentration columns found.")
+  }
+  
+  # Average replicate measurements if present; output one row per plot.
+  out %>%
+    group_by(sample) %>%
+    summarise(
+      across(all_of(value_cols),
+             ~ if (all(is.na(.x))) NA_real_ else mean(.x, na.rm = TRUE)),
+      n_tessier_reps = n(),
+      .groups = "drop"
+    ) %>%
+    pivot_longer(
+      cols = all_of(value_cols),
+      names_to = "element",
+      values_to = "concentration_mg_g"
+    ) %>%
+    mutate(
+      element = str_remove(element, "_mg_g$"),
+      variable = paste0("Tessier_", extract_label, "_", element, "_mg_g")
+    ) %>%
+    select(sample, variable, concentration_mg_g) %>%
+    pivot_wider(names_from = variable, values_from = concentration_mg_g)
+}
+
+tessier_files <- c(
+  NH4OAc = "tessier_feb2026_nh4oac.csv",
+  Acetic = "tessier_feb2026_acetic.csv",
+  Hydroxylamine = "tessier_feb2026_hydroxylamine.csv",
+  H2O2 = "tessier_feb2026_h2o2.csv"
+)
+
+tessier_tables <- purrr::imap(
+  tessier_files,
+  ~ read_tessier(.x, .y)
+)
+
+tessier_data <- purrr::reduce(
+  tessier_tables, full_join, by = "sample"
+)
+
+
+# ---- CEC and exchangeable cations -------------------------------------------
+
+cec_candidates <- c(
+  "CEC_Feb_26.csv",
+  "CEC_Feb2026.csv",
+  "cec_feb2026.csv",
+  "CEC_Feb_2026.csv"
+)
+
+cec_filename <- cec_candidates[
+  file.exists(file.path(csv_dir, cec_candidates))
+][1]
+
+cec_data <- NULL
+
+if (length(cec_filename) > 0 && !is.na(cec_filename)) {
+  
+  cec_raw <- read_csv_required(cec_filename)
+  names(cec_raw) <- make.names(names(cec_raw), unique = TRUE)
+  
+  # Identify sample/plot column
+  sample_col <- intersect(
+    c("Sample", "sample", "Plot", "plot"),
+    names(cec_raw)
+  )[1]
+  
+  if (is.na(sample_col)) {
+    stop(
+      cec_filename,
+      ": cannot identify Sample/Plot column. Available columns: ",
+      paste(names(cec_raw), collapse = ", ")
+    )
+  }
+  
+  # Map standard names to the Dutch column names in the CSV
+  cec_column_map <- c(
+    H = "H...cmolg.kg.1.",
+    Ca = "CALCIUM..cmolg.kg.1.",
+    K = "KALIUM..cmolg.kg.1.",
+    Mg = "MAGNESIUM..cmolg.kg.1.",
+    Na = "NATRIUM..cmolg.kg.1.",
+    Al = "Aluminium..cmolg.kg.1.",
+    Fe = "Ijzer..cmolg.kg.1.",
+    Mn = "Mangaan..cmolg.kg.1.",
+    CEC = "CEC..cmolg.kg.1.",
+    Base_saturation = "Basesaturation...."
+  )
+  
+  available_map <- cec_column_map[
+    cec_column_map %in% names(cec_raw)
+  ]
+  
+  if (length(available_map) < 2) {
+    stop(
+      cec_filename,
+      ": fewer than two expected CEC variables found. Available columns: ",
+      paste(names(cec_raw), collapse = ", ")
+    )
+  }
+  
+  missing_cols <- setdiff(
+    unname(cec_column_map),
+    names(cec_raw)
+  )
+  
+  if (length(missing_cols) > 0) {
+    warning(
+      "CEC columns not found and skipped: ",
+      paste(missing_cols, collapse = ", ")
+    )
+  }
+  
+  # Create a clean dataset with standard variable names
+  cec_data <- data.frame(
+    sample = as.integer(
+      readr::parse_number(as.character(cec_raw[[sample_col]]))
+    )
+  )
+  
+  for (variable in names(available_map)) {
+    source_col <- unname(available_map[variable])
+    
+    cec_data[[variable]] <- readr::parse_number(
+      as.character(cec_raw[[source_col]])
+    )
+  }
+  
+  # Average duplicate rows for each sample, if present
+  cec_value_names <- setdiff(names(cec_data), "sample")
+  
+  cec_data <- cec_data |>
+    dplyr::group_by(sample) |>
+    dplyr::summarise(
+      dplyr::across(
+        dplyr::all_of(cec_value_names),
+        ~ if (all(is.na(.x))) {
+          NA_real_
+        } else {
+          mean(.x, na.rm = TRUE)
+        }
+      ),
+      .groups = "drop"
+    )
+  
+  # Prefix variables for the integrated analysis
+  cec_names <- names(cec_data)
+  cec_names[cec_names != "sample"] <- paste0(
+    "CEC_",
+    cec_names[cec_names != "sample"]
+  )
+  names(cec_data) <- cec_names
+  
+  message("CEC loaded from: ", cec_filename)
+  message(
+    "CEC variables included: ",
+    paste(setdiff(names(cec_data), "sample"), collapse = ", ")
+  )
+  
+} else {
+  
+  message(
+    "CEC file not found in csv_files/. Expected one of: ",
+    paste(cec_candidates, collapse = ", ")
+  )
+  
 }
 
 # ---- FTIR peak-area changes (source file is in outputs/, not csv_files/) -----
@@ -313,17 +584,43 @@ if (file.exists(ftir_path)) {
   message("FTIR file not found; skipping: ", ftir_path)
 }
 
+
+
 # ---- Merge one row per plot; assert no row multiplication --------------------
 integrated <- metadata %>%
   full_join(cn_wide, by = "sample") %>%
   full_join(agg_data, by = "sample") %>%
-  full_join(mineral_data, by = "sample")
-if (!is.null(ftir)) integrated <- integrated %>% full_join(ftir, by = "sample")
+  full_join(mineral_data, by = "sample") %>%
+  full_join(tessier_data, by = "sample")
+
+if (!is.null(cec_data)) {
+  integrated <- integrated %>%
+    full_join(cec_data, by = "sample")
+}
+
+if (!is.null(ftir)) {
+  integrated <- integrated %>%
+    full_join(ftir, by = "sample")
+}
 
 if (anyDuplicated(integrated$sample)) {
   stop("Integrated data has duplicate sample rows after joining. Check source keys.")
 }
-write_csv(integrated, file.path(out_dir, "integrated_sample_level_data.csv"))
+
+integrated <- integrated %>%
+  mutate(
+    Basalt_type_exp = if_else(
+      sample == 9L,
+      TRUE,
+      Basalt_type_exp
+    )
+  )
+
+write_csv(
+  integrated,
+  file.path(out_dir, "integrated_sample_level_data.csv")
+)
+
 
 # ---- Correlation analysis ----------------------------------------------------
 # Spearman correlations use pairwise-complete observations. Report n and raw/BH
@@ -400,15 +697,29 @@ dose_results <- correlate_vars(filter(integrated, Dose_resp_exp), "dose_response
 # PCA variable selection uses cross-analysis pairs with |Spearman rho| >= 0.5.
 # Scatterplots are restricted to cross-analysis pairs with |Spearman rho| >= 0.7.
 # (The negative cut-offs indicate that these thresholds refer to rho, not p-values.)
+
 classify_analysis <- function(variable) {
   dplyr::case_when(
     stringr::str_starts(variable, "FTIR_") ~ "FTIR",
-    stringr::str_detect(variable, "^(MWD|GMD|D)_") ~ "Aggregate_stability",
-    stringr::str_detect(variable, "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$") ~ "Oxalate_DCB",
+    
+    stringr::str_starts(variable, "Tessier_") ~ "Tessier",
+    
+    stringr::str_starts(variable, "CEC_") ~ "CEC",
+    
+    stringr::str_detect(variable, "^(MWD|GMD|D)_") ~
+      "Aggregate_stability",
+    
+    stringr::str_detect(
+      variable,
+      "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$"
+    ) ~ "Oxalate_DCB",
+    
     stringr::str_starts(variable, "C_") ~ "C_fractions",
+    
     TRUE ~ "Other"
   )
 }
+
 
 if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
   treatment_levels <- sort(unique(stats::na.omit(as.character(integrated$Treatment))))
@@ -660,13 +971,39 @@ if (!is.null(all_results) && exists("selected_cross_pca_vars") && length(selecte
 # ---- Data coverage and reproducibility --------------------------------------
 coverage <- tibble(
   n_plot_rows = nrow(integrated),
-  plots_with_MAOM_C = if ("C_MAOM" %in% names(integrated)) sum(!is.na(integrated$C_MAOM)) else 0,
-  plots_with_oPOM_C = if ("C_oPOM" %in% names(integrated)) sum(!is.na(integrated$C_oPOM)) else 0,
-  plots_with_any_FTIR = if (any(startsWith(names(integrated), "FTIR_"))) {
-    ftir_cols <- names(integrated)[startsWith(names(integrated), "FTIR_")]
-    sum(rowSums(!is.na(as.data.frame(integrated[, ftir_cols, drop = FALSE]))) > 0)
-  } else 0
+  
+  plots_with_MAOM_C = if ("C_MAOM" %in% names(integrated))
+    sum(!is.na(integrated$C_MAOM)) else 0,
+  
+  plots_with_oPOM_C = if ("C_oPOM" %in% names(integrated))
+    sum(!is.na(integrated$C_oPOM)) else 0,
+  
+  plots_with_any_Tessier = {
+    cols <- grep("^Tessier_", names(integrated), value = TRUE)
+    if (length(cols))
+      sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
+    else 0
+  },
+  
+  plots_with_any_CEC = {
+    cols <- grep("^CEC_", names(integrated), value = TRUE)
+    if (length(cols))
+      sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
+    else 0
+  },
+  
+  plots_with_any_FTIR = {
+    cols <- grep("^FTIR_", names(integrated), value = TRUE)
+    if (length(cols))
+      sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
+    else 0
+  }
 )
+
 write_csv(coverage, file.path(out_dir, "data_coverage_summary.csv"))
-writeLines(capture.output(sessionInfo()), file.path(out_dir, "sessionInfo.txt"))
+writeLines(
+  capture.output(sessionInfo()),
+  file.path(out_dir, "sessionInfo.txt")
+)
+
 message("Integrated analysis finished. Results in: ", normalizePath(out_dir))
