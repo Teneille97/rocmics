@@ -5,7 +5,8 @@
 #
 # Expected project layout:
 #   csv_files/  : treatment_names.csv, total_CN_MAOM_bulk.csv,
-#                 oxalate_sesq_feb2026.csv, DCB_Feb2026.csv, and aggregate CSVs
+#                 Alldata_Soil_phEC.csv, oxalate_sesq_feb2026.csv,
+#                 DCB_Feb2026.csv, and aggregate CSVs
 #   outputs/    : ftir_peak_changes_feb2026.csv
 #
 # Results are written to outputs/integrated_correlation_results/.
@@ -51,6 +52,50 @@ metadata <- read_csv_required("treatment_names.csv") %>%
 if (nrow(metadata) != 21 || !setequal(metadata$sample, 1:21)) {
   warning("Treatment metadata does not contain exactly plots 1-21.")
 }
+
+# ---- Soil pH and EC: February 2026 only -------------------------------------
+# Alldata_Soil_phEC contains pot-level measurements. Keep only 1 February 2026
+# and average the pot replicates within each plot before joining the data.
+ph_ec_raw <- read_csv_required("Alldata_Soil_phEC.csv")
+required_ph_ec_cols <- c("Plot", "pH", "EC", "Date")
+missing_ph_ec_cols <- setdiff(required_ph_ec_cols, names(ph_ec_raw))
+if (length(missing_ph_ec_cols) > 0) {
+  stop(
+    "Alldata_Soil_phEC.csv is missing required columns: ",
+    paste(missing_ph_ec_cols, collapse = ", ")
+  )
+}
+
+ph_ec_data <- ph_ec_raw %>%
+  mutate(
+    sample = suppressWarnings(as.integer(as.character(Plot))),
+    Date_parsed = as.Date(
+      as.character(Date),
+      tryFormats = c("%Y/%m/%d", "%Y-%m-%d", "%d/%m/%Y")
+    ),
+    pH = readr::parse_number(as.character(pH)),
+    EC = readr::parse_number(as.character(EC))
+  ) %>%
+  filter(Date_parsed == as.Date("2026-02-01"), !is.na(sample), sample %in% 1:21) %>%
+  group_by(sample) %>%
+  summarise(
+    soil_pH = if (all(is.na(pH))) NA_real_ else mean(pH, na.rm = TRUE),
+    soil_EC = if (all(is.na(EC))) NA_real_ else mean(EC, na.rm = TRUE),
+    n_ph_ec_reps = n(),
+    .groups = "drop"
+  )
+
+if (nrow(ph_ec_data) == 0) {
+  warning("No soil pH/EC records found for 1 February 2026; check the Date column.")
+}
+if (anyDuplicated(ph_ec_data$sample)) {
+  stop("Duplicate plot rows found in the aggregated February 2026 pH/EC data.")
+}
+message(
+  "February 2026 soil pH/EC: ", nrow(ph_ec_data), " plots; ",
+  sum(!is.na(ph_ec_data$soil_pH)), " with pH; ",
+  sum(!is.na(ph_ec_data$soil_EC)), " with EC."
+)
 
 # ---- MAOM-C and oPOM-C (% C in fraction) ------------------------------------
 cn_raw <- read_csv_required("total_CN_MAOM_bulk.csv")
@@ -177,277 +222,6 @@ for (el in c("Fe", "Al", "Mn", "Si")) {
     mineral_data[[ox_col]] / mineral_data[[dcb_col]]
 }
 
-
-# ---- Tessier sequential extraction ------------------------------------------
-# Expected files in csv_files/:
-# tessier_feb2026_nh4oac.csv
-# tessier_feb2026_acetic.csv
-# tessier_feb2026_hydroxylamine.csv
-# tessier_feb2026_h2o2.csv
-
-read_tessier <- function(filename, extract_label) {
-  dat <- read_csv_required(filename)
-  
-  # Accommodate common variations in imported CSV column names.
-  names(dat) <- make.names(names(dat), unique = TRUE)
-  nm <- names(dat)
-  
-  sample_col <- intersect(c("sample", "Sample", "Plot", "plot"), nm)[1]
-  if (is.na(sample_col)) {
-    stop(filename, ": cannot identify the sample/plot column.")
-  }
-  
-  element_map <- c(
-    Fe = "Fe..mg.L.",
-    Al = "Al..mg.L.",
-    Mn = "Mn..mg.L.",
-    Si = "Si..mg.L.",
-    Ca = "Ca..mg.L.",
-    K  = "K..mg.L.",
-    Na = "Na..mg.L.",
-    Mg = "Mg..mg.L."
-  )
-  
-  # Also support alternative column names after make.names().
-  find_col <- function(candidates) {
-    found <- intersect(candidates, names(dat))
-    if (length(found)) found[1] else NA_character_
-  }
-  
-  volume_col <- find_col(c(
-    "Corrected.extract.volume..mL.",
-    "Corrected.extract.volume.mL.",
-    "Corrected.extract.volume..mL",
-    "Extract.volume..mL.",
-    "Extract.volume.mL."
-  ))
-  
-  mass_col <- find_col(c(
-    "Mass.soil..g.",
-    "Mass.soil.g.",
-    "Soil.mass..g.",
-    "Soil.mass.g."
-  ))
-  
-  if (is.na(volume_col) || is.na(mass_col)) {
-    stop(filename,
-         ": cannot identify corrected extract volume and soil mass columns. ",
-         "Check names(dat) and update volume_col/mass_col candidates.")
-  }
-  
-  # Match element concentration columns flexibly.
-  find_element_col <- function(element) {
-    candidates <- c(
-      paste0(element, "..mg.L."),
-      paste0(element, ".mg.L."),
-      paste0(element, "..mg.L"),
-      paste0(element, ".mg.L")
-    )
-    find_col(candidates)
-  }
-  
-  out <- tibble(
-    sample = as.integer(dat[[sample_col]]),
-    extract_volume_mL = readr::parse_number(
-      as.character(dat[[volume_col]])
-    ),
-    soil_mass_g = readr::parse_number(
-      as.character(dat[[mass_col]])
-    )
-  )
-  
-  for (el in names(element_map)) {
-    el_col <- find_element_col(el)
-    
-    if (!is.na(el_col)) {
-      conc_mg_L <- readr::parse_number(as.character(dat[[el_col]]))
-      
-      # mg/L × mL / 1000 = mg extracted; divide by soil mass (g).
-      out[[paste0(el, "_mg_g")]] <- ifelse(
-        is.finite(conc_mg_L) &
-          is.finite(out$extract_volume_mL) &
-          out$extract_volume_mL > 0 &
-          is.finite(out$soil_mass_g) &
-          out$soil_mass_g > 0,
-        conc_mg_L * out$extract_volume_mL / 1000 / out$soil_mass_g,
-        NA_real_
-      )
-    }
-  }
-  
-  value_cols <- setdiff(
-    names(out), c("sample", "extract_volume_mL", "soil_mass_g")
-  )
-  if (!length(value_cols)) {
-    stop(filename, ": no recognised element concentration columns found.")
-  }
-  
-  # Average replicate measurements if present; output one row per plot.
-  out %>%
-    group_by(sample) %>%
-    summarise(
-      across(all_of(value_cols),
-             ~ if (all(is.na(.x))) NA_real_ else mean(.x, na.rm = TRUE)),
-      n_tessier_reps = n(),
-      .groups = "drop"
-    ) %>%
-    pivot_longer(
-      cols = all_of(value_cols),
-      names_to = "element",
-      values_to = "concentration_mg_g"
-    ) %>%
-    mutate(
-      element = str_remove(element, "_mg_g$"),
-      variable = paste0("Tessier_", extract_label, "_", element, "_mg_g")
-    ) %>%
-    select(sample, variable, concentration_mg_g) %>%
-    pivot_wider(names_from = variable, values_from = concentration_mg_g)
-}
-
-tessier_files <- c(
-  NH4OAc = "tessier_feb2026_nh4oac.csv",
-  Acetic = "tessier_feb2026_acetic.csv",
-  Hydroxylamine = "tessier_feb2026_hydroxylamine.csv",
-  H2O2 = "tessier_feb2026_h2o2.csv"
-)
-
-tessier_tables <- purrr::imap(
-  tessier_files,
-  ~ read_tessier(.x, .y)
-)
-
-tessier_data <- purrr::reduce(
-  tessier_tables, full_join, by = "sample"
-)
-
-
-# ---- CEC and exchangeable cations -------------------------------------------
-
-cec_candidates <- c(
-  "CEC_Feb_26.csv",
-  "CEC_Feb2026.csv",
-  "cec_feb2026.csv",
-  "CEC_Feb_2026.csv"
-)
-
-cec_filename <- cec_candidates[
-  file.exists(file.path(csv_dir, cec_candidates))
-][1]
-
-cec_data <- NULL
-
-if (length(cec_filename) > 0 && !is.na(cec_filename)) {
-  
-  cec_raw <- read_csv_required(cec_filename)
-  names(cec_raw) <- make.names(names(cec_raw), unique = TRUE)
-  
-  # Identify sample/plot column
-  sample_col <- intersect(
-    c("Sample", "sample", "Plot", "plot"),
-    names(cec_raw)
-  )[1]
-  
-  if (is.na(sample_col)) {
-    stop(
-      cec_filename,
-      ": cannot identify Sample/Plot column. Available columns: ",
-      paste(names(cec_raw), collapse = ", ")
-    )
-  }
-  
-  # Map standard names to the Dutch column names in the CSV
-  cec_column_map <- c(
-    H = "H...cmolg.kg.1.",
-    Ca = "CALCIUM..cmolg.kg.1.",
-    K = "KALIUM..cmolg.kg.1.",
-    Mg = "MAGNESIUM..cmolg.kg.1.",
-    Na = "NATRIUM..cmolg.kg.1.",
-    Al = "Aluminium..cmolg.kg.1.",
-    Fe = "Ijzer..cmolg.kg.1.",
-    Mn = "Mangaan..cmolg.kg.1.",
-    CEC = "CEC..cmolg.kg.1.",
-    Base_saturation = "Basesaturation...."
-  )
-  
-  available_map <- cec_column_map[
-    cec_column_map %in% names(cec_raw)
-  ]
-  
-  if (length(available_map) < 2) {
-    stop(
-      cec_filename,
-      ": fewer than two expected CEC variables found. Available columns: ",
-      paste(names(cec_raw), collapse = ", ")
-    )
-  }
-  
-  missing_cols <- setdiff(
-    unname(cec_column_map),
-    names(cec_raw)
-  )
-  
-  if (length(missing_cols) > 0) {
-    warning(
-      "CEC columns not found and skipped: ",
-      paste(missing_cols, collapse = ", ")
-    )
-  }
-  
-  # Create a clean dataset with standard variable names
-  cec_data <- data.frame(
-    sample = as.integer(
-      readr::parse_number(as.character(cec_raw[[sample_col]]))
-    )
-  )
-  
-  for (variable in names(available_map)) {
-    source_col <- unname(available_map[variable])
-    
-    cec_data[[variable]] <- readr::parse_number(
-      as.character(cec_raw[[source_col]])
-    )
-  }
-  
-  # Average duplicate rows for each sample, if present
-  cec_value_names <- setdiff(names(cec_data), "sample")
-  
-  cec_data <- cec_data |>
-    dplyr::group_by(sample) |>
-    dplyr::summarise(
-      dplyr::across(
-        dplyr::all_of(cec_value_names),
-        ~ if (all(is.na(.x))) {
-          NA_real_
-        } else {
-          mean(.x, na.rm = TRUE)
-        }
-      ),
-      .groups = "drop"
-    )
-  
-  # Prefix variables for the integrated analysis
-  cec_names <- names(cec_data)
-  cec_names[cec_names != "sample"] <- paste0(
-    "CEC_",
-    cec_names[cec_names != "sample"]
-  )
-  names(cec_data) <- cec_names
-  
-  message("CEC loaded from: ", cec_filename)
-  message(
-    "CEC variables included: ",
-    paste(setdiff(names(cec_data), "sample"), collapse = ", ")
-  )
-  
-} else {
-  
-  message(
-    "CEC file not found in csv_files/. Expected one of: ",
-    paste(cec_candidates, collapse = ", ")
-  )
-  
-}
-
 # ---- FTIR peak-area changes (source file is in outputs/, not csv_files/) -----
 ftir_path <- file.path(outputs_dir, "ftir_peak_changes_feb2026.csv")
 ftir <- NULL
@@ -455,11 +229,11 @@ if (file.exists(ftir_path)) {
   ftir_raw <- readr::read_csv(
     ftir_path, show_col_types = FALSE, na = c("", "NA", "#VALUE!")
   )
-
+  
   if (!"sample" %in% names(ftir_raw)) {
     stop("FTIR file must contain a `sample` column with values such as soil1 ... soil21.")
   }
-
+  
   # Convert IDs like soil10 to numeric plot IDs (10). Numeric IDs are also accepted.
   ftir <- ftir_raw %>%
     mutate(
@@ -468,7 +242,7 @@ if (file.exists(ftir_path)) {
                        str_remove(sample, "^soil"), sample),
       sample = as.integer(sample)
     )
-
+  
   if (anyNA(ftir$sample)) {
     stop("Could not convert one or more FTIR sample IDs to plot numbers 1-21.")
   }
@@ -478,7 +252,7 @@ if (file.exists(ftir_path)) {
   if (any(!ftir$sample %in% 1:21)) {
     stop("FTIR sample IDs must correspond to plot numbers 1-21.")
   }
-
+  
   # Prefer existing change/delta variables in the source table. Calculate a
   # change from *_before / *_after only when no equivalent change variable
   # already exists, avoiding duplicate representations of the same FTIR result.
@@ -502,11 +276,11 @@ if (file.exists(ftir_path)) {
     key
   }
   existing_change_keys <- normalise_band_name(change_cols_existing)
-
+  
   before_cols <- names(ftir)[str_ends(names(ftir), "_before")]
   paired_bands <- str_remove(before_cols, "_before")
   paired_bands <- paired_bands[paste0(paired_bands, "_after") %in% names(ftir)]
-
+  
   for (band in paired_bands) {
     band_key <- normalise_band_name(band)
     has_existing_delta <- any(
@@ -517,12 +291,12 @@ if (file.exists(ftir_path)) {
       str_detect(str_to_lower(change_cols_existing), "change_pct|pct_change|percent_change") &
         existing_change_keys == band_key
     )
-
+    
     before_name <- paste0(band, "_before")
     after_name <- paste0(band, "_after")
     before_val <- suppressWarnings(as.numeric(ftir[[before_name]]))
     after_val <- suppressWarnings(as.numeric(ftir[[after_name]]))
-
+    
     if (!has_existing_delta) {
       ftir[[paste0("FTIR_delta_", make.names(band))]] <- after_val - before_val
     }
@@ -536,7 +310,7 @@ if (file.exists(ftir_path)) {
       )
     }
   }
-
+  
   # Keep ONE FTIR change metric per underlying band. If both an absolute
   # delta and a percentage-change column exist for the same band, prefer the
   # absolute delta. If no delta exists, retain the percentage-change metric.
@@ -549,7 +323,7 @@ if (file.exists(ftir_path)) {
     c("COO_change_pct", "carbonyl_change_pct", "aromatic_change_pct", "CH_change_pct"),
     names(ftir)
   ))
-
+  
   if (length(change_cols)) {
     change_keys <- normalise_band_name(change_cols)
     change_priority <- case_when(
@@ -568,7 +342,7 @@ if (file.exists(ftir_path)) {
   } else {
     selected_change_cols <- character(0)
   }
-
+  
   ftir_out <- ftir %>% dplyr::select(sample, all_of(selected_change_cols))
   # Prefix source variables to make their origin clear and avoid collisions.
   names(ftir_out) <- ifelse(
@@ -576,7 +350,7 @@ if (file.exists(ftir_path)) {
     names(ftir_out), paste0("FTIR_", names(ftir_out))
   )
   ftir <- ftir_out
-
+  
   write_csv(ftir, file.path(out_dir, "ftir_peak_changes_calculated.csv"))
   message("FTIR loaded from: ", ftir_path, " (", nrow(ftir),
           " plots; existing delta/change variables retained and duplicate changes avoided).")
@@ -584,147 +358,18 @@ if (file.exists(ftir_path)) {
   message("FTIR file not found; skipping: ", ftir_path)
 }
 
-
-
 # ---- Merge one row per plot; assert no row multiplication --------------------
 integrated <- metadata %>%
   full_join(cn_wide, by = "sample") %>%
   full_join(agg_data, by = "sample") %>%
   full_join(mineral_data, by = "sample") %>%
-  full_join(tessier_data, by = "sample")
-
-if (!is.null(cec_data)) {
-  integrated <- integrated %>%
-    full_join(cec_data, by = "sample")
-}
-
-if (!is.null(ftir)) {
-  integrated <- integrated %>%
-    full_join(ftir, by = "sample")
-}
+  full_join(ph_ec_data, by = "sample")
+if (!is.null(ftir)) integrated <- integrated %>% full_join(ftir, by = "sample")
 
 if (anyDuplicated(integrated$sample)) {
   stop("Integrated data has duplicate sample rows after joining. Check source keys.")
 }
-
-integrated <- integrated %>%
-  mutate(
-    Basalt_type_exp = if_else(
-      sample == 9L,
-      TRUE,
-      Basalt_type_exp
-    )
-  )
-
-
-# ============================================================
-# LOAD 2026 RADIOCARBON DATA (DELTA-14C)
-# ============================================================
-
-radiocarbon_file <- here::here("outputs", "radiocarbon_samples.csv")
-
-if (!file.exists(radiocarbon_file)) {
-  stop("Radiocarbon file not found: ", radiocarbon_file)
-}
-
-radiocarbon_samples <- readr::read_csv(
-  radiocarbon_file,
-  show_col_types = FALSE,
-  na = c("", "NA", "#VALUE!")
-)
-
-# Check that the required columns exist
-required_14c_cols <- c(
-  "Plot", "Sampling_year", "SOM_fraction", "X.14C....."
-)
-
-missing_14c_cols <- setdiff(
-  required_14c_cols,
-  names(radiocarbon_samples)
-)
-
-if (length(missing_14c_cols) > 0) {
-  stop(
-    "Missing required radiocarbon columns: ",
-    paste(missing_14c_cols, collapse = ", ")
-  )
-}
-
-# Keep ONLY 2026 measurements before reshaping
-radiocarbon_2026 <- radiocarbon_samples %>%
-  filter(Sampling_year == 2026) %>%
-  transmute(
-    sample = as.integer(Plot),
-    SOM_fraction = as.character(SOM_fraction),
-    d14C = readr::parse_number(as.character(X.14C.....))
-  ) %>%
-  filter(
-    !is.na(sample),
-    !is.na(SOM_fraction),
-    SOM_fraction %in% c("Bulk", "MAOM", "oPOM", "fPOM")
-  )
-
-# Check for duplicate plot × fraction combinations rather than
-# silently discarding measurements
-duplicate_14c <- radiocarbon_2026 %>%
-  count(sample, SOM_fraction) %>%
-  filter(n > 1)
-
-if (nrow(duplicate_14c) > 0) {
-  print(duplicate_14c)
-  stop(
-    "Duplicate 2026 radiocarbon measurements found for plot/fraction. ",
-    "Resolve these before joining."
-  )
-}
-
-# Reshape to one row per plot
-radiocarbon_2026_wide <- radiocarbon_2026 %>%
-  mutate(
-    variable = paste0("d14C_2026_", SOM_fraction)
-  ) %>%
-  select(sample, variable, d14C) %>%
-  tidyr::pivot_wider(
-    names_from = variable,
-    values_from = d14C
-  )
-
-# Join the 2026 Δ14C values to the integrated dataset
-integrated <- integrated %>%
-  left_join(radiocarbon_2026_wide, by = "sample")
-
-# Check data coverage
-d14c_cols <- grep("^d14C_2026_", names(integrated), value = TRUE)
-
-if (length(d14c_cols) == 0) {
-  warning("No 2026 Δ14C columns were created. Check the source data.")
-} else {
-  message(
-    "Plots with at least one non-missing 2026 Δ14C value: ",
-    sum(
-      rowSums(!is.na(integrated[, d14c_cols, drop = FALSE])) > 0
-    )
-  )
-  
-  message("Non-missing 2026 Δ14C values by fraction:")
-  print(
-    integrated %>%
-      summarise(
-        across(
-          all_of(d14c_cols),
-          ~ sum(!is.na(.x))
-        )
-      )
-  )
-}
-
-# Save the integrated dataset including the 2026 radiocarbon data
-readr::write_csv(
-  integrated,
-  file.path(out_dir, "integrated_sample_level_data.csv")
-)
-
-
+write_csv(integrated, file.path(out_dir, "integrated_sample_level_data.csv"))
 
 # ---- Correlation analysis ----------------------------------------------------
 # Spearman correlations use pairwise-complete observations. Report n and raw/BH
@@ -734,18 +379,18 @@ correlate_vars <- function(dat, group_name) {
     dplyr::select(where(is.numeric)) %>%
     dplyr::select(-any_of(c("sample", names(dat)[str_detect(names(dat), "^n_agg_reps")])) ) %>%
     dplyr::select(where(~sum(is.finite(.x)) >= 3 && is.finite(sd(.x, na.rm = TRUE)) && sd(.x, na.rm = TRUE) > 0))
-
+  
   if (ncol(numeric_data) < 2) {
     message("Not enough numeric variables for correlations in ", group_name)
     return(invisible(NULL))
   }
-
+  
   vars <- names(numeric_data)
   cor_mat <- matrix(NA_real_, nrow = length(vars), ncol = length(vars),
                     dimnames = list(vars, vars))
   p_mat <- cor_mat
   n_mat <- cor_mat
-
+  
   for (i in seq_along(vars)) {
     for (j in seq_along(vars)) {
       x <- numeric_data[[i]]
@@ -763,7 +408,7 @@ correlate_vars <- function(dat, group_name) {
       }
     }
   }
-
+  
   pairs <- expand_grid(var1 = vars, var2 = vars) %>%
     filter(match(var1, vars) < match(var2, vars)) %>%
     mutate(
@@ -774,18 +419,18 @@ correlate_vars <- function(dat, group_name) {
       abs_rho = abs(rho)
     ) %>%
     arrange(p_adj_BH, desc(abs_rho))
-
+  
   write_csv(pairs, file.path(out_dir, paste0("spearman_pairs_", group_name, ".csv")))
   write.csv(cor_mat, file.path(out_dir, paste0("spearman_rho_", group_name, ".csv")))
   write.csv(p_mat, file.path(out_dir, paste0("spearman_p_", group_name, ".csv")))
   write.csv(n_mat, file.path(out_dir, paste0("spearman_n_", group_name, ".csv")))
-
+  
   png(file.path(out_dir, paste0("spearman_heatmap_", group_name, ".png")),
       width = 2600, height = 2400, res = 220)
   corrplot(cor_mat, method = "color", type = "upper", order = "hclust",
            tl.col = "black", tl.cex = 0.55, tl.srt = 45, na.label = " ")
   dev.off()
-
+  
   invisible(list(cor = cor_mat, p = p_mat, n = n_mat, pairs = pairs, variables = vars))
 }
 
@@ -801,31 +446,16 @@ dose_results <- correlate_vars(filter(integrated, Dose_resp_exp), "dose_response
 # PCA variable selection uses cross-analysis pairs with |Spearman rho| >= 0.5.
 # Scatterplots are restricted to cross-analysis pairs with |Spearman rho| >= 0.7.
 # (The negative cut-offs indicate that these thresholds refer to rho, not p-values.)
-
 classify_analysis <- function(variable) {
   dplyr::case_when(
     stringr::str_starts(variable, "FTIR_") ~ "FTIR",
-    
-    stringr::str_starts(variable, "Tessier_") ~ "Tessier",
-    
-    stringr::str_starts(variable, "CEC_") ~ "CEC",
-    
-    stringr::str_starts(variable, "d14C_") ~ "Radiocarbon",
-    
-    stringr::str_detect(variable, "^(MWD|GMD|D)_") ~
-      "Aggregate_stability",
-    
-    stringr::str_detect(
-      variable,
-      "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$"
-    ) ~ "Oxalate_DCB",
-    
+    stringr::str_detect(variable, "^(MWD|GMD|D)_") ~ "Aggregate_stability",
+    stringr::str_detect(variable, "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$") ~ "Oxalate_DCB",
     stringr::str_starts(variable, "C_") ~ "C_fractions",
-    
+    stringr::str_starts(variable, "soil_") ~ "Soil_chemistry",
     TRUE ~ "Other"
   )
 }
-
 
 if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
   treatment_levels <- sort(unique(stats::na.omit(as.character(integrated$Treatment))))
@@ -833,7 +463,7 @@ if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
     grDevices::hcl.colors(max(1, length(treatment_levels)), palette = "Dynamic"),
     treatment_levels
   )
-
+  
   cross_analysis_pairs_all <- all_results$pairs %>%
     dplyr::mutate(
       analysis_1 = classify_analysis(var1),
@@ -845,13 +475,13 @@ if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
       analysis_1 != "Other", analysis_2 != "Other"
     ) %>%
     dplyr::arrange(p_value, dplyr::desc(abs_rho))
-
+  
   # Save all cross-analysis pairs for reference, plus the subset used for plots.
   readr::write_csv(
     cross_analysis_pairs_all,
     file.path(out_dir, "spearman_pairs_all_cross_analysis.csv")
   )
-
+  
   # Variables entering PCA: any variable involved in at least one cross-analysis
   # association with an absolute Spearman rho of 0.5 or greater.
   selected_cross_pca_vars <- cross_analysis_pairs_all %>%
@@ -864,17 +494,17 @@ if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
     tibble::tibble(variable = selected_cross_pca_vars),
     file.path(out_dir, "PCA_variables_cross_analysis_abs_rho_ge_0.5.csv")
   )
-
+  
   # Scatterplots only for stronger cross-analysis relationships: |rho| >= 0.7.
   cross_analysis_pairs <- cross_analysis_pairs_all %>%
     dplyr::filter(abs_rho >= 0.7) %>%
     dplyr::arrange(p_value, dplyr::desc(abs_rho))
-
+  
   readr::write_csv(
     cross_analysis_pairs,
     file.path(out_dir, "spearman_pairs_cross_analysis_scatterplots_abs_rho_ge_0.7.csv")
   )
-
+  
   if (nrow(cross_analysis_pairs) > 0) {
     for (k in seq_len(nrow(cross_analysis_pairs))) {
       pair <- cross_analysis_pairs[k, ]
@@ -883,7 +513,7 @@ if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
       plot_data <- integrated %>%
         dplyr::select(Treatment, dplyr::all_of(c(xvar, yvar))) %>%
         dplyr::filter(is.finite(.data[[xvar]]), is.finite(.data[[yvar]]))
-
+      
       p <- ggplot(plot_data, aes(x = .data[[xvar]], y = .data[[yvar]])) +
         geom_point(aes(color = Treatment), size = 2.5, alpha = 0.85, na.rm = TRUE) +
         geom_smooth(method = "lm", se = TRUE, color = "black", linewidth = 0.7,
@@ -902,7 +532,7 @@ if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
         scale_colour_manual(values = treatment_palette, na.translate = FALSE) +
         theme_bw(base_size = 11) +
         theme(legend.position = "bottom")
-
+      
       ggsave(
         file.path(out_dir, paste0(
           "scatter_cross_analysis_", sprintf("%03d", k), "_",
@@ -931,7 +561,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
             ": fewer than 3 plots or fewer than 2 selected cross-analysis variables.")
     return(invisible(NULL))
   }
-
+  
   pca_input <- data_subset %>% dplyr::select(dplyr::all_of(available_vars))
   pca_missing <- tibble(
     variable = names(pca_input),
@@ -941,7 +571,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
       if (all(!is.finite(x))) NA_real_ else median(x[is.finite(x)])
     }, numeric(1))
   )
-
+  
   usable_vars <- pca_missing %>%
     filter(n_observed >= 3, is.finite(median_imputed_value)) %>%
     pull(variable)
@@ -955,12 +585,12 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
     is.finite(sd(x)) && sd(x) > 0
   }, logical(1))]
   pca_matrix <- pca_matrix[, nonconstant, drop = FALSE]
-
+  
   if (ncol(pca_matrix) < 2) {
     message("PCA skipped for ", subset_name, ": fewer than two usable non-constant variables.")
     return(invisible(NULL))
   }
-
+  
   pca_fit <- prcomp(pca_matrix, center = TRUE, scale. = TRUE)
   variance_pct <- 100 * (pca_fit$sdev^2 / sum(pca_fit$sdev^2))
   pca_scores <- as_tibble(pca_fit$x, .name_repair = "minimal") %>%
@@ -977,13 +607,13 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
   )
   contribution <- as_tibble(pca_fit$rotation^2, rownames = "variable") %>%
     mutate(across(-variable, ~100 * .x / sum(.x)))
-
+  
   write_csv(pca_scores, file.path(out_dir, paste0("PCA_scores_", safe_name, ".csv")))
   write_csv(pca_loadings, file.path(out_dir, paste0("PCA_loadings_", safe_name, ".csv")))
   write_csv(contribution, file.path(out_dir, paste0("PCA_variable_contributions_pct_", safe_name, ".csv")))
   write_csv(pca_variance, file.path(out_dir, paste0("PCA_variance_explained_", safe_name, ".csv")))
   write_csv(pca_missing, file.path(out_dir, paste0("PCA_variable_coverage_and_imputation_", safe_name, ".csv")))
-
+  
   treatment_levels <- sort(unique(stats::na.omit(pca_scores$Treatment)))
   treatment_palette <- stats::setNames(
     grDevices::hcl.colors(length(treatment_levels), palette = "Dynamic"),
@@ -996,7 +626,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
   arrow_scale <- if (is.finite(loading_range) && loading_range > 0) 0.72 * score_range / loading_range else 1
   arrow_df <- pca_loadings %>%
     transmute(variable, PC1 = PC1 * arrow_scale, PC2 = PC2 * arrow_scale)
-
+  
   p_biplot <- ggplot(pca_scores, aes(x = PC1, y = PC2)) +
     geom_hline(yintercept = 0, linewidth = 0.35, colour = "grey78") +
     geom_vline(xintercept = 0, linewidth = 0.35, colour = "grey78") +
@@ -1021,7 +651,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
     theme(legend.position = "bottom", legend.box = "vertical")
   ggsave(file.path(out_dir, paste0("PCA_biplot_", safe_name, ".png")),
          p_biplot, width = 13, height = 10, dpi = 300)
-
+  
   p_scores <- ggplot(pca_scores, aes(x = PC1, y = PC2, colour = Treatment)) +
     geom_hline(yintercept = 0, linewidth = 0.35, colour = "grey78") +
     geom_vline(xintercept = 0, linewidth = 0.35, colour = "grey78") +
@@ -1037,7 +667,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
     theme_bw(base_size = 11) + theme(legend.position = "bottom")
   ggsave(file.path(out_dir, paste0("PCA_scores_", safe_name, ".png")),
          p_scores, width = 9, height = 7, dpi = 300)
-
+  
   scree_df <- pca_variance %>% slice_head(n = min(10, n()))
   p_scree <- ggplot(scree_df, aes(x = factor(PC, levels = PC), y = variance_explained_pct)) +
     geom_col(fill = "grey45") +
@@ -1048,7 +678,7 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
     theme_bw(base_size = 11)
   ggsave(file.path(out_dir, paste0("PCA_scree_plot_", safe_name, ".png")),
          p_scree, width = 8, height = 5, dpi = 300)
-
+  
   message("PCA complete for ", subset_name, ": ", ncol(pca_matrix), " variables, ",
           nrow(pca_scores), " plots.")
   invisible(list(scores = pca_scores, loadings = pca_loadings,
@@ -1077,46 +707,15 @@ if (!is.null(all_results) && exists("selected_cross_pca_vars") && length(selecte
 # ---- Data coverage and reproducibility --------------------------------------
 coverage <- tibble(
   n_plot_rows = nrow(integrated),
-  
-  plots_with_MAOM_C = if ("C_MAOM" %in% names(integrated))
-    sum(!is.na(integrated$C_MAOM)) else 0,
-  
-  plots_with_oPOM_C = if ("C_oPOM" %in% names(integrated))
-    sum(!is.na(integrated$C_oPOM)) else 0,
-  
-  plots_with_any_Tessier = {
-    cols <- grep("^Tessier_", names(integrated), value = TRUE)
-    if (length(cols))
-      sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
-    else 0
-  },
-  
-  plots_with_any_CEC = {
-    cols <- grep("^CEC_", names(integrated), value = TRUE)
-    if (length(cols))
-      sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
-    else 0
-  },
-  
-  plots_with_any_FTIR = {
-    cols <- grep("^FTIR_", names(integrated), value = TRUE)
-    if (length(cols))
-      sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
-    else 0
-  },
-  
-  plots_with_any_d14C = {
-    cols <- grep("^d14C_", names(integrated), value = TRUE)
-    if (length(cols))
-      sum(rowSums(!is.na(integrated[, cols, drop = FALSE])) > 0)
-    else 0
-  }
+  plots_with_soil_pH = if ("soil_pH" %in% names(integrated)) sum(!is.na(integrated$soil_pH)) else 0,
+  plots_with_soil_EC = if ("soil_EC" %in% names(integrated)) sum(!is.na(integrated$soil_EC)) else 0,
+  plots_with_MAOM_C = if ("C_MAOM" %in% names(integrated)) sum(!is.na(integrated$C_MAOM)) else 0,
+  plots_with_oPOM_C = if ("C_oPOM" %in% names(integrated)) sum(!is.na(integrated$C_oPOM)) else 0,
+  plots_with_any_FTIR = if (any(startsWith(names(integrated), "FTIR_"))) {
+    ftir_cols <- names(integrated)[startsWith(names(integrated), "FTIR_")]
+    sum(rowSums(!is.na(as.data.frame(integrated[, ftir_cols, drop = FALSE]))) > 0)
+  } else 0
 )
-
 write_csv(coverage, file.path(out_dir, "data_coverage_summary.csv"))
-writeLines(
-  capture.output(sessionInfo()),
-  file.path(out_dir, "sessionInfo.txt")
-)
-
+writeLines(capture.output(sessionInfo()), file.path(out_dir, "sessionInfo.txt"))
 message("Integrated analysis finished. Results in: ", normalizePath(out_dir))
