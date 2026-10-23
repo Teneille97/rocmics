@@ -1,0 +1,104 @@
+
+========================================
+RESPONSE: d14C_2026_Bulk
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-9.6229 -4.0252 -0.8835  4.4220  9.7299 
+
+Coefficients:
+                       Estimate Std. Error t value Pr(>|t|)    
+(Intercept)               7.663     24.675   0.311   0.7666    
+Tessier_Acetic_K_mg_g  -385.907     37.456 -10.303 4.88e-05 ***
+Tessier_H2O2_Na_mg_g  -7611.614   3185.405  -2.390   0.0541 .  
+Fe_ox_over_DCB          -89.943     39.028  -2.305   0.0607 .  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 7.935 on 6 degrees of freedom
+Multiple R-squared:   0.95,	Adjusted R-squared:  0.925 
+F-statistic:    38 on 3 and 6 DF,  p-value: 0.0002684
+
+
+========================================
+RESPONSE: d14C_2026_MAOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+   Min     1Q Median     3Q    Max 
+-9.810 -4.570 -1.577  2.403 18.089 
+
+Coefficients:
+               Estimate Std. Error t value Pr(>|t|)  
+(Intercept)     -41.286     41.304  -1.000   0.3561  
+CEC_Mg           43.231     21.806   1.983   0.0947 .
+Fe_ox_over_DCB -128.431     46.708  -2.750   0.0333 *
+Si_ox_over_DCB  -22.394      9.308  -2.406   0.0529 .
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 9.429 on 6 degrees of freedom
+Multiple R-squared:  0.8359,	Adjusted R-squared:  0.7538 
+F-statistic: 10.19 on 3 and 6 DF,  p-value: 0.009053
+
+
+========================================
+RESPONSE: d14C_2026_fPOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-13.438  -3.191   1.204   4.280   6.851 
+
+Coefficients:
+                       Estimate Std. Error t value Pr(>|t|)   
+(Intercept)              -18.44      10.80  -1.707  0.13871   
+Tessier_Acetic_Na_mg_g   -78.41      23.25  -3.372  0.01500 * 
+FTIR_delta_aromatic      103.53      23.80   4.350  0.00482 **
+Tessier_Acetic_Ca_mg_g   -81.08      27.68  -2.929  0.02633 * 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 7.495 on 6 degrees of freedom
+Multiple R-squared:  0.8788,	Adjusted R-squared:  0.8182 
+F-statistic:  14.5 on 3 and 6 DF,  p-value: 0.003712
+
+
+========================================
+RESPONSE: d14C_2026_oPOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-9.3285 -5.1903 -0.1513  5.2521  9.8924 
+
+Coefficients:
+               Estimate Std. Error t value Pr(>|t|)   
+(Intercept)     44.6922    20.8866   2.140  0.07618 . 
+Mn_ox_over_DCB -66.0135    13.5968  -4.855  0.00284 **
+soil_EC         -2.1678     0.5817  -3.727  0.00978 **
+CEC_Mg          53.4156    21.9552   2.433  0.05096 . 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 8.088 on 6 degrees of freedom
+Multiple R-squared:  0.8884,	Adjusted R-squared:  0.8326 
+F-statistic: 15.93 on 3 and 6 DF,  p-value: 0.002908
+

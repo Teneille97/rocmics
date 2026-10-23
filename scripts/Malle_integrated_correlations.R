@@ -1,17 +1,21 @@
 # =============================================================================
-# Integrated Malle soil correlations: MAOM/oPOM C, aggregate stability, FTIR
-# peak-area changes after cation extraction, and DCB/oxalate-extractable Fe, Al,
-# Mn and Si.
+# Malle integrated soil correlations — February 2026 pH and EC + Energy III clay
 #
-# Expected project layout:
-#   csv_files/  : treatment_names.csv, total_CN_MAOM_bulk.csv,
-#                 Alldata_Soil_phEC.csv, oxalate_sesq_feb2026.csv,
-#                 DCB_Feb2026.csv, and aggregate CSVs
-#   outputs/    : ftir_peak_changes_feb2026.csv
+# Integrated analyses of 2026 soil carbon fractions, aggregate stability,
+# oxalate/DCB-extractable Fe/Al/Mn/Si, Tessier extraction pools, CEC/exchangeable
+# cations, FTIR peak changes, radiocarbon (d14C), soil pH/EC, and the percentage
+# of clay released at pipette dispersion Energy III.
 #
-# Results are written to outputs/integrated_correlation_results/.
-# Required packages: here, tidyverse, corrplot
+# The script saves correlation heatmaps, PCA figures, and MLR summaries under
+# outputs/. It expects the project working directory to be discoverable by
+# here::here(), and clay_energy_iii.csv in the outputs folder.
+# The clay CSV must contain one row per plot, with a sample/Sample/Plot ID
+# column and a numeric clay_energy_iii column.
 # =============================================================================
+
+
+
+# ---- Setup ---------------------------------------------------------------
 
 suppressPackageStartupMessages({
   library(here)
@@ -19,17 +23,22 @@ suppressPackageStartupMessages({
   library(corrplot)
 })
 
-# ---- Paths ------------------------------------------------------------------
 csv_dir <- here::here("csv_files")
 outputs_dir <- here::here("outputs")
-out_dir <- file.path(outputs_dir, "integrated_correlation_results")
-dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(outputs_dir, recursive = TRUE, showWarnings = FALSE)
+cor_out_dir <- file.path(outputs_dir, "correlation_heatmaps")
+pca_out_dir <- file.path(outputs_dir, "PCA")
+mlr_out_dir <- file.path(outputs_dir, "stepwise_MLR_14C")
+dir.create(cor_out_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(pca_out_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(mlr_out_dir, recursive = TRUE, showWarnings = FALSE)
 
 read_csv_required <- function(filename) {
   path <- file.path(csv_dir, filename)
   if (!file.exists(path)) stop("Required input file not found: ", path)
   readr::read_csv(path, show_col_types = FALSE, na = c("", "NA", "#VALUE!"))
 }
+
 read_csv_optional <- function(filename) {
   path <- file.path(csv_dir, filename)
   if (!file.exists(path)) {
@@ -39,7 +48,9 @@ read_csv_optional <- function(filename) {
   readr::read_csv(path, show_col_types = FALSE, na = c("", "NA", "#VALUE!"))
 }
 
-# ---- Plot/treatment metadata -------------------------------------------------
+
+# ---- Metadata and 2026 carbon concentrations -----------------------------
+
 metadata <- read_csv_required("treatment_names.csv") %>%
   transmute(
     sample = as.integer(sample),
@@ -53,52 +64,8 @@ if (nrow(metadata) != 21 || !setequal(metadata$sample, 1:21)) {
   warning("Treatment metadata does not contain exactly plots 1-21.")
 }
 
-# ---- Soil pH and EC: February 2026 only -------------------------------------
-# Alldata_Soil_phEC contains pot-level measurements. Keep only 1 February 2026
-# and average the pot replicates within each plot before joining the data.
-ph_ec_raw <- read_csv_required("Alldata_Soil_phEC.csv")
-required_ph_ec_cols <- c("Plot", "pH", "EC", "Date")
-missing_ph_ec_cols <- setdiff(required_ph_ec_cols, names(ph_ec_raw))
-if (length(missing_ph_ec_cols) > 0) {
-  stop(
-    "Alldata_Soil_phEC.csv is missing required columns: ",
-    paste(missing_ph_ec_cols, collapse = ", ")
-  )
-}
-
-ph_ec_data <- ph_ec_raw %>%
-  mutate(
-    sample = suppressWarnings(as.integer(as.character(Plot))),
-    Date_parsed = as.Date(
-      as.character(Date),
-      tryFormats = c("%Y/%m/%d", "%Y-%m-%d", "%d/%m/%Y")
-    ),
-    pH = readr::parse_number(as.character(pH)),
-    EC = readr::parse_number(as.character(EC))
-  ) %>%
-  filter(Date_parsed == as.Date("2026-02-01"), !is.na(sample), sample %in% 1:21) %>%
-  group_by(sample) %>%
-  summarise(
-    soil_pH = if (all(is.na(pH))) NA_real_ else mean(pH, na.rm = TRUE),
-    soil_EC = if (all(is.na(EC))) NA_real_ else mean(EC, na.rm = TRUE),
-    n_ph_ec_reps = n(),
-    .groups = "drop"
-  )
-
-if (nrow(ph_ec_data) == 0) {
-  warning("No soil pH/EC records found for 1 February 2026; check the Date column.")
-}
-if (anyDuplicated(ph_ec_data$sample)) {
-  stop("Duplicate plot rows found in the aggregated February 2026 pH/EC data.")
-}
-message(
-  "February 2026 soil pH/EC: ", nrow(ph_ec_data), " plots; ",
-  sum(!is.na(ph_ec_data$soil_pH)), " with pH; ",
-  sum(!is.na(ph_ec_data$soil_EC)), " with EC."
-)
-
-# ---- MAOM-C and oPOM-C (% C in fraction) ------------------------------------
 cn_raw <- read_csv_required("total_CN_MAOM_bulk.csv")
+
 cn_wide <- cn_raw %>%
   dplyr::rename(sample_name = `Sample name`, result = `Result (%)`) %>%
   mutate(
@@ -120,12 +87,51 @@ cn_wide <- cn_raw %>%
   summarise(C_percent = mean(result, na.rm = TRUE), .groups = "drop") %>%
   pivot_wider(names_from = fraction, values_from = C_percent, names_prefix = "C_")
 
-# These are C concentrations (%) within each fraction, not stocks per unit area.
 if (nrow(cn_wide) == 0) {
   warning("No 2026 Ctotal fraction rows matched the expected sample-name pattern.")
 }
 
-# ---- Aggregate stability: MWD, GMD and fractal D -----------------------------
+
+# ---- Soil pH and EC — February 2026 --------------------------------------
+
+# Keep soil pH and EC measurements from 1 February 2026 only.
+# Alldata_Soil_phEC.csv contains pot-level records; average pots within each plot.
+ph_ec_raw <- read_csv_required("Alldata_Soil_phEC.csv")
+required_ph_ec_cols <- c("Plot", "pH", "EC", "Date")
+missing_ph_ec_cols <- setdiff(required_ph_ec_cols, names(ph_ec_raw))
+if (length(missing_ph_ec_cols) > 0) {
+  stop("Alldata_Soil_phEC.csv is missing required columns: ",
+       paste(missing_ph_ec_cols, collapse = ", "))
+}
+
+ph_ec_data <- ph_ec_raw %>%
+  mutate(
+    sample = suppressWarnings(as.integer(as.character(Plot))),
+    Date_parsed = as.Date(as.character(Date),
+                          tryFormats = c("%Y/%m/%d", "%Y-%m-%d", "%d/%m/%Y")),
+    pH = readr::parse_number(as.character(pH)),
+    EC = readr::parse_number(as.character(EC))
+  ) %>%
+  filter(Date_parsed == as.Date("2026-02-01"),
+         !is.na(sample), sample %in% 1:21) %>%
+  group_by(sample) %>%
+  summarise(
+    soil_pH = if (all(is.na(pH))) NA_real_ else mean(pH, na.rm = TRUE),
+    soil_EC = if (all(is.na(EC))) NA_real_ else mean(EC, na.rm = TRUE),
+    n_ph_ec_reps = n(),
+    .groups = "drop"
+  )
+
+if (nrow(ph_ec_data) == 0) {
+  stop("No soil pH/EC observations found for 1 February 2026. Check the Date column.")
+}
+if (anyDuplicated(ph_ec_data$sample)) {
+  stop("Duplicate plot rows found after averaging February 2026 soil pH/EC.")
+}
+
+
+# ---- Aggregate stability -------------------------------------------------
+
 calc_D <- function(gt2, gt025, gt0063, lt0063) {
   vals <- c(gt2, gt025, gt0063, lt0063)
   if (any(!is.finite(vals)) || any(vals <= 0)) return(NA_real_)
@@ -168,7 +174,8 @@ read_aggstab <- function(filename, extract_label) {
     ) %>%
     group_by(sample, extract_method) %>%
     summarise(
-      across(c(MWD, GMD, D), ~ if (all(is.na(.x))) NA_real_ else mean(.x, na.rm = TRUE)),
+      across(c(MWD, GMD, D),
+             ~ if (all(is.na(.x))) NA_real_ else mean(.x, na.rm = TRUE)),
       n_agg_reps = n(),
       .groups = "drop"
     ) %>%
@@ -185,11 +192,17 @@ agg_files <- c(
   h2o2 = "aggstab_2026_h2o2.csv",
   naoh = "aggstab_2026_naoh.csv"
 )
-agg_tables <- imap(agg_files, ~read_aggstab(.x, .y)) %>% compact()
-agg_data <- if (length(agg_tables)) reduce(agg_tables, full_join, by = "sample") else
-  tibble(sample = integer())
 
-# ---- DCB and oxalate-extractable elements -----------------------------------
+agg_tables <- imap(agg_files, ~ read_aggstab(.x, .y)) %>% compact()
+agg_data <- if (length(agg_tables)) {
+  reduce(agg_tables, full_join, by = "sample")
+} else {
+  tibble(sample = integer())
+}
+
+
+# ---- Oxalate and DCB mineral data ----------------------------------------
+
 ox_raw <- read_csv_required("oxalate_sesq_feb2026.csv")
 ox <- ox_raw %>%
   transmute(
@@ -213,6 +226,7 @@ dcb <- dcb_raw %>%
   )
 
 mineral_data <- full_join(ox, dcb, by = "sample")
+
 for (el in c("Fe", "Al", "Mn", "Si")) {
   ox_col <- paste0("ox_", el, "_mg_g")
   dcb_col <- paste0("dcb_", el, "_mg_g")
@@ -222,9 +236,183 @@ for (el in c("Fe", "Al", "Mn", "Si")) {
     mineral_data[[ox_col]] / mineral_data[[dcb_col]]
 }
 
-# ---- FTIR peak-area changes (source file is in outputs/, not csv_files/) -----
+
+# ---- Tessier extraction data ---------------------------------------------
+
+read_tessier <- function(filename, extract_label) {
+  dat <- read_csv_required(filename)
+  names(dat) <- make.names(names(dat), unique = TRUE)
+  nm <- names(dat)
+  
+  sample_col <- intersect(c("sample", "Sample", "Plot", "plot"), nm)[1]
+  if (is.na(sample_col)) {
+    stop(filename, ": cannot identify the sample/plot column.")
+  }
+  
+  find_col <- function(candidates) {
+    found <- intersect(candidates, names(dat))
+    if (length(found)) found[1] else NA_character_
+  }
+  
+  volume_col <- find_col(c(
+    "Corrected.extract.volume..mL.", "Corrected.extract.volume.mL.",
+    "Corrected.extract.volume..mL", "Extract.volume..mL.",
+    "Extract.volume.mL."
+  ))
+  mass_col <- find_col(c(
+    "Mass.soil..g.", "Mass.soil.g.", "Soil.mass..g.", "Soil.mass.g."
+  ))
+  
+  if (is.na(volume_col) || is.na(mass_col)) {
+    stop(filename,
+         ": cannot identify corrected extract volume and soil mass columns. ",
+         "Check names(dat) and update volume_col/mass_col candidates.")
+  }
+  
+  find_element_col <- function(element) {
+    find_col(c(
+      paste0(element, "..mg.L."), paste0(element, ".mg.L."),
+      paste0(element, "..mg.L"), paste0(element, ".mg.L")
+    ))
+  }
+  
+  out <- tibble(
+    sample = as.integer(dat[[sample_col]]),
+    extract_volume_mL = readr::parse_number(as.character(dat[[volume_col]])),
+    soil_mass_g = readr::parse_number(as.character(dat[[mass_col]]))
+  )
+  
+  for (el in c("Fe", "Al", "Mn", "Si", "Ca", "K", "Na", "Mg")) {
+    el_col <- find_element_col(el)
+    if (!is.na(el_col)) {
+      conc_mg_L <- readr::parse_number(as.character(dat[[el_col]]))
+      out[[paste0(el, "_mg_g")]] <- ifelse(
+        is.finite(conc_mg_L) &
+          is.finite(out$extract_volume_mL) & out$extract_volume_mL > 0 &
+          is.finite(out$soil_mass_g) & out$soil_mass_g > 0,
+        conc_mg_L * out$extract_volume_mL / 1000 / out$soil_mass_g,
+        NA_real_
+      )
+    }
+  }
+  
+  value_cols <- setdiff(names(out),
+                        c("sample", "extract_volume_mL", "soil_mass_g"))
+  if (!length(value_cols)) {
+    stop(filename, ": no recognised element concentration columns found.")
+  }
+  
+  out %>%
+    group_by(sample) %>%
+    summarise(
+      across(all_of(value_cols),
+             ~ if (all(is.na(.x))) NA_real_ else mean(.x, na.rm = TRUE)),
+      n_tessier_reps = n(),
+      .groups = "drop"
+    ) %>%
+    pivot_longer(
+      cols = all_of(value_cols),
+      names_to = "element",
+      values_to = "concentration_mg_g"
+    ) %>%
+    mutate(
+      element = str_remove(element, "_mg_g$"),
+      variable = paste0("Tessier_", extract_label, "_", element, "_mg_g")
+    ) %>%
+    select(sample, variable, concentration_mg_g) %>%
+    pivot_wider(names_from = variable, values_from = concentration_mg_g)
+}
+
+tessier_files <- c(
+  NH4OAc = "tessier_feb2026_nh4oac.csv",
+  Acetic = "tessier_feb2026_acetic.csv",
+  Hydroxylamine = "tessier_feb2026_hydroxylamine.csv",
+  H2O2 = "tessier_feb2026_h2o2.csv"
+)
+
+tessier_tables <- purrr::imap(tessier_files, ~ read_tessier(.x, .y))
+tessier_data <- purrr::reduce(tessier_tables, full_join, by = "sample")
+
+
+# ---- CEC data ------------------------------------------------------------
+
+cec_candidates <- c(
+  "CEC_Feb_26.csv", "CEC_Feb2026.csv",
+  "cec_feb2026.csv", "CEC_Feb_2026.csv"
+)
+
+cec_matches <- cec_candidates[file.exists(file.path(csv_dir, cec_candidates))]
+cec_filename <- if (length(cec_matches)) cec_matches[1] else NA_character_
+cec_data <- NULL
+
+if (!is.na(cec_filename)) {
+  cec_raw <- read_csv_required(cec_filename)
+  names(cec_raw) <- make.names(names(cec_raw), unique = TRUE)
+  
+  sample_col <- intersect(c("Sample", "sample", "Plot", "plot"),
+                          names(cec_raw))[1]
+  if (is.na(sample_col)) {
+    stop(cec_filename, ": cannot identify Sample/Plot column. Available columns: ",
+         paste(names(cec_raw), collapse = ", "))
+  }
+  
+  cec_column_map <- c(
+    H = "H...cmolg.kg.1.",
+    Ca = "CALCIUM..cmolg.kg.1.",
+    K = "KALIUM..cmolg.kg.1.",
+    Mg = "MAGNESIUM..cmolg.kg.1.",
+    Na = "NATRIUM..cmolg.kg.1.",
+    Al = "Aluminium..cmolg.kg.1.",
+    Fe = "Ijzer..cmolg.kg.1.",
+    Mn = "Mangaan..cmolg.kg.1.",
+    CEC = "CEC..cmolg.kg.1.",
+    Base_saturation = "Basesaturation...."
+  )
+  
+  available_map <- cec_column_map[cec_column_map %in% names(cec_raw)]
+  if (length(available_map) < 2) {
+    stop(cec_filename, ": fewer than two expected CEC variables found. Available columns: ",
+         paste(names(cec_raw), collapse = ", "))
+  }
+  
+  missing_cols <- setdiff(unname(cec_column_map), names(cec_raw))
+  if (length(missing_cols)) {
+    warning("CEC columns not found and skipped: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  cec_data <- data.frame(
+    sample = as.integer(readr::parse_number(as.character(cec_raw[[sample_col]])))
+  )
+  
+  for (variable in names(available_map)) {
+    cec_data[[variable]] <- readr::parse_number(
+      as.character(cec_raw[[unname(available_map[variable])]])
+    )
+  }
+  
+  cec_value_names <- setdiff(names(cec_data), "sample")
+  cec_data <- cec_data %>%
+    group_by(sample) %>%
+    summarise(
+      across(all_of(cec_value_names),
+             ~ if (all(is.na(.x))) NA_real_ else mean(.x, na.rm = TRUE)),
+      .groups = "drop"
+    )
+  
+  names(cec_data)[names(cec_data) != "sample"] <-
+    paste0("CEC_", names(cec_data)[names(cec_data) != "sample"])
+  
+  message("CEC loaded from: ", cec_filename)
+} else {
+  message("CEC file not found; CEC variables will be skipped.")
+}
+
+
+# ---- FTIR peak changes ---------------------------------------------------
+
 ftir_path <- file.path(outputs_dir, "ftir_peak_changes_feb2026.csv")
 ftir <- NULL
+
 if (file.exists(ftir_path)) {
   ftir_raw <- readr::read_csv(
     ftir_path, show_col_types = FALSE, na = c("", "NA", "#VALUE!")
@@ -234,7 +422,6 @@ if (file.exists(ftir_path)) {
     stop("FTIR file must contain a `sample` column with values such as soil1 ... soil21.")
   }
   
-  # Convert IDs like soil10 to numeric plot IDs (10). Numeric IDs are also accepted.
   ftir <- ftir_raw %>%
     mutate(
       sample = as.character(sample),
@@ -243,30 +430,20 @@ if (file.exists(ftir_path)) {
       sample = as.integer(sample)
     )
   
-  if (anyNA(ftir$sample)) {
-    stop("Could not convert one or more FTIR sample IDs to plot numbers 1-21.")
-  }
-  if (anyDuplicated(ftir$sample)) {
-    stop("FTIR file must have exactly one row per plot; duplicate sample IDs found.")
-  }
-  if (any(!ftir$sample %in% 1:21)) {
-    stop("FTIR sample IDs must correspond to plot numbers 1-21.")
-  }
+  if (anyNA(ftir$sample)) stop("Could not convert one or more FTIR sample IDs to plot numbers 1-21.")
+  if (anyDuplicated(ftir$sample)) stop("FTIR file must have exactly one row per plot; duplicate sample IDs found.")
+  if (any(!ftir$sample %in% 1:21)) stop("FTIR sample IDs must correspond to plot numbers 1-21.")
   
-  # Prefer existing change/delta variables in the source table. Calculate a
-  # change from *_before / *_after only when no equivalent change variable
-  # already exists, avoiding duplicate representations of the same FTIR result.
   change_cols_existing <- names(ftir)[
     str_detect(names(ftir), regex("delta|change_pct|pct_change|percent_change", ignore_case = TRUE))
   ]
+  
   normalise_band_name <- function(x) {
     key <- x %>%
       str_remove(regex("^FTIR_", ignore_case = TRUE)) %>%
       str_remove_all(regex("delta|change_pct|pct_change|percent_change|change|percent|pct", ignore_case = TRUE)) %>%
       str_remove_all("[^A-Za-z0-9]") %>%
       str_to_lower()
-    # Harmonise common shorthand/suffix variants so one physical band cannot
-    # appear twice under names such as delta_COO_total and COO_change_pct.
     key <- str_remove(key, "(peak)?area$")
     key <- str_remove(key, "^(peak|band)")
     key[key %in% c("coototal", "cooarea", "coocarboxylate", "carboxylate")] <- "coo"
@@ -275,8 +452,8 @@ if (file.exists(ftir_path)) {
     key[key %in% c("carbonatestretch", "carbonatestretching", "co3stretch")] <- "carbonatestretch"
     key
   }
-  existing_change_keys <- normalise_band_name(change_cols_existing)
   
+  existing_change_keys <- normalise_band_name(change_cols_existing)
   before_cols <- names(ftir)[str_ends(names(ftir), "_before")]
   paired_bands <- str_remove(before_cols, "_before")
   paired_bands <- paired_bands[paste0(paired_bands, "_after") %in% names(ftir)]
@@ -292,16 +469,12 @@ if (file.exists(ftir_path)) {
         existing_change_keys == band_key
     )
     
-    before_name <- paste0(band, "_before")
-    after_name <- paste0(band, "_after")
-    before_val <- suppressWarnings(as.numeric(ftir[[before_name]]))
-    after_val <- suppressWarnings(as.numeric(ftir[[after_name]]))
+    before_val <- suppressWarnings(as.numeric(ftir[[paste0(band, "_before")]]))
+    after_val <- suppressWarnings(as.numeric(ftir[[paste0(band, "_after")]]))
     
     if (!has_existing_delta) {
       ftir[[paste0("FTIR_delta_", make.names(band))]] <- after_val - before_val
     }
-    # Percent changes are unstable when the initial band area is near zero.
-    # Carbonate bend is excluded from newly calculated percentage changes.
     if (!has_existing_pct && band != "Carbonate_bend") {
       ftir[[paste0("FTIR_pct_change_", make.names(band))]] <- ifelse(
         is.finite(before_val) & abs(before_val) > 1e-8,
@@ -311,11 +484,6 @@ if (file.exists(ftir_path)) {
     }
   }
   
-  # Keep ONE FTIR change metric per underlying band. If both an absolute
-  # delta and a percentage-change column exist for the same band, prefer the
-  # absolute delta. If no delta exists, retain the percentage-change metric.
-  # This avoids feeding duplicate representations of the same band into the
-  # correlation matrix and PCA.
   change_cols <- names(ftir)[
     str_detect(names(ftir), regex("delta|change_pct|pct_change|percent_change", ignore_case = TRUE))
   ]
@@ -332,9 +500,7 @@ if (file.exists(ftir_path)) {
       TRUE ~ 3L
     )
     selected_change_cols <- tibble(
-      column = change_cols,
-      band_key = change_keys,
-      priority = change_priority
+      column = change_cols, band_key = change_keys, priority = change_priority
     ) %>%
       arrange(band_key, priority, column) %>%
       distinct(band_key, .keep_all = TRUE) %>%
@@ -343,51 +509,200 @@ if (file.exists(ftir_path)) {
     selected_change_cols <- character(0)
   }
   
-  ftir_out <- ftir %>% dplyr::select(sample, all_of(selected_change_cols))
-  # Prefix source variables to make their origin clear and avoid collisions.
-  names(ftir_out) <- ifelse(
-    names(ftir_out) == "sample" | str_starts(names(ftir_out), "FTIR_"),
-    names(ftir_out), paste0("FTIR_", names(ftir_out))
+  ftir <- ftir %>% select(sample, all_of(selected_change_cols))
+  names(ftir) <- ifelse(
+    names(ftir) == "sample" | str_starts(names(ftir), "FTIR_"),
+    names(ftir), paste0("FTIR_", names(ftir))
   )
-  ftir <- ftir_out
   
-  write_csv(ftir, file.path(out_dir, "ftir_peak_changes_calculated.csv"))
-  message("FTIR loaded from: ", ftir_path, " (", nrow(ftir),
-          " plots; existing delta/change variables retained and duplicate changes avoided).")
+  message("FTIR loaded from: ", ftir_path, " (", nrow(ftir), " plots).")
 } else {
   message("FTIR file not found; skipping: ", ftir_path)
 }
 
-# ---- Merge one row per plot; assert no row multiplication --------------------
+
+# ---- Integrate datasets, including Energy III clay -----------------------
+
+# ---- Pipette clay released at Energy III ------------------------------------
+# Expected file: outputs/clay_energy_iii.csv, one row per plot.
+# It must contain a sample/plot identifier and a numeric clay_energy_iii column.
+clay_energy_iii_path <- file.path(outputs_dir, "clay_energy_iii.csv")
+clay_energy_iii_data <- NULL
+
+if (file.exists(clay_energy_iii_path)) {
+  clay_raw <- readr::read_csv(
+    clay_energy_iii_path,
+    show_col_types = FALSE,
+    na = c("", "NA", "#VALUE!")
+  )
+  
+  # Accept common sample-ID spellings from the pipette-cleaning script.
+  sample_col <- intersect(c("sample", "Sample", "Plot", "plot"), names(clay_raw))[1]
+  if (is.na(sample_col)) {
+    stop("clay_energy_iii.csv must contain a sample/plot ID column. Columns found: ",
+         paste(names(clay_raw), collapse = ", "))
+  }
+  if (!"clay_energy_iii" %in% names(clay_raw)) {
+    stop("clay_energy_iii.csv must contain a `clay_energy_iii` column.")
+  }
+  
+  clay_energy_iii_data <- clay_raw %>%
+    transmute(
+      sample = suppressWarnings(as.integer(as.character(.data[[sample_col]]))),
+      clay_energy_iii = readr::parse_number(as.character(clay_energy_iii))
+    ) %>%
+    filter(!is.na(sample))
+  
+  if (anyDuplicated(clay_energy_iii_data$sample)) {
+    stop("clay_energy_iii.csv must contain only one row per sample/plot.")
+  }
+  if (any(!clay_energy_iii_data$sample %in% 1:21)) {
+    stop("clay_energy_iii.csv contains sample IDs outside the expected range 1-21.")
+  }
+  message("Energy III clay data loaded from: ", clay_energy_iii_path)
+} else {
+  warning("clay_energy_iii.csv not found in outputs; Energy III clay will be omitted.")
+}
+
 integrated <- metadata %>%
   full_join(cn_wide, by = "sample") %>%
   full_join(agg_data, by = "sample") %>%
   full_join(mineral_data, by = "sample") %>%
+  full_join(tessier_data, by = "sample") %>%
   full_join(ph_ec_data, by = "sample")
+
+if (!is.null(cec_data)) integrated <- integrated %>% full_join(cec_data, by = "sample")
 if (!is.null(ftir)) integrated <- integrated %>% full_join(ftir, by = "sample")
+if (!is.null(clay_energy_iii_data)) {
+  integrated <- integrated %>% full_join(clay_energy_iii_data, by = "sample")
+}
 
 if (anyDuplicated(integrated$sample)) {
   stop("Integrated data has duplicate sample rows after joining. Check source keys.")
 }
-write_csv(integrated, file.path(out_dir, "integrated_sample_level_data.csv"))
 
-# ---- Correlation analysis ----------------------------------------------------
-# Spearman correlations use pairwise-complete observations. Report n and raw/BH
-# adjusted p-values for each pair. Metadata/dose columns are excluded.
-correlate_vars <- function(dat, group_name) {
+integrated <- integrated %>%
+  mutate(Basalt_type_exp = if_else(sample == 9L, TRUE, Basalt_type_exp))
+
+
+# ---- 2026 radiocarbon ----------------------------------------------------
+
+radiocarbon_file <- here::here("outputs", "radiocarbon_samples.csv")
+if (!file.exists(radiocarbon_file)) stop("Radiocarbon file not found: ", radiocarbon_file)
+
+radiocarbon_samples <- readr::read_csv(
+  radiocarbon_file, show_col_types = FALSE, na = c("", "NA", "#VALUE!")
+)
+
+required_14c_cols <- c("Plot", "Sampling_year", "SOM_fraction", "X.14C.....")
+missing_14c_cols <- setdiff(required_14c_cols, names(radiocarbon_samples))
+if (length(missing_14c_cols)) {
+  stop("Missing required radiocarbon columns: ", paste(missing_14c_cols, collapse = ", "))
+}
+
+radiocarbon_2026 <- radiocarbon_samples %>%
+  filter(Sampling_year == 2026) %>%
+  transmute(
+    sample = as.integer(Plot),
+    SOM_fraction = as.character(SOM_fraction),
+    d14C = readr::parse_number(as.character(X.14C.....))
+  ) %>%
+  filter(!is.na(sample), !is.na(SOM_fraction),
+         SOM_fraction %in% c("Bulk", "MAOM", "oPOM", "fPOM"))
+
+duplicate_14c <- radiocarbon_2026 %>%
+  count(sample, SOM_fraction) %>%
+  filter(n > 1)
+
+if (nrow(duplicate_14c) > 0) {
+  print(duplicate_14c)
+  stop("Duplicate 2026 radiocarbon measurements found for plot/fraction. Resolve these before joining.")
+}
+
+radiocarbon_2026_wide <- radiocarbon_2026 %>%
+  mutate(variable = paste0("d14C_2026_", SOM_fraction)) %>%
+  select(sample, variable, d14C) %>%
+  pivot_wider(names_from = variable, values_from = d14C)
+
+integrated <- integrated %>% left_join(radiocarbon_2026_wide, by = "sample")
+d14c_cols <- grep("^d14C_2026_", names(integrated), value = TRUE)
+
+if (!length(d14c_cols)) {
+  warning("No 2026 Δ14C columns were created. Check the source data.")
+} else {
+  message("Plots with at least one non-missing 2026 Δ14C value: ",
+          sum(rowSums(!is.na(integrated[, d14c_cols, drop = FALSE])) > 0))
+}
+
+
+# ---- Restrict integrated dataset to requested columns ----------------------
+
+# Keep the requested metadata/carbon-concentration columns for plot labelling
+# and inspection, but do not use them as correlation or MLR predictors.
+explicit_keep <- c(
+  "sample", "Treatment", "Basalt_type_exp", "Dose_resp_exp",
+  "C_Bulk", "C_MAOM", "C_oPOM", "C_fPOM",
+  "Agg stab", "GMD_h2o", "GMD_oxalate",
+  "Fe_ox_over_DCB", "Al_ox_over_DCB", "Mn_ox_over_DCB", "Si_ox_over_DCB",
+  "Tessier_Acetic_Ca_mg_g", "Tessier_Acetic_K_mg_g",
+  "Tessier_Acetic_Na_mg_g", "Tessier_Acetic_Mg_mg_g",
+  "Tessier_Hydroxylamine_Fe_mg_g", "Tessier_Hydroxylamine_Al_mg_g",
+  "Tessier_Hydroxylamine_Mn_mg_g", "Tessier_Hydroxylamine_Si_mg_g",
+  "soil_pH", "soil_EC"
+)
+
+pattern_keep <- unique(c(
+  grep("^Tessier_H2O2", names(integrated), value = TRUE),
+  grep("^CEC", names(integrated), value = TRUE),
+  setdiff(
+    grep("^FTIR_delta", names(integrated), value = TRUE),
+    c("FTIR_delta_dataset", "FTIR_delta_Dose_resp_exp")
+  ),
+  grep("^d14C", names(integrated), value = TRUE)
+))
+keep_cols <- unique(c(intersect(explicit_keep, names(integrated)), pattern_keep))
+missing_requested <- setdiff(explicit_keep, names(integrated))
+if (length(missing_requested)) {
+  message("Requested columns not present in the integrated data (skipped): ",
+          paste(missing_requested, collapse = ", "))
+}
+integrated <- integrated %>% select(all_of(keep_cols))
+
+# Only these geochemical/soil-property variables enter correlation analyses.
+# Metadata and C_Bulk/C_MAOM/C_oPOM/C_fPOM remain available for plotting/context,
+# but are deliberately excluded from correlations and MLR predictors.
+geochem_vars <- names(integrated)[
+  names(integrated) %in% c(
+    "Agg stab", "GMD_h2o", "GMD_oxalate",
+    "Fe_ox_over_DCB", "Al_ox_over_DCB", "Mn_ox_over_DCB", "Si_ox_over_DCB",
+    "Tessier_Acetic_Ca_mg_g", "Tessier_Acetic_K_mg_g",
+    "Tessier_Acetic_Na_mg_g", "Tessier_Acetic_Mg_mg_g",
+    "Tessier_Hydroxylamine_Fe_mg_g", "Tessier_Hydroxylamine_Al_mg_g",
+    "Tessier_Hydroxylamine_Mn_mg_g", "Tessier_Hydroxylamine_Si_mg_g",
+    "soil_pH", "soil_EC"
+  ) |
+    str_starts(names(integrated), "Tessier_H2O2") |
+    str_starts(names(integrated), "CEC") |
+    (str_starts(names(integrated), "FTIR_delta") &
+       !names(integrated) %in% c("FTIR_delta_dataset", "FTIR_delta_Dose_resp_exp")) |
+    str_starts(names(integrated), "d14C")
+]
+
+correlate_vars <- function(dat, group_name, variables = geochem_vars) {
   numeric_data <- dat %>%
-    dplyr::select(where(is.numeric)) %>%
-    dplyr::select(-any_of(c("sample", names(dat)[str_detect(names(dat), "^n_agg_reps")])) ) %>%
-    dplyr::select(where(~sum(is.finite(.x)) >= 3 && is.finite(sd(.x, na.rm = TRUE)) && sd(.x, na.rm = TRUE) > 0))
+    select(any_of(variables)) %>%
+    select(where(is.numeric)) %>%
+    select(where(~ sum(is.finite(.x)) >= 3 &&
+                   is.finite(sd(.x, na.rm = TRUE)) &&
+                   sd(.x, na.rm = TRUE) > 0))
   
   if (ncol(numeric_data) < 2) {
-    message("Not enough numeric variables for correlations in ", group_name)
-    return(invisible(NULL))
+    message("Not enough numeric geochemistry variables for correlations in ", group_name)
+    return(NULL)
   }
   
   vars <- names(numeric_data)
-  cor_mat <- matrix(NA_real_, nrow = length(vars), ncol = length(vars),
-                    dimnames = list(vars, vars))
+  cor_mat <- matrix(NA_real_, length(vars), length(vars), dimnames = list(vars, vars))
   p_mat <- cor_mat
   n_mat <- cor_mat
   
@@ -412,187 +727,128 @@ correlate_vars <- function(dat, group_name) {
   pairs <- expand_grid(var1 = vars, var2 = vars) %>%
     filter(match(var1, vars) < match(var2, vars)) %>%
     mutate(
-      rho = map2_dbl(var1, var2, ~cor_mat[.x, .y]),
-      p_value = map2_dbl(var1, var2, ~p_mat[.x, .y]),
-      n = map2_dbl(var1, var2, ~n_mat[.x, .y]),
+      rho = map2_dbl(var1, var2, ~ cor_mat[.x, .y]),
+      p_value = map2_dbl(var1, var2, ~ p_mat[.x, .y]),
+      n = map2_dbl(var1, var2, ~ n_mat[.x, .y]),
       p_adj_BH = p.adjust(p_value, method = "BH"),
       abs_rho = abs(rho)
     ) %>%
     arrange(p_adj_BH, desc(abs_rho))
   
-  write_csv(pairs, file.path(out_dir, paste0("spearman_pairs_", group_name, ".csv")))
-  write.csv(cor_mat, file.path(out_dir, paste0("spearman_rho_", group_name, ".csv")))
-  write.csv(p_mat, file.path(out_dir, paste0("spearman_p_", group_name, ".csv")))
-  write.csv(n_mat, file.path(out_dir, paste0("spearman_n_", group_name, ".csv")))
-  
-  png(file.path(out_dir, paste0("spearman_heatmap_", group_name, ".png")),
-      width = 2600, height = 2400, res = 220)
-  corrplot(cor_mat, method = "color", type = "upper", order = "hclust",
-           tl.col = "black", tl.cex = 0.55, tl.srt = 45, na.label = " ")
-  dev.off()
-  
-  invisible(list(cor = cor_mat, p = p_mat, n = n_mat, pairs = pairs, variables = vars))
+  invisible(list(cor = cor_mat, p = p_mat, n = n_mat,
+                 pairs = pairs, variables = vars))
 }
 
 all_results <- correlate_vars(integrated, "all_plots")
-# Overlapping experiment flags are intentional: controls and Huhnerberg_50 plots
-# can be included in both subsets as defined in treatment_names.csv.
-basalt_results <- correlate_vars(filter(integrated, Basalt_type_exp), "basalt_type_exp")
-dose_results <- correlate_vars(filter(integrated, Dose_resp_exp), "dose_response_exp")
+basalt_results <- correlate_vars(filter(integrated, Basalt_type_exp %in% TRUE), "basalt_type_exp")
+dose_results <- correlate_vars(filter(integrated, Dose_resp_exp %in% TRUE), "dose_response_exp")
 
-# ---- Scatterplots between variables from different analyses ------------------
-# Only plot cross-domain pairs (e.g. FTIR vs aggregate stability, or FTIR vs
-# oxalate/DCB variables). Do not plot pairs within the same analysis/domain.
-# PCA variable selection uses cross-analysis pairs with |Spearman rho| >= 0.5.
-# Scatterplots are restricted to cross-analysis pairs with |Spearman rho| >= 0.7.
-# (The negative cut-offs indicate that these thresholds refer to rho, not p-values.)
+# Save heatmaps and the underlying correlation/p-value tables.
+save_corrplot <- function(result, file_stub) {
+  if (is.null(result)) return(invisible(NULL))
+  grDevices::png(file.path(cor_out_dir, paste0(file_stub, ".png")),
+                 width = 3600, height = 3200, res = 300)
+  corrplot::corrplot(
+    result$cor, method = "color", type = "upper", order = "hclust",
+    tl.col = "black", tl.cex = 0.55, tl.srt = 45, na.label = " "
+  )
+  grDevices::dev.off()
+  readr::write_csv(as.data.frame(result$pairs),
+                   file.path(cor_out_dir, paste0(file_stub, "_pairwise_statistics.csv")))
+  readr::write_csv(as.data.frame(result$cor) %>% rownames_to_column("variable"),
+                   file.path(cor_out_dir, paste0(file_stub, "_rho_matrix.csv")))
+  invisible(NULL)
+}
+
+save_corrplot(all_results, "spearman_all_plots")
+save_corrplot(basalt_results, "spearman_basalt_type")
+save_corrplot(dose_results, "spearman_dose_response")
+
+# ---- Select cross-domain variables for PCA (no scatterplots are generated) --
+
 classify_analysis <- function(variable) {
-  dplyr::case_when(
-    stringr::str_starts(variable, "FTIR_") ~ "FTIR",
-    stringr::str_detect(variable, "^(MWD|GMD|D)_") ~ "Aggregate_stability",
-    stringr::str_detect(variable, "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$") ~ "Oxalate_DCB",
-    stringr::str_starts(variable, "C_") ~ "C_fractions",
-    stringr::str_starts(variable, "soil_") ~ "Soil_chemistry",
+  case_when(
+    str_starts(variable, "FTIR_delta") ~ "Cation_bridging_FTIR",
+    str_starts(variable, "Tessier_") ~ "Secondary_minerals_Tessier",
+    str_starts(variable, "CEC") ~ "Mineralogy_CEC",
+    str_starts(variable, "d14C") ~ "Predicted_persistence_d14C",
+    str_starts(variable, "soil_") ~ "Soil_chemistry",
+    str_starts(variable, "clay_") ~ "Clay_dispersion",
+    variable %in% c("Agg stab", "GMD_h2o", "GMD_oxalate") ~ "Aggregate_stability",
+    str_detect(variable, "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$") ~ "Secondary_minerals_oxalate_DCB",
+    variable %in% c("Fe_ox_over_DCB", "Al_ox_over_DCB", "Mn_ox_over_DCB", "Si_ox_over_DCB") ~ "Secondary_minerals_oxalate_DCB",
     TRUE ~ "Other"
   )
 }
 
+selected_cross_pca_vars <- character(0)
+cross_analysis_pairs_all <- tibble()
+cross_analysis_pairs <- tibble()
+
 if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
-  treatment_levels <- sort(unique(stats::na.omit(as.character(integrated$Treatment))))
-  treatment_palette <- stats::setNames(
-    grDevices::hcl.colors(max(1, length(treatment_levels)), palette = "Dynamic"),
-    treatment_levels
-  )
-  
   cross_analysis_pairs_all <- all_results$pairs %>%
-    dplyr::mutate(
-      analysis_1 = classify_analysis(var1),
-      analysis_2 = classify_analysis(var2)
-    ) %>%
-    dplyr::filter(
-      is.finite(rho), is.finite(p_value),
-      analysis_1 != analysis_2,
-      analysis_1 != "Other", analysis_2 != "Other"
-    ) %>%
-    dplyr::arrange(p_value, dplyr::desc(abs_rho))
+    mutate(analysis_1 = classify_analysis(var1), analysis_2 = classify_analysis(var2)) %>%
+    filter(is.finite(rho), is.finite(p_value),
+           analysis_1 != analysis_2,
+           analysis_1 != "Other", analysis_2 != "Other") %>%
+    arrange(p_value, desc(abs_rho))
   
-  # Save all cross-analysis pairs for reference, plus the subset used for plots.
-  readr::write_csv(
-    cross_analysis_pairs_all,
-    file.path(out_dir, "spearman_pairs_all_cross_analysis.csv")
-  )
-  
-  # Variables entering PCA: any variable involved in at least one cross-analysis
-  # association with an absolute Spearman rho of 0.5 or greater.
   selected_cross_pca_vars <- cross_analysis_pairs_all %>%
-    dplyr::filter(abs_rho >= 0.5) %>%
-    dplyr::select(var1, var2) %>%
+    filter(abs_rho >= 0.5) %>%
+    select(var1, var2) %>%
     unlist(use.names = FALSE) %>%
     unique() %>%
     intersect(all_results$variables)
-  readr::write_csv(
-    tibble::tibble(variable = selected_cross_pca_vars),
-    file.path(out_dir, "PCA_variables_cross_analysis_abs_rho_ge_0.5.csv")
-  )
   
-  # Scatterplots only for stronger cross-analysis relationships: |rho| >= 0.7.
   cross_analysis_pairs <- cross_analysis_pairs_all %>%
-    dplyr::filter(abs_rho >= 0.7) %>%
-    dplyr::arrange(p_value, dplyr::desc(abs_rho))
+    filter(abs_rho >= 0.7) %>%
+    arrange(p_value, desc(abs_rho))
   
-  readr::write_csv(
-    cross_analysis_pairs,
-    file.path(out_dir, "spearman_pairs_cross_analysis_scatterplots_abs_rho_ge_0.7.csv")
-  )
-  
-  if (nrow(cross_analysis_pairs) > 0) {
-    for (k in seq_len(nrow(cross_analysis_pairs))) {
-      pair <- cross_analysis_pairs[k, ]
-      xvar <- pair$var1[[1]]
-      yvar <- pair$var2[[1]]
-      plot_data <- integrated %>%
-        dplyr::select(Treatment, dplyr::all_of(c(xvar, yvar))) %>%
-        dplyr::filter(is.finite(.data[[xvar]]), is.finite(.data[[yvar]]))
-      
-      p <- ggplot(plot_data, aes(x = .data[[xvar]], y = .data[[yvar]])) +
-        geom_point(aes(color = Treatment), size = 2.5, alpha = 0.85, na.rm = TRUE) +
-        geom_smooth(method = "lm", se = TRUE, color = "black", linewidth = 0.7,
-                    na.rm = TRUE) +
-        labs(
-          title = paste0(yvar, " vs ", xvar),
-          subtitle = paste0(
-            pair$analysis_1[[1]], " vs ", pair$analysis_2[[1]],
-            " | Spearman rho = ", round(pair$rho[[1]], 2),
-            "; raw p = ", signif(pair$p_value[[1]], 2),
-            "; BH-adjusted p = ", signif(pair$p_adj_BH[[1]], 2),
-            "; paired n = ", pair$n[[1]]
-          ),
-          x = xvar, y = yvar, color = "Treatment"
-        ) +
-        scale_colour_manual(values = treatment_palette, na.translate = FALSE) +
-        theme_bw(base_size = 11) +
-        theme(legend.position = "bottom")
-      
-      ggsave(
-        file.path(out_dir, paste0(
-          "scatter_cross_analysis_", sprintf("%03d", k), "_",
-          make.names(xvar), "_vs_", make.names(yvar), ".png"
-        )),
-        p, width = 7, height = 5, dpi = 300
-      )
-    }
-    message("Created ", nrow(cross_analysis_pairs),
-            " scatterplots between different analysis domains.")
-  } else {
-    message("No cross-analysis variable pairs met the plotting criteria.")
-  }
+  readr::write_csv(cross_analysis_pairs_all,
+                   file.path(pca_out_dir, "cross_domain_correlation_pairs.csv"))
 }
 
-# ---- Two subset-specific PCAs using strong cross-analysis variables ---------
-# Each PCA uses only variables involved in at least one cross-analysis pair with
-# |Spearman rho| >= 0.5, and is fitted independently within its experiment.
-# The experiment flags intentionally overlap: controls and Huhnerberg 50 t/ha
-# plots may occur in both analyses when marked that way in treatment_names.csv.
+# ---- PCA function --------------------------------------------------------
+
+# ---- Code section 17 -----------------------------------------------------
+
 run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
-  safe_name <- make.names(subset_name)
   available_vars <- intersect(variable_set, names(data_subset))
+  
   if (nrow(data_subset) < 3 || length(available_vars) < 2) {
-    message("PCA skipped for ", subset_name,
-            ": fewer than 3 plots or fewer than 2 selected cross-analysis variables.")
-    return(invisible(NULL))
+    cat("PCA skipped for ", subset_name,
+        ": fewer than 3 plots or fewer than 2 selected variables.\n", sep = "")
+    return(NULL)
   }
   
-  pca_input <- data_subset %>% dplyr::select(dplyr::all_of(available_vars))
-  pca_missing <- tibble(
-    variable = names(pca_input),
-    n_missing_before_imputation = vapply(pca_input, function(x) sum(!is.finite(x)), integer(1)),
-    n_observed = vapply(pca_input, function(x) sum(is.finite(x)), integer(1)),
-    median_imputed_value = vapply(pca_input, function(x) {
-      if (all(!is.finite(x))) NA_real_ else median(x[is.finite(x)])
-    }, numeric(1))
-  )
+  pca_input <- data_subset %>% select(all_of(available_vars))
+  n_observed <- vapply(pca_input, function(x) sum(is.finite(x)), integer(1))
+  medians <- vapply(pca_input, function(x) {
+    if (all(!is.finite(x))) NA_real_ else median(x[is.finite(x)])
+  }, numeric(1))
   
-  usable_vars <- pca_missing %>%
-    filter(n_observed >= 3, is.finite(median_imputed_value)) %>%
-    pull(variable)
-  pca_matrix <- as.data.frame(pca_input %>% dplyr::select(all_of(usable_vars)))
+  usable_vars <- names(pca_input)[n_observed >= 3 & is.finite(medians)]
+  pca_matrix <- as.data.frame(pca_input %>% select(all_of(usable_vars)))
+  
   for (nm in names(pca_matrix)) {
     x <- pca_matrix[[nm]]
     x[!is.finite(x)] <- median(x[is.finite(x)])
     pca_matrix[[nm]] <- x
   }
+  
   nonconstant <- names(pca_matrix)[vapply(pca_matrix, function(x) {
     is.finite(sd(x)) && sd(x) > 0
   }, logical(1))]
   pca_matrix <- pca_matrix[, nonconstant, drop = FALSE]
   
   if (ncol(pca_matrix) < 2) {
-    message("PCA skipped for ", subset_name, ": fewer than two usable non-constant variables.")
-    return(invisible(NULL))
+    cat("PCA skipped for ", subset_name, ": fewer than two usable non-constant variables.\n", sep = "")
+    return(NULL)
   }
   
   pca_fit <- prcomp(pca_matrix, center = TRUE, scale. = TRUE)
   variance_pct <- 100 * (pca_fit$sdev^2 / sum(pca_fit$sdev^2))
+  
   pca_scores <- as_tibble(pca_fit$x, .name_repair = "minimal") %>%
     mutate(
       sample = data_subset$sample,
@@ -605,52 +861,56 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
     variance_explained_pct = variance_pct,
     cumulative_variance_pct = cumsum(variance_pct)
   )
-  contribution <- as_tibble(pca_fit$rotation^2, rownames = "variable") %>%
-    mutate(across(-variable, ~100 * .x / sum(.x)))
-  
-  write_csv(pca_scores, file.path(out_dir, paste0("PCA_scores_", safe_name, ".csv")))
-  write_csv(pca_loadings, file.path(out_dir, paste0("PCA_loadings_", safe_name, ".csv")))
-  write_csv(contribution, file.path(out_dir, paste0("PCA_variable_contributions_pct_", safe_name, ".csv")))
-  write_csv(pca_variance, file.path(out_dir, paste0("PCA_variance_explained_", safe_name, ".csv")))
-  write_csv(pca_missing, file.path(out_dir, paste0("PCA_variable_coverage_and_imputation_", safe_name, ".csv")))
   
   treatment_levels <- sort(unique(stats::na.omit(pca_scores$Treatment)))
   treatment_palette <- stats::setNames(
-    grDevices::hcl.colors(length(treatment_levels), palette = "Dynamic"),
+    grDevices::hcl.colors(max(1, length(treatment_levels)), palette = "Dynamic"),
     treatment_levels
   )
+  
   pc1_pct <- round(variance_pct[1], 1)
   pc2_pct <- round(variance_pct[2], 1)
   score_range <- max(abs(c(pca_scores$PC1, pca_scores$PC2)), na.rm = TRUE)
   loading_range <- max(abs(c(pca_fit$rotation[, 1], pca_fit$rotation[, 2])), na.rm = TRUE)
-  arrow_scale <- if (is.finite(loading_range) && loading_range > 0) 0.72 * score_range / loading_range else 1
+  arrow_scale <- if (is.finite(loading_range) && loading_range > 0) {
+    0.72 * score_range / loading_range
+  } else 1
+  
   arrow_df <- pca_loadings %>%
     transmute(variable, PC1 = PC1 * arrow_scale, PC2 = PC2 * arrow_scale)
   
   p_biplot <- ggplot(pca_scores, aes(x = PC1, y = PC2)) +
     geom_hline(yintercept = 0, linewidth = 0.35, colour = "grey78") +
     geom_vline(xintercept = 0, linewidth = 0.35, colour = "grey78") +
-    stat_ellipse(aes(group = Treatment, colour = Treatment), type = "t", level = 0.68,
-                 linewidth = 0.7, show.legend = FALSE, na.rm = TRUE) +
+    stat_ellipse(aes(group = Treatment, colour = Treatment), type = "t",
+                 level = 0.68, linewidth = 0.7, show.legend = FALSE, na.rm = TRUE) +
     geom_point(aes(colour = Treatment), size = 3, alpha = 0.9, na.rm = TRUE) +
     geom_text(aes(label = sample_label), colour = "black", size = 3,
               vjust = -0.8, check_overlap = TRUE, show.legend = FALSE) +
-    geom_segment(data = arrow_df, aes(x = 0, y = 0, xend = PC1, yend = PC2),
-                 inherit.aes = FALSE,
-                 arrow = grid::arrow(length = grid::unit(0.18, "cm")),
-                 colour = "grey20", linewidth = 0.55) +
+    geom_segment(
+      data = arrow_df,
+      aes(x = 0, y = 0, xend = PC1, yend = PC2),
+      inherit.aes = FALSE,
+      arrow = grid::arrow(length = grid::unit(0.18, "cm")),
+      colour = "grey20", linewidth = 0.55
+    ) +
     geom_text(data = arrow_df, aes(x = PC1, y = PC2, label = variable),
               inherit.aes = FALSE, colour = "grey10", size = 2.8,
               check_overlap = TRUE, vjust = -0.45) +
     scale_colour_manual(values = treatment_palette, na.translate = FALSE) +
-    labs(title = plot_title,
-         subtitle = paste0("Same starting variables as all-plots correlation analysis; n = ", nrow(pca_scores)),
-         x = paste0("PC1 (", pc1_pct, "% variance)"),
-         y = paste0("PC2 (", pc2_pct, "% variance)"), colour = "Treatment") +
+    labs(
+      title = plot_title,
+      subtitle = paste0("Strong cross-analysis variables; n = ", nrow(pca_scores)),
+      x = paste0("PC1 (", pc1_pct, "% variance)"),
+      y = paste0("PC2 (", pc2_pct, "% variance)"),
+      colour = "Treatment"
+    ) +
     theme_bw(base_size = 11) +
     theme(legend.position = "bottom", legend.box = "vertical")
-  ggsave(file.path(out_dir, paste0("PCA_biplot_", safe_name, ".png")),
-         p_biplot, width = 13, height = 10, dpi = 300)
+  
+  ggsave(file.path(pca_out_dir, paste0(subset_name, "_biplot.png")),
+         p_biplot, width = 11, height = 8, dpi = 300, bg = "white")
+  print(p_biplot)
   
   p_scores <- ggplot(pca_scores, aes(x = PC1, y = PC2, colour = Treatment)) +
     geom_hline(yintercept = 0, linewidth = 0.35, colour = "grey78") +
@@ -661,61 +921,385 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
     geom_text(aes(label = sample_label), colour = "black", size = 3,
               vjust = -0.8, check_overlap = TRUE, show.legend = FALSE) +
     scale_colour_manual(values = treatment_palette, na.translate = FALSE) +
-    labs(title = paste0(plot_title, " — sample scores"),
-         x = paste0("PC1 (", pc1_pct, "% variance)"),
-         y = paste0("PC2 (", pc2_pct, "% variance)"), colour = "Treatment") +
-    theme_bw(base_size = 11) + theme(legend.position = "bottom")
-  ggsave(file.path(out_dir, paste0("PCA_scores_", safe_name, ".png")),
-         p_scores, width = 9, height = 7, dpi = 300)
+    labs(
+      title = paste0(plot_title, " — sample scores"),
+      x = paste0("PC1 (", pc1_pct, "% variance)"),
+      y = paste0("PC2 (", pc2_pct, "% variance)"),
+      colour = "Treatment"
+    ) +
+    theme_bw(base_size = 11) +
+    theme(legend.position = "bottom")
+  ggsave(file.path(pca_out_dir, paste0(subset_name, "_scores.png")),
+         p_scores, width = 9, height = 7, dpi = 300, bg = "white")
+  print(p_scores)
   
-  scree_df <- pca_variance %>% slice_head(n = min(10, n()))
-  p_scree <- ggplot(scree_df, aes(x = factor(PC, levels = PC), y = variance_explained_pct)) +
+  scree_df <- pca_variance %>% slice_head(n = min(10, nrow(pca_variance)))
+  p_scree <- ggplot(scree_df, aes(x = factor(PC, levels = PC),
+                                  y = variance_explained_pct)) +
     geom_col(fill = "grey45") +
     geom_point(aes(y = cumulative_variance_pct), size = 2) +
     geom_line(aes(y = cumulative_variance_pct, group = 1), linewidth = 0.6) +
-    labs(title = paste0(plot_title, " — variance explained"), x = "Principal component",
-         y = "Variance explained (%) / cumulative variance (%)") +
+    labs(
+      title = paste0(plot_title, " — variance explained"),
+      x = "Principal component",
+      y = "Variance explained (%) / cumulative variance (%)"
+    ) +
     theme_bw(base_size = 11)
-  ggsave(file.path(out_dir, paste0("PCA_scree_plot_", safe_name, ".png")),
-         p_scree, width = 8, height = 5, dpi = 300)
+  ggsave(file.path(pca_out_dir, paste0(subset_name, "_scree.png")),
+         p_scree, width = 9, height = 6, dpi = 300, bg = "white")
+  print(p_scree)
   
-  message("PCA complete for ", subset_name, ": ", ncol(pca_matrix), " variables, ",
-          nrow(pca_scores), " plots.")
+  readr::write_csv(pca_scores, file.path(pca_out_dir, paste0(subset_name, "_scores.csv")))
+  readr::write_csv(pca_loadings, file.path(pca_out_dir, paste0(subset_name, "_loadings.csv")))
+  readr::write_csv(pca_variance, file.path(pca_out_dir, paste0(subset_name, "_variance_explained.csv")))
+  
   invisible(list(scores = pca_scores, loadings = pca_loadings,
-                 contribution = contribution, variance = pca_variance))
+                 variance = pca_variance, fit = pca_fit))
 }
 
-if (!is.null(all_results) && exists("selected_cross_pca_vars") && length(selected_cross_pca_vars) >= 2) {
-  # Basalt_type_exp is the application-rate 50 t/ha experiment; Dose_resp_exp
-  # is the Huhnerberg dose-response series. Metadata flags define membership.
+
+# ---- Code section 18 -----------------------------------------------------
+
+if (!is.null(all_results) && length(selected_cross_pca_vars) >= 2) {
   pca_application_50 <- run_subset_pca(
     filter(integrated, Basalt_type_exp),
     "application_50_t_ha",
-    "PCA — basalt types at 50 t/ha (strong cross-analysis variables)",
-    selected_cross_pca_vars
-  )
-  pca_dose_response <- run_subset_pca(
-    filter(integrated, Dose_resp_exp),
-    "dose_response",
-    "PCA — Huhnerberg dose response (strong cross-analysis variables)",
+    "PCA — basalt types at 50 t/ha",
     selected_cross_pca_vars
   )
 } else {
-  message("Subset PCAs skipped: fewer than two variables occur in cross-analysis pairs with |Spearman rho| >= 0.5.")
+  cat("PCA skipped: fewer than two variables met the cross-analysis |rho| ≥ 0.5 criterion.")
 }
 
-# ---- Data coverage and reproducibility --------------------------------------
-coverage <- tibble(
-  n_plot_rows = nrow(integrated),
-  plots_with_soil_pH = if ("soil_pH" %in% names(integrated)) sum(!is.na(integrated$soil_pH)) else 0,
-  plots_with_soil_EC = if ("soil_EC" %in% names(integrated)) sum(!is.na(integrated$soil_EC)) else 0,
-  plots_with_MAOM_C = if ("C_MAOM" %in% names(integrated)) sum(!is.na(integrated$C_MAOM)) else 0,
-  plots_with_oPOM_C = if ("C_oPOM" %in% names(integrated)) sum(!is.na(integrated$C_oPOM)) else 0,
-  plots_with_any_FTIR = if (any(startsWith(names(integrated), "FTIR_"))) {
-    ftir_cols <- names(integrated)[startsWith(names(integrated), "FTIR_")]
-    sum(rowSums(!is.na(as.data.frame(integrated[, ftir_cols, drop = FALSE]))) > 0)
-  } else 0
+
+# ---- Code section 19 -----------------------------------------------------
+
+if (!is.null(all_results) && length(selected_cross_pca_vars) >= 2) {
+  pca_dose_response <- run_subset_pca(
+    filter(integrated, Dose_resp_exp),
+    "dose_response",
+    "PCA — Hühnerberg dose response",
+    selected_cross_pca_vars
+  )
+}
+
+
+
+# =============================================================================
+# FOUR STEPWISE MLR MODELS: 2026 DELTA-14C
+# One model per response, using all eligible integrated soil indices.
+# =============================================================================
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(car)
+})
+
+# The MLR response variables are Δ14C; candidate predictors are restricted to
+# the same explicitly defined geochemical variables used for correlations.
+responses <- c(
+  "d14C_2026_Bulk",
+  "d14C_2026_MAOM",
+  "d14C_2026_fPOM",
+  "d14C_2026_oPOM"
 )
-write_csv(coverage, file.path(out_dir, "data_coverage_summary.csv"))
-writeLines(capture.output(sessionInfo()), file.path(out_dir, "sessionInfo.txt"))
-message("Integrated analysis finished. Results in: ", normalizePath(out_dir))
+
+max_predictors <- 3L
+min_n <- 10L
+candidate_predictors <- setdiff(geochem_vars, responses)
+candidate_predictors <- candidate_predictors[
+  candidate_predictors %in% names(integrated) &
+    vapply(candidate_predictors, function(v) is.numeric(integrated[[v]]), logical(1))
+]
+candidate_predictors <- candidate_predictors[vapply(candidate_predictors, function(v) {
+  x <- integrated[[v]]
+  x <- x[is.finite(x)]
+  length(x) >= min_n && length(unique(x)) > 1
+}, logical(1))]
+
+if (!length(candidate_predictors)) {
+  stop("No eligible geochemical MLR predictors found. Check variable names and missingness.")
+}
+cat("Number of candidate geochemical predictors:", length(candidate_predictors), "\n")
+print(candidate_predictors)
+
+# ---- Stepwise AIC function ---------------------------------------------------
+library(dplyr)
+library(tibble)
+library(car)
+
+# Maximum predictors per model.
+max_predictors <- 3
+
+fit_stepwise <- function(data, response, predictors,
+                         max_predictors = 3,
+                         min_residual_df = 5) {
+  
+  # Keep only the response and candidate predictors
+  vars <- unique(c(response, predictors))
+  
+  dat <- data %>%
+    dplyr::select(all_of(vars)) %>%
+    filter(if_all(everything(), ~ is.finite(as.numeric(.x)))) %>%
+    as.data.frame()
+  
+  # Remove predictors with no variation in the available observations
+  predictors <- predictors[
+    vapply(
+      dat[predictors],
+      function(x) length(unique(x)) > 1,
+      logical(1)
+    )
+  ]
+  
+  n <- nrow(dat)
+  
+  if (n <= min_residual_df + 1) {
+    stop(
+      paste0(
+        response, ": only ", n,
+        " complete observations; insufficient data for this model."
+      )
+    )
+  }
+  
+  # Ensure the model retains enough residual degrees of freedom
+  max_allowed <- min(
+    max_predictors,
+    n - 1 - min_residual_df,
+    length(predictors)
+  )
+  
+  if (max_allowed < 1) {
+    stop(paste("No predictors can be fitted for", response))
+  }
+  
+  # Start with intercept-only model
+  current_fit <- lm(
+    as.formula(paste(response, "~ 1")),
+    data = dat
+  )
+  
+  current_terms <- character(0)
+  
+  # Forward/backward selection by AIC
+  repeat {
+    
+    current_aic <- AIC(current_fit)
+    best_fit <- current_fit
+    best_terms <- current_terms
+    best_aic <- current_aic
+    
+    # Try adding each remaining predictor
+    remaining <- setdiff(predictors, current_terms)
+    
+    if (length(current_terms) < max_allowed &&
+        length(remaining) > 0) {
+      
+      for (candidate in remaining) {
+        
+        new_terms <- c(current_terms, candidate)
+        
+        new_formula <- reformulate(
+          new_terms,
+          response = response
+        )
+        
+        candidate_fit <- lm(new_formula, data = dat)
+        candidate_aic <- AIC(candidate_fit)
+        
+        if (is.finite(candidate_aic) &&
+            candidate_aic < best_aic - 1e-8) {
+          best_fit <- candidate_fit
+          best_terms <- new_terms
+          best_aic <- candidate_aic
+        }
+      }
+    }
+    
+    # Try removing each included predictor
+    if (length(current_terms) > 0) {
+      
+      for (candidate in current_terms) {
+        
+        new_terms <- setdiff(current_terms, candidate)
+        
+        new_formula <- if (length(new_terms) == 0) {
+          as.formula(paste(response, "~ 1"))
+        } else {
+          reformulate(new_terms, response = response)
+        }
+        
+        candidate_fit <- lm(new_formula, data = dat)
+        candidate_aic <- AIC(candidate_fit)
+        
+        if (is.finite(candidate_aic) &&
+            candidate_aic < best_aic - 1e-8) {
+          best_fit <- candidate_fit
+          best_terms <- new_terms
+          best_aic <- candidate_aic
+        }
+      }
+    }
+    
+    # Stop when no move improves AIC
+    if (identical(best_terms, current_terms)) {
+      break
+    }
+    
+    current_fit <- best_fit
+    current_terms <- best_terms
+  }
+  
+  sm <- summary(current_fit)
+  residual_df <- df.residual(current_fit)
+  
+  # AICc is undefined if its denominator is zero or negative
+  aicc <- if (n - length(coef(current_fit)) - 1 > 0) {
+    AIC(current_fit) +
+      (2 * length(coef(current_fit)) *
+         (length(coef(current_fit)) + 1)) /
+      (n - length(coef(current_fit)) - 1)
+  } else {
+    NA_real_
+  }
+  
+  # Coefficients
+  coef_table <- as.data.frame(sm$coefficients) %>%
+    rownames_to_column("term") %>%
+    as_tibble() %>%
+    transmute(
+      response = response,
+      term = term,
+      estimate = Estimate,
+      std_error = `Std. Error`,
+      statistic = `t value`,
+      p_value = `Pr(>|t|)`
+    )
+  
+  # VIF only when at least two predictors are present
+  vif_table <- if (length(current_terms) >= 2) {
+    
+    v <- tryCatch(
+      car::vif(current_fit),
+      error = function(e) NULL
+    )
+    
+    if (is.null(v)) {
+      tibble(
+        response = character(),
+        term = character(),
+        VIF = numeric()
+      )
+    } else {
+      tibble(
+        response = response,
+        term = names(v),
+        VIF = as.numeric(v)
+      )
+    }
+    
+  } else {
+    tibble(
+      response = character(),
+      term = character(),
+      VIF = numeric()
+    )
+  }
+  
+  # Model comparison summary
+  comparison <- tibble(
+    response = response,
+    n = n,
+    residual_df = residual_df,
+    n_predictors = length(current_terms),
+    AIC = AIC(current_fit),
+    AICc = aicc,
+    R_squared = sm$r.squared,
+    adjusted_R_squared = sm$adj.r.squared,
+    residual_SE = sm$sigma,
+    selected_predictors = if (length(current_terms) == 0) {
+      "(intercept only)"
+    } else {
+      paste(current_terms, collapse = "; ")
+    }
+  )
+  
+  list(
+    model = current_fit,
+    comparison = comparison,
+    coefficients = coef_table,
+    vifs = vif_table
+  )
+}
+
+# Fit four Δ14C models using geochemical predictors only.
+responses <- c(
+  "d14C_2026_Bulk",
+  "d14C_2026_MAOM",
+  "d14C_2026_fPOM",
+  "d14C_2026_oPOM"
+)
+
+available_responses <- intersect(responses, names(integrated))
+missing_responses <- setdiff(responses, available_responses)
+if (length(missing_responses)) {
+  warning("These Δ14C responses are missing and will be skipped: ",
+          paste(missing_responses, collapse = ", "))
+}
+if (!length(available_responses)) stop("No expected Δ14C response columns are available.")
+
+mlr_results <- setNames(
+  lapply(available_responses, function(resp) {
+    fit_stepwise(
+      data = integrated,
+      response = resp,
+      predictors = candidate_predictors,
+      max_predictors = max_predictors,
+      min_residual_df = 5
+    )
+  }),
+  available_responses
+)
+
+model_comparison <- bind_rows(
+  lapply(mlr_results, `[[`, "comparison")
+)
+
+selected_coefficients <- bind_rows(
+  lapply(mlr_results, `[[`, "coefficients")
+)
+
+selected_vifs <- bind_rows(
+  lapply(mlr_results, `[[`, "vifs")
+)
+
+cat("\nMODEL COMPARISON\n")
+print(model_comparison, n = Inf, width = Inf)
+
+cat("\nCOEFFICIENTS\n")
+print(selected_coefficients, n = Inf, width = Inf)
+
+cat("\nVIFS\n")
+print(selected_vifs, n = Inf, width = Inf)
+
+# Save tabular summaries and complete model summaries to outputs/stepwise_MLR_14C.
+readr::write_csv(model_comparison, file.path(mlr_out_dir, "model_comparison.csv"))
+readr::write_csv(selected_coefficients, file.path(mlr_out_dir, "selected_coefficients.csv"))
+readr::write_csv(selected_vifs, file.path(mlr_out_dir, "selected_vifs.csv"))
+readr::write_csv(tibble(candidate_predictor = candidate_predictors),
+                 file.path(mlr_out_dir, "candidate_geochemical_predictors.csv"))
+
+summary_file <- file.path(mlr_out_dir, "full_model_summaries.txt")
+summary_con <- file(summary_file, open = "wt")
+for (resp in names(mlr_results)) {
+  writeLines(c("", "========================================",
+               paste("RESPONSE:", resp), "========================================", ""),
+             con = summary_con)
+  writeLines(capture.output(summary(mlr_results[[resp]]$model)), con = summary_con)
+}
+close(summary_con)
+
+cat("\nSaved correlation heatmaps and statistics to:", cor_out_dir, "\n")
+cat("Saved PCA figures and tables to:", pca_out_dir, "\n")
+cat("Saved MLR summaries to:", mlr_out_dir, "\n")

@@ -80,6 +80,34 @@ pipette_with_metadata <- pipette_with_metadata %>%
   )
 
 
+# =============================================================================
+# ADD ENERGY III CLAY (%) TO INTEGRATED DATASET
+# =============================================================================
+
+# Calculate one mean clay value per sample at Energy III.
+# Uses the cleaned pipette data and averages replicate measurements.
+clay_energy_iii <- pipette_with_metadata %>%
+  filter(Energy == "iii") %>%
+  group_by(Sample) %>%
+  summarise(
+    clay_energy_iii = mean(X.clay_corrected, na.rm = TRUE),
+    n_clay_energy_iii = sum(is.finite(X.clay_corrected)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    clay_energy_iii = if_else(
+      n_clay_energy_iii > 0,
+      clay_energy_iii,
+      NA_real_
+    )
+  ) %>%
+  select(Sample, clay_energy_iii)
+
+csv_dir <- here::here("csv_files")
+outputs_dir <- here::here("outputs")
+write_csv(clay_energy_iii, file.path(outputs_dir, paste0("clay_energy_iii.csv")))
+
+
 # ============================================================
 # LOAD SOM FRACTION DATA
 # ============================================================
