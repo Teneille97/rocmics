@@ -668,6 +668,11 @@ if (length(missing_requested)) {
 }
 integrated <- integrated %>% select(all_of(keep_cols))
 
+readr::write_csv(
+  integrated,
+  here::here("outputs", "integrated_geochemistry_for_bayesian.csv")
+)
+
 # Only these geochemical/soil-property variables enter correlation analyses.
 # Metadata and C_Bulk/C_MAOM/C_oPOM/C_fPOM remain available for plotting/context,
 # but are deliberately excluded from correlations and MLR predictors.
@@ -1303,3 +1308,313 @@ close(summary_con)
 cat("\nSaved correlation heatmaps and statistics to:", cor_out_dir, "\n")
 cat("Saved PCA figures and tables to:", pca_out_dir, "\n")
 cat("Saved MLR summaries to:", mlr_out_dir, "\n")
+
+
+# =============================================================================
+# ADDITIONAL STEPWISE MLR MODELS: SOIL CARBON CONCENTRATIONS
+# The original d14C MLR section above is retained unchanged.
+# =============================================================================
+
+# =============================================================================
+# FOUR STEPWISE MLR MODELS: 2026 SOIL CARBON CONCENTRATIONS
+# Responses: C_Bulk, C_MAOM, C_oPOM, C_fPOM.
+# Predictors: eligible geochemical variables, excluding all d14C_2026_* variables.
+# Outputs are saved under outputs/stepwise_MLR_C.
+# =============================================================================
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(car)
+})
+
+mlr_out_dir <- here::here("outputs", "stepwise_MLR_C")
+dir.create(mlr_out_dir, recursive = TRUE, showWarnings = FALSE)
+
+responses <- c("C_Bulk", "C_MAOM", "C_oPOM", "C_fPOM")
+max_predictors <- 3L
+min_n <- 10L
+
+# Use the same geochemical predictor set as the original stepwise MLR,
+# but explicitly exclude every 2026 d14C variable.
+candidate_predictors <- setdiff(geochem_vars, grep("^d14C_2026", names(integrated), value = TRUE))
+candidate_predictors <- candidate_predictors[
+  candidate_predictors %in% names(integrated) &
+    !grepl("^d14C_2026", candidate_predictors) &
+    vapply(candidate_predictors, function(v) is.numeric(integrated[[v]]), logical(1))
+]
+candidate_predictors <- candidate_predictors[vapply(candidate_predictors, function(v) {
+  x <- integrated[[v]]
+  x <- x[is.finite(x)]
+  length(x) >= min_n && length(unique(x)) > 1
+}, logical(1))]
+
+if (!length(candidate_predictors)) {
+  stop("No eligible geochemical MLR predictors found. Check variable names and missingness.")
+}
+cat("Number of candidate geochemical predictors:", length(candidate_predictors), "\n")
+print(candidate_predictors)
+
+# ---- Stepwise AIC function ---------------------------------------------------
+library(dplyr)
+library(tibble)
+library(car)
+
+# Maximum predictors per model.
+max_predictors <- 3
+
+fit_stepwise <- function(data, response, predictors,
+                         max_predictors = 3,
+                         min_residual_df = 5) {
+  
+  # Keep only the response and candidate predictors
+  vars <- unique(c(response, predictors))
+  
+  dat <- data %>%
+    dplyr::select(all_of(vars)) %>%
+    filter(if_all(everything(), ~ is.finite(as.numeric(.x)))) %>%
+    as.data.frame()
+  
+  # Remove predictors with no variation in the available observations
+  predictors <- predictors[
+    vapply(
+      dat[predictors],
+      function(x) length(unique(x)) > 1,
+      logical(1)
+    )
+  ]
+  
+  n <- nrow(dat)
+  
+  if (n <= min_residual_df + 1) {
+    stop(
+      paste0(
+        response, ": only ", n,
+        " complete observations; insufficient data for this model."
+      )
+    )
+  }
+  
+  # Ensure the model retains enough residual degrees of freedom
+  max_allowed <- min(
+    max_predictors,
+    n - 1 - min_residual_df,
+    length(predictors)
+  )
+  
+  if (max_allowed < 1) {
+    stop(paste("No predictors can be fitted for", response))
+  }
+  
+  # Start with intercept-only model
+  current_fit <- lm(
+    as.formula(paste(response, "~ 1")),
+    data = dat
+  )
+  
+  current_terms <- character(0)
+  
+  # Forward/backward selection by AIC
+  repeat {
+    
+    current_aic <- AIC(current_fit)
+    best_fit <- current_fit
+    best_terms <- current_terms
+    best_aic <- current_aic
+    
+    # Try adding each remaining predictor
+    remaining <- setdiff(predictors, current_terms)
+    
+    if (length(current_terms) < max_allowed &&
+        length(remaining) > 0) {
+      
+      for (candidate in remaining) {
+        
+        new_terms <- c(current_terms, candidate)
+        
+        new_formula <- reformulate(
+          new_terms,
+          response = response
+        )
+        
+        candidate_fit <- lm(new_formula, data = dat)
+        candidate_aic <- AIC(candidate_fit)
+        
+        if (is.finite(candidate_aic) &&
+            candidate_aic < best_aic - 1e-8) {
+          best_fit <- candidate_fit
+          best_terms <- new_terms
+          best_aic <- candidate_aic
+        }
+      }
+    }
+    
+    # Try removing each included predictor
+    if (length(current_terms) > 0) {
+      
+      for (candidate in current_terms) {
+        
+        new_terms <- setdiff(current_terms, candidate)
+        
+        new_formula <- if (length(new_terms) == 0) {
+          as.formula(paste(response, "~ 1"))
+        } else {
+          reformulate(new_terms, response = response)
+        }
+        
+        candidate_fit <- lm(new_formula, data = dat)
+        candidate_aic <- AIC(candidate_fit)
+        
+        if (is.finite(candidate_aic) &&
+            candidate_aic < best_aic - 1e-8) {
+          best_fit <- candidate_fit
+          best_terms <- new_terms
+          best_aic <- candidate_aic
+        }
+      }
+    }
+    
+    # Stop when no move improves AIC
+    if (identical(best_terms, current_terms)) {
+      break
+    }
+    
+    current_fit <- best_fit
+    current_terms <- best_terms
+  }
+  
+  sm <- summary(current_fit)
+  residual_df <- df.residual(current_fit)
+  
+  # AICc is undefined if its denominator is zero or negative
+  aicc <- if (n - length(coef(current_fit)) - 1 > 0) {
+    AIC(current_fit) +
+      (2 * length(coef(current_fit)) *
+         (length(coef(current_fit)) + 1)) /
+      (n - length(coef(current_fit)) - 1)
+  } else {
+    NA_real_
+  }
+  
+  # Coefficients
+  coef_table <- as.data.frame(sm$coefficients) %>%
+    rownames_to_column("term") %>%
+    as_tibble() %>%
+    transmute(
+      response = response,
+      term = term,
+      estimate = Estimate,
+      std_error = `Std. Error`,
+      statistic = `t value`,
+      p_value = `Pr(>|t|)`
+    )
+  
+  # VIF only when at least two predictors are present
+  vif_table <- if (length(current_terms) >= 2) {
+    
+    v <- tryCatch(
+      car::vif(current_fit),
+      error = function(e) NULL
+    )
+    
+    if (is.null(v)) {
+      tibble(
+        response = character(),
+        term = character(),
+        VIF = numeric()
+      )
+    } else {
+      tibble(
+        response = response,
+        term = names(v),
+        VIF = as.numeric(v)
+      )
+    }
+    
+  } else {
+    tibble(
+      response = character(),
+      term = character(),
+      VIF = numeric()
+    )
+  }
+  
+  # Model comparison summary
+  comparison <- tibble(
+    response = response,
+    n = n,
+    residual_df = residual_df,
+    n_predictors = length(current_terms),
+    AIC = AIC(current_fit),
+    AICc = aicc,
+    R_squared = sm$r.squared,
+    adjusted_R_squared = sm$adj.r.squared,
+    residual_SE = sm$sigma,
+    selected_predictors = if (length(current_terms) == 0) {
+      "(intercept only)"
+    } else {
+      paste(current_terms, collapse = "; ")
+    }
+  )
+  
+  list(
+    model = current_fit,
+    comparison = comparison,
+    coefficients = coef_table,
+    vifs = vif_table
+  )
+}
+
+# Fit the four carbon concentration models.
+available_responses <- intersect(responses, names(integrated))
+missing_responses <- setdiff(responses, available_responses)
+if (length(missing_responses)) {
+  warning("These carbon concentration responses are missing and will be skipped: ",
+          paste(missing_responses, collapse = ", "))
+}
+if (!length(available_responses)) {
+  stop("None of the expected carbon concentration response columns are available.")
+}
+
+mlr_results <- setNames(
+  lapply(available_responses, function(resp) {
+    # Ensure d14C predictors cannot enter even if geochem_vars changes upstream.
+    fit_stepwise(
+      data = integrated,
+      response = resp,
+      predictors = setdiff(candidate_predictors, grep("^d14C_2026", candidate_predictors, value = TRUE)),
+      max_predictors = max_predictors,
+      min_residual_df = 5
+    )
+  }),
+  available_responses
+)
+
+model_comparison <- bind_rows(lapply(mlr_results, `[[`, "comparison"))
+selected_coefficients <- bind_rows(lapply(mlr_results, `[[`, "coefficients"))
+selected_vifs <- bind_rows(lapply(mlr_results, `[[`, "vifs"))
+
+cat("\nMODEL COMPARISON\n")
+print(model_comparison, n = Inf, width = Inf)
+cat("\nCOEFFICIENTS\n")
+print(selected_coefficients, n = Inf, width = Inf)
+cat("\nVIFS\n")
+print(selected_vifs, n = Inf, width = Inf)
+
+# Save tabular summaries and complete model summaries.
+readr::write_csv(model_comparison, file.path(mlr_out_dir, "model_comparison.csv"))
+readr::write_csv(selected_coefficients, file.path(mlr_out_dir, "selected_coefficients.csv"))
+readr::write_csv(selected_vifs, file.path(mlr_out_dir, "selected_vifs.csv"))
+readr::write_csv(tibble(candidate_geochemical_predictor = candidate_predictors),
+                 file.path(mlr_out_dir, "candidate_geochemical_predictors.csv"))
+
+summary_file <- file.path(mlr_out_dir, "full_model_summaries.txt")
+summary_con <- file(summary_file, open = "wt")
+for (resp in names(mlr_results)) {
+  writeLines(c("", "========================================",
+               paste("RESPONSE:", resp), "========================================", ""),
+             con = summary_con)
+  writeLines(capture.output(summary(mlr_results[[resp]]$model)), con = summary_con)
+}
+close(summary_con)
+
+cat("\nSaved carbon concentration MLR summaries to:", mlr_out_dir, "\n")

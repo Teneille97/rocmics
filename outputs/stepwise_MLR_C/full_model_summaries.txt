@@ -1,0 +1,104 @@
+
+========================================
+RESPONSE: C_Bulk
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.072601 -0.027335 -0.004634  0.028216  0.078241 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  0.58880    0.13370   4.404  0.00455 ** 
+CEC_CEC     -0.08176    0.06876  -1.189  0.27930    
+CEC_K        2.21174    0.34217   6.464  0.00065 ***
+CEC_Ca       0.40477    0.09190   4.404  0.00455 ** 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.05708 on 6 degrees of freedom
+Multiple R-squared:  0.9729,	Adjusted R-squared:  0.9594 
+F-statistic: 71.85 on 3 and 6 DF,  p-value: 4.301e-05
+
+
+========================================
+RESPONSE: C_MAOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.092677 -0.027449 -0.001322  0.035281  0.063202 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept)   5.7563     1.3045   4.413 0.004507 ** 
+GMD_oxalate  -3.8398     0.5008  -7.668 0.000257 ***
+soil_pH      -0.6468     0.2031  -3.184 0.018971 *  
+CEC_K         0.8601     0.3173   2.711 0.035049 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.059 on 6 degrees of freedom
+Multiple R-squared:  0.9514,	Adjusted R-squared:  0.9271 
+F-statistic: 39.17 on 3 and 6 DF,  p-value: 0.0002461
+
+
+========================================
+RESPONSE: C_oPOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-2.0498 -0.7957 -0.2965  1.1865  2.5391 
+
+Coefficients:
+                     Estimate Std. Error t value Pr(>|t|)    
+(Intercept)            80.638      4.815  16.749 2.89e-06 ***
+CEC_K                -107.826      9.819 -10.982 3.39e-05 ***
+Tessier_H2O2_K_mg_g -2173.296    339.764  -6.396 0.000688 ***
+FTIR_delta_Silicate    -4.553      1.906  -2.389 0.054084 .  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 1.85 on 6 degrees of freedom
+Multiple R-squared:  0.9549,	Adjusted R-squared:  0.9323 
+F-statistic: 42.31 on 3 and 6 DF,  p-value: 0.0001977
+
+
+========================================
+RESPONSE: C_fPOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-2.6652 -1.0123 -0.1321  0.9656  2.6031 
+
+Coefficients:
+                        Estimate Std. Error t value Pr(>|t|)    
+(Intercept)               31.482      2.950  10.674 3.99e-05 ***
+Mn_ox_over_DCB           -16.917      2.863  -5.908  0.00105 ** 
+Tessier_Acetic_Mg_mg_g   582.935    121.467   4.799  0.00300 ** 
+Tessier_H2O2_Na_mg_g   -2953.750    990.876  -2.981  0.02461 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 2.069 on 6 degrees of freedom
+Multiple R-squared:  0.9034,	Adjusted R-squared:  0.8551 
+F-statistic: 18.71 on 3 and 6 DF,  p-value: 0.001899
+

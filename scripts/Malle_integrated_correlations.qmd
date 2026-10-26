@@ -1031,3 +1031,212 @@ if (!is.null(all_results) && length(selected_cross_pca_vars) >= 2) {
   )
 }
 ```
+
+## Stepwise multiple linear regression of soil carbon concentrations
+
+Four stepwise AIC multiple linear regression (MLR) models are fitted for the February 2026 carbon concentrations: **C_Bulk, C_MAOM, C_oPOM, and C_fPOM**. Candidate predictors are the geochemical variables used elsewhere in the report, with all `d14C_2026_*` variables excluded. Treatment metadata and the carbon responses themselves are not used as predictors. Each model is limited to three predictors and is required to retain at least five residual degrees of freedom. The tables below show model fit, selected coefficients, and variance inflation factors (VIFs). No output files are written.
+
+```{r}
+#| label: mlr-carbon
+#| results: asis
+#| echo: false
+#| message: false
+#| warning: false
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(purrr)
+  library(tibble)
+  library(knitr)
+  library(car)
+})
+
+carbon_responses <- c("C_Bulk", "C_MAOM", "C_oPOM", "C_fPOM")
+max_predictors_C <- 3L
+min_n_C <- 10L
+
+# Retain only numeric geochemical predictors and explicitly exclude radiocarbon.
+candidate_predictors_C <- setdiff(
+  geochem_vars,
+  grep("^d14C_2026", names(integrated), value = TRUE)
+)
+candidate_predictors_C <- candidate_predictors_C[
+  candidate_predictors_C %in% names(integrated) &
+    !grepl("^d14C_2026", candidate_predictors_C) &
+    vapply(candidate_predictors_C, function(v) is.numeric(integrated[[v]]), logical(1))
+]
+candidate_predictors_C <- candidate_predictors_C[vapply(candidate_predictors_C, function(v) {
+  x <- integrated[[v]]
+  x <- x[is.finite(x)]
+  length(x) >= min_n_C && length(unique(x)) > 1
+}, logical(1))]
+
+fit_stepwise_C <- function(data, response, predictors,
+                           max_predictors = 3L,
+                           min_residual_df = 5L) {
+  vars <- unique(c(response, predictors))
+  dat <- data %>%
+    dplyr::select(all_of(vars)) %>%
+    filter(if_all(everything(), ~ is.finite(as.numeric(.x)))) %>%
+    as.data.frame()
+
+  predictors <- predictors[vapply(
+    dat[predictors], function(x) length(unique(x)) > 1, logical(1)
+  )]
+  n <- nrow(dat)
+
+  if (n <= min_residual_df + 1L) {
+    stop(response, ": only ", n, " complete observations; insufficient data.")
+  }
+
+  max_allowed <- min(max_predictors, n - 1L - min_residual_df, length(predictors))
+  if (max_allowed < 1L) {
+    stop(response, ": no predictors can be fitted with the available observations.")
+  }
+
+  current_terms <- character(0)
+  current_fit <- lm(reformulate(character(0), response = response), data = dat)
+
+  repeat {
+    best_fit <- current_fit
+    best_terms <- current_terms
+    best_aic <- AIC(current_fit)
+
+    remaining <- setdiff(predictors, current_terms)
+    if (length(current_terms) < max_allowed && length(remaining) > 0) {
+      for (candidate in remaining) {
+        new_terms <- c(current_terms, candidate)
+        candidate_fit <- lm(reformulate(new_terms, response = response), data = dat)
+        candidate_aic <- AIC(candidate_fit)
+        if (is.finite(candidate_aic) && candidate_aic < best_aic - 1e-8) {
+          best_fit <- candidate_fit
+          best_terms <- new_terms
+          best_aic <- candidate_aic
+        }
+      }
+    }
+
+    if (length(current_terms) > 0) {
+      for (candidate in current_terms) {
+        new_terms <- setdiff(current_terms, candidate)
+        new_formula <- if (length(new_terms) == 0) {
+          reformulate(character(0), response = response)
+        } else {
+          reformulate(new_terms, response = response)
+        }
+        candidate_fit <- lm(new_formula, data = dat)
+        candidate_aic <- AIC(candidate_fit)
+        if (is.finite(candidate_aic) && candidate_aic < best_aic - 1e-8) {
+          best_fit <- candidate_fit
+          best_terms <- new_terms
+          best_aic <- candidate_aic
+        }
+      }
+    }
+
+    if (identical(best_terms, current_terms)) break
+    current_fit <- best_fit
+    current_terms <- best_terms
+  }
+
+  sm <- summary(current_fit)
+  aicc <- if (n - length(coef(current_fit)) - 1 > 0) {
+    AIC(current_fit) +
+      (2 * length(coef(current_fit)) * (length(coef(current_fit)) + 1)) /
+      (n - length(coef(current_fit)) - 1)
+  } else NA_real_
+
+  coefficients <- as.data.frame(sm$coefficients) %>%
+    rownames_to_column("term") %>%
+    as_tibble() %>%
+    transmute(
+      response = response, term,
+      estimate = Estimate, std_error = `Std. Error`,
+      statistic = `t value`, p_value = `Pr(>|t|)`
+    )
+
+  vif_table <- if (length(current_terms) >= 2) {
+    v <- tryCatch(car::vif(current_fit), error = function(e) NULL)
+    if (is.null(v)) tibble(response = character(), term = character(), VIF = numeric())
+    else tibble(response = response, term = names(v), VIF = as.numeric(v))
+  } else {
+    tibble(response = character(), term = character(), VIF = numeric())
+  }
+
+  comparison <- tibble(
+    response = response, n = n, residual_df = df.residual(current_fit),
+    n_predictors = length(current_terms), AIC = AIC(current_fit), AICc = aicc,
+    R_squared = sm$r.squared, adjusted_R_squared = sm$adj.r.squared,
+    residual_SE = sm$sigma,
+    selected_predictors = if (length(current_terms) == 0) "(intercept only)"
+                          else paste(current_terms, collapse = "; ")
+  )
+
+  list(model = current_fit, comparison = comparison,
+       coefficients = coefficients, vifs = vif_table)
+}
+
+available_C_responses <- intersect(carbon_responses, names(integrated))
+missing_C_responses <- setdiff(carbon_responses, available_C_responses)
+
+if (length(missing_C_responses)) {
+  cat("Carbon responses not found and skipped: ",
+      paste(missing_C_responses, collapse = ", "), "\n")
+}
+
+if (!length(candidate_predictors_C)) {
+  cat("No eligible numeric geochemical predictors were available for the carbon MLR models.")
+} else if (!length(available_C_responses)) {
+  cat("No requested carbon concentration response columns were available.")
+} else {
+  mlr_C_results <- setNames(
+    lapply(available_C_responses, function(resp) {
+      tryCatch(
+        fit_stepwise_C(integrated, resp, candidate_predictors_C,
+                       max_predictors = max_predictors_C,
+                       min_residual_df = 5L),
+        error = function(e) {
+          message("Skipping ", resp, ": ", conditionMessage(e))
+          NULL
+        }
+      )
+    }),
+    available_C_responses
+  )
+  mlr_C_results <- purrr::compact(mlr_C_results)
+
+  if (length(mlr_C_results)) {
+    carbon_model_comparison <- bind_rows(lapply(mlr_C_results, `[[`, "comparison"))
+    carbon_coefficients <- bind_rows(lapply(mlr_C_results, `[[`, "coefficients"))
+    carbon_vifs <- bind_rows(lapply(mlr_C_results, `[[`, "vifs"))
+
+    cat("Eligible candidate predictors (radiocarbon variables excluded): ",
+        paste(candidate_predictors_C, collapse = ", "), "\n\n")
+
+    cat("### Model comparison\n\n")
+    print(knitr::kable(carbon_model_comparison, digits = 3,
+                       caption = "Stepwise MLR model fit for soil carbon concentrations"))
+
+    cat("\n\n### Selected model coefficients\n\n")
+    print(knitr::kable(carbon_coefficients, digits = 4,
+                       caption = "Coefficients for the selected carbon concentration models"))
+
+    cat("\n\n### Variance inflation factors\n\n")
+    if (nrow(carbon_vifs)) {
+      print(knitr::kable(carbon_vifs, digits = 3,
+                         caption = "VIFs for models containing at least two predictors"))
+    } else {
+      cat("No model retained two or more predictors, so VIFs were not calculated.\n")
+    }
+
+    cat("\n\n### Full model summaries\n\n")
+    for (resp in names(mlr_C_results)) {
+      cat("\n\n#### ", resp, "\n\n", sep = "")
+      print(summary(mlr_C_results[[resp]]$model))
+    }
+  } else {
+    cat("No carbon MLR models could be fitted with the available complete observations.")
+  }
+}
+```
