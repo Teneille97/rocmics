@@ -301,141 +301,16 @@ get_par_draws <- function(path) {
   ]
 }
 
-# Check all expected MCMC files before starting the computational loop.
-missing_mcmc_files <- file.path(mcmc_dir, unname(mcmc_files))
-missing_mcmc_files <- missing_mcmc_files[!file.exists(missing_mcmc_files)]
-
-if (length(missing_mcmc_files) > 0L) {
-  stop(
-    "The following MCMC files are missing:\n",
-    paste(missing_mcmc_files, collapse = "\n")
-  )
-}
-
-soilR_draws <- purrr::map_dfr(names(mcmc_files), function(trt) {
-  message("Calculating persistence draws for ", trt)
-  
-  pars <- get_par_draws(file.path(mcmc_dir, mcmc_files[[trt]]))
-  
-  purrr::map_dfr(seq_len(nrow(pars)), function(i) {
-    one_persistence_draw(as.numeric(pars[i, ]))
-  }) %>%
-    mutate(
-      Treatment_model = trt,
-      draw_id = row_number(),
-      .before = 1
-    )
-}) %>%
-  filter(
-    if_all(
-      c(MAOM_age, oPOM_age, fPOM_age, system_transit_time),
-      is.finite
-    )
-  )
-
-if (nrow(soilR_draws) == 0L) {
-  stop(
-    "No valid SoilR persistence draws were produced. ",
-    "Check the MCMC parameter columns and SoilR density outputs."
-  )
-}
-
-readr::write_csv(
-  soilR_draws,
-  file.path(out_dir, "soilR_persistence_posterior_draws.csv")
-)
-
-response_names <- c(
-  "MAOM_age", "oPOM_age", "fPOM_age", "system_transit_time"
-)
-
-soilR_summary <- soilR_draws %>%
-  pivot_longer(
-    all_of(response_names),
-    names_to = "outcome",
-    values_to = "value"
-  ) %>%
-  group_by(Treatment_model, outcome) %>%
-  summarise(
-    n_draws = n(),
-    mean = mean(value),
-    median = median(value),
-    sd = sd(value),
-    q2.5 = quantile(value, 0.025),
-    q97.5 = quantile(value, 0.975),
-    .groups = "drop"
-  )
-
-readr::write_csv(
-  soilR_summary,
-  file.path(out_dir, "soilR_persistence_summary.csv")
-)
-
-# ---------------------------------------------------------------------------
-# 4. Build the treatment-level regression dataset
-# ---------------------------------------------------------------------------
-
-# Posterior means and SDs summarise uncertainty in each SoilR-derived outcome.
-outcome_summary <- soilR_draws %>%
-  pivot_longer(
-    all_of(response_names),
-    names_to = "outcome",
-    values_to = "value"
-  ) %>%
-  group_by(Treatment_model, outcome) %>%
-  summarise(
-    y_mean = mean(value),
-    y_se = sd(value),
-    .groups = "drop"
-  )
-
-model_data_long <- geochem_summary %>%
-  inner_join(outcome_summary, by = "Treatment_model")
-
-# Create predictor means and standard errors expected by fit_one().
-# Predictor SE = between-plot SD / sqrt(number of available plots).
-for (p in all_predictors) {
-  model_data_long[[p]] <- model_data_long[[paste0(p, "__mean")]]
-  model_data_long[[paste0(p, "_se")]] <-
-    model_data_long[[paste0(p, "__sd")]] /
-    sqrt(model_data_long[[paste0(p, "__n")]])
-}
-
-readr::write_csv(
-  model_data_long,
-  file.path(out_dir, "treatment_level_model_data_long.csv")
-)
-
-# Validate response/treatment layout before fitting any models.
-model_counts <- model_data_long %>%
-  count(outcome, name = "n_treatments")
-print(model_counts, n = Inf)
-
-if (!setequal(model_counts$outcome, response_names) ||
-    any(model_counts$n_treatments != 5L)) {
-  stop("Expected exactly five treatment-level observations for every outcome.")
-}
-
-# Inspect the treatment-level predictor means and SEs used by the regressions.
-print(
-  model_data_long %>%
-    select(
-      Treatment_model,
-      outcome,
-      all_of(all_predictors),
-      all_of(paste0(all_predictors, "_se"))
-    ),
-  n = Inf
-)
 
 # Create a backup folder
 dir.create("outputs/bayesian_persistence/session_backup",
            recursive = TRUE, showWarnings = FALSE)
 
-# Save all objects in the current R environment
-save.image(
-  file = "outputs/bayesian_persistence/session_backup/session_before_restart.RData"
-)
+# Full-session backup not required for this run.
+# save.image(
+#   file = "outputs/bayesian_persistence/session_backup/session_before_restart.RData"
+# )
+
 saveRDS(
   model_data_long,
   "outputs/bayesian_persistence/session_backup/model_data_long.rds"
@@ -445,7 +320,39 @@ saveRDS(
   geochem_summary,
   "outputs/bayesian_persistence/session_backup/geochem_summary.rds"
 )
-load("outputs/bayesian_persistence/session_backup/session_before_restart.RData")
+
+# Do not reload the older session image; it could overwrite current objects.
+# load("outputs/bayesian_persistence/session_backup/session_before_restart.RData")
+
+
+# Create a backup folder
+dir.create("outputs/bayesian_persistence/session_backup",
+           recursive = TRUE, showWarnings = FALSE)
+
+# Full-session backup not required for this run.
+# save.image(
+#   file = "outputs/bayesian_persistence/session_backup/session_before_restart.RData"
+# )
+
+saveRDS(
+  model_data_long,
+  "outputs/bayesian_persistence/session_backup/model_data_long.rds"
+)
+
+saveRDS(
+  geochem_summary,
+  "outputs/bayesian_persistence/session_backup/geochem_summary.rds"
+)
+
+# Do not reload the older session image; it could overwrite current objects.
+# load("outputs/bayesian_persistence/session_backup/session_before_restart.RData")
+
+model_data_long <- readRDS(
+  here::here(
+    "outputs", "bayesian_persistence",
+    "session_backup", "model_data_long.rds"
+  )
+)
 # ---------------------------------------------------------------------------
 # 5. Bayesian measurement-error regressions
 # ---------------------------------------------------------------------------
@@ -530,6 +437,7 @@ fit_one <- function(outcome, predictors) {
     data = dat,
     family = gaussian(),
     prior = priors,
+    backend = "cmdstanr",
     chains = 4,
     iter = 4000,
     warmup = 2000,
@@ -539,6 +447,12 @@ fit_one <- function(outcome, predictors) {
     refresh = 500,
     save_pars = brms::save_pars(all = TRUE)
   )
+  
+  # Save the fitted model immediately after brm() returns successfully.
+  model_file <- file.path(out_dir, paste0("brms_", outcome, ".rds"))
+  saveRDS(fit, model_file)
+  
+  message("Saved fitted model: ", model_file)
   
   saveRDS(fit, file.path(out_dir, paste0("brms_", outcome, ".rds")))
   capture.output(
