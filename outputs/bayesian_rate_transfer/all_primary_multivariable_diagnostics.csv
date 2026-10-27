@@ -1,0 +1,6 @@
+model,outcome,predictors,n_treatments,n_predictors,residual_df_nominal,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+kf__multivariable,kf,Mn_ox_over_DCB + soil_pH,5,1,3,1.0008904269379737,5368.741767515343,3578.396636520318,0,0
+ki__multivariable,ki,GMD_h2o + CEC_Ca + soil_EC,5,1,3,1.0016575756740926,7785.432075477195,3681.212584319606,0,0
+ks__multivariable,ks,Fe_ox_over_DCB + soil_pH + Si_ox_over_DCB,5,1,3,1.0003885606586151,2998.50471250692,3264.613138935987,0,0
+alpha_fi__multivariable,alpha_fi,GMD_h2o + CEC_Ca,5,1,3,1.001756780655396,7013.1465666758695,3560.1097381388063,0,0
+alpha_is__multivariable,alpha_is,Fe_ox_over_DCB + CEC_Ca + Si_ox_over_DCB,5,1,3,1.0008134344921011,4868.068768322491,4112.943578030466,0,0

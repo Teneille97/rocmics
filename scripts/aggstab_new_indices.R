@@ -18,6 +18,10 @@ library(here)
 library(ARTool)
 library(tidyr)
 
+# Ensure output directory exists for analysis tables
+output_dir <- here::here("outputs")
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
 # Read treatment names once
 treatment_names <- read.csv(here("csv_files", "treatment_names.csv"), header = TRUE)
 tmt_names_vec <- rep(treatment_names$Treatment, each = 2)
@@ -165,77 +169,162 @@ clean_aggstab_extract <- function(filename, extract_label) {
 # Compare treatments within extracts (EMMEANS ONLY)
 #--------------------------------------------------
 
+#--------------------------------------------------
+# Games-Howell helper: compact letter displays from adjusted p-values
+#--------------------------------------------------
+
+make_games_howell_letters <- function(gh, group_levels) {
+  if (is.null(gh) || nrow(gh) == 0) {
+    return(tibble::tibble(
+      group = group_levels,
+      .group = rep("a", length(group_levels))
+    ))
+  }
+  
+  pvals <- stats::setNames(
+    gh$p.adj,
+    paste(gh$group1, gh$group2, sep = "-")
+  )
+  pvals[is.na(pvals)] <- 1
+  
+  cld <- multcompView::multcompLetters(pvals)$Letters
+  
+  tibble::tibble(
+    group = names(cld),
+    .group = unname(cld)
+  ) %>%
+    dplyr::right_join(
+      tibble::tibble(group = group_levels),
+      by = "group"
+    ) %>%
+    dplyr::mutate(.group = tidyr::replace_na(.group, "a"))
+}
+
+#--------------------------------------------------
+# Compare treatments within each extract:
+# Welch ANOVA + Games-Howell pairwise comparisons
+#--------------------------------------------------
+
 analyze_metric_by_extract <- function(df,
                                       metric = "MWD",
-                                      ylab = metric){
+                                      ylab = metric) {
   
   results_list <- list()
   plot_list <- list()
+  pairwise_list <- list()
+  overall_list <- list()
   
-  for(xtract in unique(df$extract_type)) {
+  for (xtract in unique(as.character(df$extract_type))) {
     
     metric_df <- df %>%
-      filter(extract_type == xtract)
+      dplyr::filter(as.character(extract_type) == xtract) %>%
+      dplyr::filter(
+        !is.na(.data[[metric]]),
+        !is.na(treatment)
+      ) %>%
+      dplyr::mutate(
+        treatment = droplevels(as.factor(treatment)),
+        response = .data[[metric]]
+      )
     
-    metric_df$response <- metric_df[[metric]]
+    group_levels <- levels(metric_df$treatment)
     
-    # ---- MODEL (no ANOVA decision tree anymore) ----
-    fit <- lm(response ~ treatment, data = metric_df)
+    if (length(group_levels) < 2 ||
+        any(table(metric_df$treatment) < 2)) {
+      warning("Insufficient replication for ", metric, " / ", xtract)
+      next
+    }
     
-    emm <- emmeans(fit, ~ treatment)
+    # Overall Welch ANOVA
+    welch <- stats::oneway.test(
+      response ~ treatment,
+      data = metric_df,
+      var.equal = FALSE
+    )
     
-    letters_df <- multcomp::cld(
-      emm,
-      Letters = letters,
-      adjust = "tukey"
+    overall_list[[xtract]] <- tibble::tibble(
+      metric = metric,
+      comparison = "treatments within extract",
+      extract_type = xtract,
+      test = "Welch ANOVA",
+      p_overall = welch$p.value
+    )
+    
+    # Games-Howell post-hoc test
+    gh <- rstatix::games_howell_test(
+      metric_df,
+      response ~ treatment
     ) %>%
-      as.data.frame() %>%
-      dplyr::select(treatment, .group)
+      dplyr::mutate(
+        metric = metric,
+        comparison = "treatments within extract",
+        extract_type = xtract
+      )
     
-    # ---- SUMMARY ----
+    pairwise_list[[xtract]] <- gh
+    
+    letters_df <- make_games_howell_letters(
+      gh,
+      group_levels
+    ) %>%
+      dplyr::rename(treatment = group)
+    
+    # Summary
     summary_df <- metric_df %>%
-      group_by(treatment) %>%
-      summarise(
+      dplyr::group_by(treatment) %>%
+      dplyr::summarise(
         mean_value = mean(response, na.rm = TRUE),
-        se_value = sd(response, na.rm = TRUE)/sqrt(n()),
+        se_value = stats::sd(response, na.rm = TRUE) /
+          sqrt(sum(!is.na(response))),
+        n = sum(!is.na(response)),
         .groups = "drop"
       ) %>%
-      left_join(letters_df, by = "treatment")
+      dplyr::left_join(letters_df, by = "treatment")
     
-    # ---- PLOT ----
-    p <- ggplot(
+    # Plot
+    p <- ggplot2::ggplot(
       summary_df,
-      aes(treatment, mean_value, fill = treatment)
+      ggplot2::aes(treatment, mean_value, fill = treatment)
     ) +
-      geom_col(width = 0.7) +
-      geom_errorbar(
-        aes(
+      ggplot2::geom_col(width = 0.7) +
+      ggplot2::geom_errorbar(
+        ggplot2::aes(
           ymin = mean_value - se_value,
           ymax = mean_value + se_value
         ),
         width = 0.2
       ) +
-      geom_text(
-        aes(label = .group,
-            y = mean_value + se_value),
+      ggplot2::geom_text(
+        ggplot2::aes(
+          label = .group,
+          y = mean_value + se_value
+        ),
+        colour = "black",
+        colour = "black",
         fontface = "bold"
       ) +
-      scale_fill_viridis_d() +
-      labs(
+      viridis::scale_fill_viridis(discrete = TRUE) +
+      ggplot2::labs(
         y = ylab,
         x = NULL,
-        title = paste("Extract:", xtract)
+        title = paste("Extract:", xtract),
+        subtitle = "Welch ANOVA; Games-Howell post-hoc"
       ) +
-      theme(
+      ggplot2::theme(
         legend.position = "none",
-        axis.text.x = element_text(angle = 45, hjust = 1)
+        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
       )
     
     results_list[[xtract]] <- summary_df
     plot_list[[xtract]] <- p
   }
   
-  list(results = results_list, plots = plot_list)
+  list(
+    results = results_list,
+    plots = plot_list,
+    pairwise = dplyr::bind_rows(pairwise_list),
+    overall = dplyr::bind_rows(overall_list)
+  )
 }
 
 #--------------------------------------------------
@@ -246,37 +335,75 @@ analyze_metric_by_treatment <- function(df,
                                         metric = "MWD") {
   
   results_list <- list()
+  pairwise_list <- list()
+  overall_list <- list()
   
-  for(tmt in unique(df$treatment)) {
+  for (tmt in unique(as.character(df$treatment))) {
     
     metric_df <- df %>%
-      filter(treatment == tmt)
+      dplyr::filter(as.character(treatment) == tmt) %>%
+      dplyr::filter(
+        !is.na(.data[[metric]]),
+        !is.na(extract_type)
+      ) %>%
+      dplyr::mutate(
+        extract_type = droplevels(as.factor(extract_type)),
+        response = .data[[metric]]
+      )
     
-    metric_df$response <- metric_df[[metric]]
+    group_levels <- levels(metric_df$extract_type)
     
-    # ---- MODEL ----
-    fit <- lm(response ~ extract_type, data = metric_df)
+    if (length(group_levels) < 2 ||
+        any(table(metric_df$extract_type) < 2)) {
+      warning("Insufficient replication for ", metric, " / ", tmt)
+      next
+    }
     
-    emm <- emmeans(fit, ~ extract_type)
+    # Overall Welch ANOVA across extracts within this treatment
+    welch <- stats::oneway.test(
+      response ~ extract_type,
+      data = metric_df,
+      var.equal = FALSE
+    )
     
-    letters_df <- multcomp::cld(
-      emm,
-      Letters = letters,
-      adjust = "tukey"
+    overall_list[[tmt]] <- tibble::tibble(
+      metric = metric,
+      comparison = "extracts within treatment",
+      treatment = tmt,
+      test = "Welch ANOVA",
+      p_overall = welch$p.value
+    )
+    
+    # Games-Howell post-hoc test
+    gh <- rstatix::games_howell_test(
+      metric_df,
+      response ~ extract_type
     ) %>%
-      as.data.frame() %>%
-      dplyr::select(extract_type, .group)
+      dplyr::mutate(
+        metric = metric,
+        comparison = "extracts within treatment",
+        treatment = tmt
+      )
     
-    # ---- SUMMARY ----
+    pairwise_list[[tmt]] <- gh
+    
+    letters_df <- make_games_howell_letters(
+      gh,
+      group_levels
+    ) %>%
+      dplyr::rename(extract_type = group)
+    
     summary_df <- metric_df %>%
-      group_by(extract_type) %>%
-      summarise(
+      dplyr::group_by(extract_type) %>%
+      dplyr::summarise(
         mean_value = mean(response, na.rm = TRUE),
-        se_value = sd(response, na.rm = TRUE)/sqrt(n()),
+        se_value = stats::sd(response, na.rm = TRUE) /
+          sqrt(sum(!is.na(response))),
+        n = sum(!is.na(response)),
         .groups = "drop"
       ) %>%
-      left_join(letters_df, by = "extract_type") %>%
-      mutate(
+      dplyr::left_join(letters_df, by = "extract_type") %>%
+      dplyr::mutate(
         treatment = tmt,
         metric = metric
       )
@@ -284,8 +411,12 @@ analyze_metric_by_treatment <- function(df,
     results_list[[tmt]] <- summary_df
   }
   
+  attr(results_list, "pairwise") <- dplyr::bind_rows(pairwise_list)
+  attr(results_list, "overall") <- dplyr::bind_rows(overall_list)
+  
   results_list
 }
+
 aggstab_h2o <- clean_aggstab_extract("aggstab_2026_h2o.csv", "h2o")
 
 aggstab_h2o <- aggstab_h2o %>% #remove faulty sample
@@ -349,6 +480,55 @@ GMD_treatment <- analyze_metric_by_treatment(
 D_treatment <- analyze_metric_by_treatment(
   aggstab_metrics,
   metric = "D"
+)
+
+# ==============================================================================
+# Export Welch ANOVA and Games-Howell results
+# ==============================================================================
+
+extract_pairwise_results <- dplyr::bind_rows(
+  MWD_extract$pairwise,
+  GMD_extract$pairwise,
+  D_extract$pairwise
+)
+
+extract_overall_results <- dplyr::bind_rows(
+  MWD_extract$overall,
+  GMD_extract$overall,
+  D_extract$overall
+)
+
+treatment_pairwise_results <- dplyr::bind_rows(
+  attr(MWD_treatment, "pairwise"),
+  attr(GMD_treatment, "pairwise"),
+  attr(D_treatment, "pairwise")
+)
+
+treatment_overall_results <- dplyr::bind_rows(
+  attr(MWD_treatment, "overall"),
+  attr(GMD_treatment, "overall"),
+  attr(D_treatment, "overall")
+)
+
+write.csv(
+  extract_pairwise_results,
+  file.path(output_dir, "aggstab_GamesHowell_treatments_within_extract.csv"),
+  row.names = FALSE
+)
+write.csv(
+  extract_overall_results,
+  file.path(output_dir, "aggstab_WelchANOVA_treatments_within_extract.csv"),
+  row.names = FALSE
+)
+write.csv(
+  treatment_pairwise_results,
+  file.path(output_dir, "aggstab_GamesHowell_extracts_within_treatment.csv"),
+  row.names = FALSE
+)
+write.csv(
+  treatment_overall_results,
+  file.path(output_dir, "aggstab_WelchANOVA_extracts_within_treatment.csv"),
+  row.names = FALSE
 )
 
 
@@ -419,6 +599,7 @@ ggplot(
       label = .group,
       y = mean_value + se_value + 0.02
     ),
+    colour = "black",
     fontface = "bold",
     vjust = 0
   ) +
@@ -468,44 +649,6 @@ h2o_summary_filt <- h2o_metrics_filt %>%
   )
 
 
-ggplot(
-  h2o_summary_filt,
-  aes(
-    x = treatment,
-    y = mean_value,
-    fill = treatment
-  )
-) +
-  geom_col(width = 0.7, colour = "grey20") +
-  geom_errorbar(
-    aes(
-      ymin = mean_value - se_value,
-      ymax = mean_value + se_value
-    ),
-    width = 0.2,
-    linewidth = 0.6
-  ) +
-  geom_text(
-    aes(
-      label = .group,
-      y = mean_value + se_value + 0.02
-    ),
-    fontface = "bold",
-    vjust = 0
-  ) +
-  facet_wrap(~ metric, scales = "free_y") +
-  scale_fill_viridis_d(option = "D", end = 0.9) +
-  labs(
-    x = NULL,
-    y = NULL
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none",
-    strip.text = element_text(face = "bold")
-  )
-
 
 MWD_extract_filt <- analyze_metric_by_extract(
   aggstab_metrics_filtered,
@@ -523,6 +666,30 @@ D_extract_filt <- analyze_metric_by_extract(
   aggstab_metrics_filtered,
   metric = "D",
   ylab = "D"
+)
+
+# Export filtered (Control + three basalt treatments) comparisons too
+filtered_pairwise_results <- dplyr::bind_rows(
+  MWD_extract_filt$pairwise,
+  GMD_extract_filt$pairwise,
+  D_extract_filt$pairwise
+)
+
+filtered_overall_results <- dplyr::bind_rows(
+  MWD_extract_filt$overall,
+  GMD_extract_filt$overall,
+  D_extract_filt$overall
+)
+
+write.csv(
+  filtered_pairwise_results,
+  file.path(output_dir, "aggstab_GamesHowell_treatments_within_extract_filtered.csv"),
+  row.names = FALSE
+)
+write.csv(
+  filtered_overall_results,
+  file.path(output_dir, "aggstab_WelchANOVA_treatments_within_extract_filtered.csv"),
+  row.names = FALSE
 )
 
 MWD_letters_filt <- MWD_extract_filt$results$h2o %>%
@@ -545,6 +712,46 @@ letters_all_filt <- bind_rows(
 
 h2o_summary_filt <- h2o_summary_filt %>%
   left_join(letters_all_filt, by = c("treatment", "metric"))
+
+# Plot only after Games-Howell compact-letter groups have been joined.
+ggplot(
+  h2o_summary_filt,
+  aes(
+    x = treatment,
+    y = mean_value,
+    fill = treatment
+  )
+) +
+  geom_col(width = 0.7, colour = "grey20") +
+  geom_errorbar(
+    aes(
+      ymin = mean_value - se_value,
+      ymax = mean_value + se_value
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+  geom_text(
+    aes(
+      label = .group,
+      y = mean_value + se_value + 0.02
+    ),
+    colour = "black",
+    fontface = "bold",
+    vjust = 0
+  ) +
+  facet_wrap(~ metric, scales = "free_y") +
+  scale_fill_viridis_d(option = "D", end = 0.9) +
+  labs(
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none",
+    strip.text = element_text(face = "bold")
+  )
 
 #--------------------------------------------------
 # MWD faceted plot
@@ -583,6 +790,7 @@ ggplot(
       y = mean_value + se_value + 0.01
     ),
     size = 4,
+    colour = "black",
     fontface = "bold"
   ) +
   facet_wrap(
@@ -647,6 +855,7 @@ ggplot(
       y = mean_value + se_value + 0.01
     ),
     size = 4,
+    colour = "black",
     fontface = "bold"
   ) +
   facet_wrap(
@@ -710,6 +919,7 @@ ggplot(
       y = mean_value + se_value + 0.05
     ),
     size = 4,
+    colour = "black",
     fontface = "bold"
   ) +
   facet_wrap(
@@ -765,6 +975,7 @@ ggplot(h2o_summary_norm,
   geom_text(
     aes(label = .group,
         y = mean_norm + se_norm + 0.02),
+    colour = "black",
     fontface = "bold"
   ) +
   facet_wrap(~ metric, scales = "free_y") +
@@ -790,6 +1001,7 @@ ggplot(MWD_all_summary,
   geom_text(
     aes(label = .group,
         y = mean_norm + se_norm + 0.01),
+    colour = "black",
     fontface = "bold"
   ) +
   facet_wrap(~ treatment, scales = "free_y") +
@@ -813,6 +1025,7 @@ ggplot(GMD_all_summary,
   geom_text(
     aes(label = .group,
         y = mean_norm + se_norm + 0.01),
+    colour = "black",
     fontface = "bold"
   ) +
   facet_wrap(~ treatment, scales = "free_y") +
@@ -837,6 +1050,7 @@ ggplot(D_all_summary,
   geom_text(
     aes(label = .group,
         y = mean_norm + se_norm + 0.01),
+    colour = "black",
     fontface = "bold"
   ) +
   facet_wrap(~ treatment, scales = "free_y") +

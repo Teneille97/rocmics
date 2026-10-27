@@ -1801,3 +1801,205 @@ for (resp in names(mlr_results)) {
 close(summary_con)
 
 cat("\nSaved carbon concentration MLR summaries to:", mlr_out_dir, "\n")
+
+# =============================================================================
+# Add-on: Observed vs. Predicted Plots for Bulk & Fractions 
+# (Saved into dedicated C and Delta-14C subdirectories)
+# =============================================================================
+
+library(ggplot2)
+
+# 1. Ensure target subdirectories exist inside outputs/
+mlr_c_out_dir <- file.path(outputs_dir, "stepwise_MLR_C_Oct2023")
+mlr_14c_out_dir <- file.path(outputs_dir, "stepwise_MLR_14C_Oct2023")
+dir.create(mlr_c_out_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(mlr_14c_out_dir, recursive = TRUE, showWarnings = FALSE)
+
+
+# =============================================================================
+# PART A: BULK SOIL PLOTS
+# =============================================================================
+
+# --- A1. Bulk Δ14C Plot ---
+model_data_bulk_14c <- integrated %>%
+  select(sample, Treatment, d14C_2026_Bulk, soil_pH, soil_EC, CEC_Oct2023) %>%
+  drop_na()
+
+if (nrow(model_data_bulk_14c) > 5) {
+  fit_bulk_14c <- lm(d14C_2026_Bulk ~ soil_pH + soil_EC + CEC_Oct2023, data = model_data_bulk_14c)
+  
+  pred_bulk_14c <- model_data_bulk_14c %>%
+    mutate(fitted_val = fitted(fit_bulk_14c)) %>%
+    bind_cols(
+      as.data.frame(predict(fit_bulk_14c, interval = "confidence", level = 0.95)) %>% rename(conf_lwr = lwr, conf_upr = upr),
+      as.data.frame(predict(fit_bulk_14c, interval = "prediction", level = 0.95)) %>% select(lwr, upr) %>% rename(pred_lwr = lwr, pred_upr = upr)
+    )
+  
+  r_sq_b14 <- summary(fit_bulk_14c)$r.squared
+  rmse_b14 <- sqrt(mean(residuals(fit_bulk_14c)^2))
+  
+  p_bulk_14c <- ggplot(pred_bulk_14c, aes(x = fitted_val, y = d14C_2026_Bulk)) +
+    geom_ribbon(aes(ymin = pred_lwr, ymax = pred_upr), fill = "skyblue", alpha = 0.3) +
+    geom_ribbon(aes(ymin = conf_lwr, ymax = conf_upr), fill = "blue", alpha = 0.2) +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray40", linewidth = 0.8) +
+    geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 1) +
+    geom_point(aes(color = Treatment), size = 3, alpha = 0.9) +
+    scale_color_viridis_d(option = "plasma") + 
+    labs(
+      title = "Observed vs. Predicted Δ14C (Bulk Soil)",
+      subtitle = sprintf("R² = %.3f | RMSE = %.3f", r_sq_b14, rmse_b14),
+      x = "Predicted Δ14C (‰)",
+      y = "Observed Δ14C (‰)",
+      color = "Treatment"
+    ) +
+    theme_bw(base_size = 12) +
+    theme(plot.title = element_text(face = "bold", size = 14), legend.position = "right")
+  
+  ggsave(
+    filename = file.path(mlr_14c_out_dir, "observed_vs_predicted_d14C_bulk.png"),
+    plot = p_bulk_14c, width = 7, height = 5, dpi = 300
+  )
+  message("Bulk Δ14C plot successfully saved to stepwise_MLR_14C_Oct2023/")
+} else {
+  warning("Not enough complete observations for Bulk Δ14C plot.")
+}
+
+
+# =============================================================================
+# PART B: SOM FRACTIONS (fPOM, oPOM, MAOM) PLOTS & LOOPS
+# =============================================================================
+
+fractions <- c("fPOM", "oPOM", "MAOM")
+
+# 1. Calculate analytical replicate statistics for Carbon fractions from raw CN data
+cn_fraction_stats <- cn_raw %>%
+  dplyr::rename(sample_name = `Sample name`, result = `Result (%)`) %>%
+  mutate(
+    sample_name = as.character(sample_name),
+    result = readr::parse_number(as.character(result)),
+    Parameter = str_trim(as.character(Parameter))
+  ) %>%
+  filter(Parameter == "Ctotal") %>%
+  extract(
+    sample_name,
+    into = c("sample", "year", "fraction"),
+    regex = "^(\\d+)_((?:20)?\\d{2})_(MAOM|oPOM|fPOM|Bulk)$",
+    remove = FALSE,
+    convert = TRUE
+  ) %>%
+  filter(!is.na(sample), year == 2026, fraction %in% fractions) %>%
+  group_by(sample, fraction) %>%
+  summarise(
+    C_mean = mean(result, na.rm = TRUE),
+    C_sd   = sd(result, na.rm = TRUE),
+    n_reps = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(C_se = C_sd / sqrt(n_reps))
+
+# 2. Loop through each fraction to generate Carbon and Delta 14C plots
+for (frac in fractions) {
+  
+  # ---------------------------------------------------------------------------
+  # B1. CARBON FRACTION PLOT (Saved to step-wise MLR C directory)
+  # ---------------------------------------------------------------------------
+  frac_cn_data <- cn_fraction_stats %>% filter(fraction == frac)
+  
+  model_data_c_frac <- integrated %>%
+    select(sample, Treatment, soil_pH, soil_EC, CEC_Oct2023) %>%
+    left_join(frac_cn_data, by = "sample") %>%
+    drop_na(C_mean, soil_pH, soil_EC, CEC_Oct2023)
+  
+  if (nrow(model_data_c_frac) > 5) {
+    fit_c <- lm(C_mean ~ soil_pH + soil_EC + CEC_Oct2023, data = model_data_c_frac)
+    
+    pred_c <- model_data_c_frac %>%
+      mutate(fitted_val = fitted(fit_c)) %>%
+      bind_cols(
+        as.data.frame(predict(fit_c, interval = "confidence", level = 0.95)) %>% rename(conf_lwr = lwr, conf_upr = upr),
+        as.data.frame(predict(fit_c, interval = "prediction", level = 0.95)) %>% select(lwr, upr) %>% rename(pred_lwr = lwr, pred_upr = upr)
+      )
+    
+    r_sq_c <- summary(fit_c)$r.squared
+    rmse_c <- sqrt(mean(residuals(fit_c)^2))
+    
+    p_c <- ggplot(pred_c, aes(x = fitted_val, y = C_mean)) +
+      geom_ribbon(aes(ymin = pred_lwr, ymax = pred_upr), fill = "skyblue", alpha = 0.3) +
+      geom_ribbon(aes(ymin = conf_lwr, ymax = conf_upr), fill = "blue", alpha = 0.2) +
+      geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray40", linewidth = 0.8) +
+      geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 1) +
+      geom_errorbar(aes(ymin = C_mean - C_se, ymax = C_mean + C_se, color = Treatment), width = 0.05, alpha = 0.6) +
+      geom_point(aes(color = Treatment), size = 3, alpha = 0.9) +
+      scale_color_viridis_d(option = "plasma") +
+      labs(
+        title = sprintf("Observed vs. Predicted Carbon (%s Fraction)", frac),
+        subtitle = sprintf("R² = %.3f | RMSE = %.3f", r_sq_c, rmse_c),
+        x = sprintf("Predicted C %s (%%)", frac),
+        y = sprintf("Observed C %s (%%)", frac),
+        color = "Treatment"
+      ) +
+      theme_bw(base_size = 12) +
+      theme(plot.title = element_text(face = "bold", size = 14), legend.position = "right")
+    
+    ggsave(
+      filename = file.path(mlr_c_out_dir, sprintf("observed_vs_predicted_C_%s.png", tolower(frac))),
+      plot = p_c, width = 7, height = 5, dpi = 300
+    )
+    message(sprintf("Successfully generated and saved Carbon plot for %s in stepwise_MLR_C_Oct2023/", frac))
+  } else {
+    warning(sprintf("Not enough complete observations for Carbon %s plot.", frac))
+  }
+  
+  # ---------------------------------------------------------------------------
+  # B2. DELTA 14C FRACTION PLOT (Saved to step-wise MLR 14C directory)
+  # ---------------------------------------------------------------------------
+  d14c_col <- paste0("d14C_2026_", frac)
+  
+  if (d14c_col %in% names(integrated)) {
+    model_data_14c_frac <- integrated %>%
+      select(sample, Treatment, all_of(d14c_col), soil_pH, soil_EC, CEC_Oct2023) %>%
+      rename(d14C_val = !!sym(d14c_col)) %>%
+      drop_na()
+    
+    if (nrow(model_data_14c_frac) > 5) {
+      fit_14c <- lm(d14C_val ~ soil_pH + soil_EC + CEC_Oct2023, data = model_data_14c_frac)
+      
+      pred_14c <- model_data_14c_frac %>%
+        mutate(fitted_val = fitted(fit_14c)) %>%
+        bind_cols(
+          as.data.frame(predict(fit_14c, interval = "confidence", level = 0.95)) %>% rename(conf_lwr = lwr, conf_upr = upr),
+          as.data.frame(predict(fit_14c, interval = "prediction", level = 0.95)) %>% select(lwr, upr) %>% rename(pred_lwr = lwr, pred_upr = upr)
+        )
+      
+      r_sq_14c <- summary(fit_14c)$r.squared
+      rmse_14c <- sqrt(mean(residuals(fit_14c)^2))
+      
+      p_14c <- ggplot(pred_14c, aes(x = fitted_val, y = d14C_val)) +
+        geom_ribbon(aes(ymin = pred_lwr, ymax = pred_upr), fill = "skyblue", alpha = 0.3) +
+        geom_ribbon(aes(ymin = conf_lwr, ymax = conf_upr), fill = "blue", alpha = 0.2) +
+        geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray40", linewidth = 0.8) +
+        geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 1) +
+        geom_point(aes(color = Treatment), size = 3, alpha = 0.9) +
+        scale_color_viridis_d(option = "plasma") +
+        labs(
+          title = sprintf("Observed vs. Predicted Δ14C (%s Fraction)", frac),
+          subtitle = sprintf("R² = %.3f | RMSE = %.3f", r_sq_14c, rmse_14c),
+          x = sprintf("Predicted Δ14C %s (‰)", frac),
+          y = sprintf("Observed Δ14C %s (‰)", frac),
+          color = "Treatment"
+        ) +
+        theme_bw(base_size = 12) +
+        theme(plot.title = element_text(face = "bold", size = 14), legend.position = "right")
+      
+      ggsave(
+        filename = file.path(mlr_14c_out_dir, sprintf("observed_vs_predicted_d14C_%s.png", tolower(frac))),
+        plot = p_14c, width = 7, height = 5, dpi = 300
+      )
+      message(sprintf("Successfully generated and saved Δ14C plot for %s in stepwise_MLR_14C_Oct2023/", frac))
+    } else {
+      warning(sprintf("Not enough complete observations for Δ14C %s plot.", frac))
+    }
+  } else {
+    message(sprintf("Column %s not found in integrated dataset; skipping Δ14C plot for %s.", d14c_col, frac))
+  }
+}

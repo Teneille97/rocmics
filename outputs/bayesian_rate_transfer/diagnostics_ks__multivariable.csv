@@ -1,0 +1,2 @@
+model,outcome,predictors,n_treatments,n_predictors,residual_df_nominal,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+ks__multivariable,ks,Fe_ox_over_DCB + soil_pH + Si_ox_over_DCB,5,1,3,1.0003885606586151,2998.50471250692,3264.613138935987,0,0

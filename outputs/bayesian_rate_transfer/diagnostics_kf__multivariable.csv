@@ -1,0 +1,2 @@
+model,outcome,predictors,n_treatments,n_predictors,residual_df_nominal,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+kf__multivariable,kf,Mn_ox_over_DCB + soil_pH,5,1,3,1.0008904269379737,5368.741767515343,3578.396636520318,0,0
