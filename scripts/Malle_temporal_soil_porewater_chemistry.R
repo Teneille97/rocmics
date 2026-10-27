@@ -88,6 +88,8 @@ Alldata_Soil_phEC_summary <- Alldata_Soil_phEC %>%
   )
 
 #write file to outputs for use in other scripts
+write.csv(Alldata_Soil_phEC,file=here::here("outputs","Alldata_Soil_phEC.csv"), row.names=FALSE)
+
 write.csv(Alldata_Soil_phEC_summary,file=here::here("outputs","Alldata_Soil_phEC_summary.csv"), row.names=FALSE)
 write.csv(Alldata_Rhizon_summary,file=here::here("outputs","Alldata_Rhizon_summary.csv"), row.names=FALSE)
 

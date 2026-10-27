@@ -1,0 +1,104 @@
+
+========================================
+RESPONSE: C_Bulk
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.072601 -0.027335 -0.004634  0.028216  0.078241 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  0.58880    0.13370   4.404  0.00455 ** 
+CEC_CEC     -0.08176    0.06876  -1.189  0.27930    
+CEC_K        2.21174    0.34217   6.464  0.00065 ***
+CEC_Ca       0.40477    0.09190   4.404  0.00455 ** 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.05708 on 6 degrees of freedom
+Multiple R-squared:  0.9729,	Adjusted R-squared:  0.9594 
+F-statistic: 71.85 on 3 and 6 DF,  p-value: 4.301e-05
+
+
+========================================
+RESPONSE: C_MAOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.083123 -0.025308  0.008446  0.039094  0.046951 
+
+Coefficients:
+                     Estimate Std. Error t value Pr(>|t|)    
+(Intercept)            1.6181     0.1426  11.343 2.81e-05 ***
+GMD_oxalate           -2.8660     0.4375  -6.551 0.000605 ***
+Mn_Oct2023            18.2343     4.2371   4.303 0.005074 ** 
+Tessier_H2O2_Fe_mg_g  -1.4736     0.5653  -2.607 0.040303 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.05489 on 6 degrees of freedom
+Multiple R-squared:  0.958,	Adjusted R-squared:  0.937 
+F-statistic: 45.59 on 3 and 6 DF,  p-value: 0.0001598
+
+
+========================================
+RESPONSE: C_oPOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-2.7786 -1.1135  0.4445  0.9333  2.6910 
+
+Coefficients:
+                            Estimate Std. Error t value Pr(>|t|)    
+(Intercept)                   82.589      6.766  12.207 1.84e-05 ***
+Mn_Oct2023                 -1114.287    144.942  -7.688 0.000254 ***
+Al_ox_over_DCB               -24.926      4.654  -5.355 0.001736 ** 
+FTIR_delta_Aliphatic_total   -27.354      8.667  -3.156 0.019666 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 2.109 on 6 degrees of freedom
+Multiple R-squared:  0.9413,	Adjusted R-squared:  0.912 
+F-statistic: 32.09 on 3 and 6 DF,  p-value: 0.0004318
+
+
+========================================
+RESPONSE: C_fPOM
+========================================
+
+
+Call:
+lm(formula = new_formula, data = dat)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-2.5250 -0.7437 -0.1710  1.0988  1.8299 
+
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept)    47.523      2.738  17.355 2.35e-06 ***
+Al_Oct2023  -1059.793    154.495  -6.860 0.000473 ***
+CEC_K          39.511      9.289   4.253 0.005360 ** 
+CEC_Mn      -1298.209    364.515  -3.561 0.011906 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 1.655 on 6 degrees of freedom
+Multiple R-squared:  0.9382,	Adjusted R-squared:  0.9073 
+F-statistic: 30.36 on 3 and 6 DF,  p-value: 0.0005042
+
