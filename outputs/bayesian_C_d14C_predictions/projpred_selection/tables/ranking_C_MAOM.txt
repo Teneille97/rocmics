@@ -1,0 +1,8 @@
+$fulldata
+[1] "GMD_oxalate"           "CEC_K"                 "soil_pH"               "CEC_Na"                "FTIR_delta_total_area"
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"

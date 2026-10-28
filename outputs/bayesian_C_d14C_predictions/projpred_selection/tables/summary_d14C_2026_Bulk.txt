@@ -1,0 +1,38 @@
+
+Family: gaussian 
+Link function: identity 
+
+Formula: y_std ~ GMD_h2o + GMD_oxalate + Fe_ox_over_DCB + Al_ox_over_DCB + 
+    Mn_ox_over_DCB + Si_ox_over_DCB + Tessier_Acetic_Ca_mg_g + 
+    Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + Tessier_Hydroxylamine_Fe_mg_g + 
+    Tessier_Hydroxylamine_Al_mg_g + Tessier_Hydroxylamine_Mn_mg_g + 
+    Tessier_Hydroxylamine_Si_mg_g + soil_pH + soil_EC + pH_Oct2023 + 
+    EC_Oct2023 + Ca_Oct2023 + K_Oct2023 + Mg_Oct2023 + Na_Oct2023 + 
+    Al_Oct2023 + Fe_Oct2023 + Mn_Oct2023 + CEC_Oct2023 + Base_saturation_Oct2023 + 
+    Tessier_H2O2_Fe_mg_g + Tessier_H2O2_Al_mg_g + Tessier_H2O2_Si_mg_g + 
+    Tessier_H2O2_Ca_mg_g + Tessier_H2O2_K_mg_g + Tessier_H2O2_Mg_mg_g + 
+    CEC_H + CEC_Ca + CEC_K + CEC_Mg + CEC_Na + CEC_Al + CEC_Fe + 
+    CEC_Mn + CEC_CEC + CEC_Base_saturation + FTIR_delta_aromatic + 
+    FTIR_delta_Carbonate_bend + FTIR_delta_carbonate_stretch + 
+    FTIR_delta_Aliphatic_total + FTIR_delta_COO_total + FTIR_delta_polysaccharide + 
+    FTIR_delta_Silicate + FTIR_delta_total_area
+Observations: 15
+Projection method: traditional
+Search method: forward
+Maximum submodel size for the search: 5
+Number of projected draws in the search: 20 (from clustered projection)
+Number of projected draws in the performance evaluation: 20 (from clustered projection)
+Argument `refit_prj`: TRUE
+
+Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
+ size       ranking_fulldata cv_proportions_diag  elpd elpd.se elpd.diff elpd.diff.se
+    0            (Intercept)                  NA -21.0    2.90       -54         2.94
+    1 Tessier_Acetic_Na_mg_g                  NA -15.7    2.03       -49         2.06
+    2         Fe_ox_over_DCB                  NA -11.7    1.18       -45         1.21
+    3             Mg_Oct2023                  NA -10.5    0.90       -44         0.91
+    4         Si_ox_over_DCB                  NA  -9.0    0.94       -42         0.97
+    5             EC_Oct2023                  NA  -7.2    0.93       -41         0.91
+
+Reference model performance evaluation summary with `deltas = FALSE`:
+   elpd elpd.se 
+  33.33    0.12 

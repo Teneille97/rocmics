@@ -1,0 +1,38 @@
+
+Family: gaussian 
+Link function: identity 
+
+Formula: y_std ~ GMD_h2o + GMD_oxalate + Fe_ox_over_DCB + Al_ox_over_DCB + 
+    Mn_ox_over_DCB + Si_ox_over_DCB + Tessier_Acetic_Ca_mg_g + 
+    Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + Tessier_Hydroxylamine_Fe_mg_g + 
+    Tessier_Hydroxylamine_Al_mg_g + Tessier_Hydroxylamine_Mn_mg_g + 
+    Tessier_Hydroxylamine_Si_mg_g + soil_pH + soil_EC + pH_Oct2023 + 
+    EC_Oct2023 + Ca_Oct2023 + K_Oct2023 + Mg_Oct2023 + Na_Oct2023 + 
+    Al_Oct2023 + Fe_Oct2023 + Mn_Oct2023 + CEC_Oct2023 + Base_saturation_Oct2023 + 
+    Tessier_H2O2_Fe_mg_g + Tessier_H2O2_Al_mg_g + Tessier_H2O2_Si_mg_g + 
+    Tessier_H2O2_Ca_mg_g + Tessier_H2O2_K_mg_g + Tessier_H2O2_Mg_mg_g + 
+    CEC_H + CEC_Ca + CEC_K + CEC_Mg + CEC_Na + CEC_Al + CEC_Fe + 
+    CEC_Mn + CEC_CEC + CEC_Base_saturation + FTIR_delta_aromatic + 
+    FTIR_delta_Carbonate_bend + FTIR_delta_carbonate_stretch + 
+    FTIR_delta_Aliphatic_total + FTIR_delta_COO_total + FTIR_delta_polysaccharide + 
+    FTIR_delta_Silicate + FTIR_delta_total_area
+Observations: 15
+Projection method: traditional
+Search method: forward
+Maximum submodel size for the search: 5
+Number of projected draws in the search: 20 (from clustered projection)
+Number of projected draws in the performance evaluation: 20 (from clustered projection)
+Argument `refit_prj`: TRUE
+
+Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
+ size              ranking_fulldata cv_proportions_diag   elpd elpd.se elpd.diff elpd.diff.se
+    0                   (Intercept)                  NA -21.15    1.71       -65         1.67
+    1                        CEC_Ca                  NA -15.15    1.90       -59         1.89
+    2 Tessier_Hydroxylamine_Fe_mg_g                  NA -10.39    0.95       -54         0.97
+    3        Tessier_Acetic_Ca_mg_g                  NA  -5.05    0.60       -48         0.59
+    4     FTIR_delta_polysaccharide                  NA  -2.21    0.50       -46         0.51
+    5                   CEC_Oct2023                  NA  -0.52    0.37       -44         0.36
+
+Reference model performance evaluation summary with `deltas = FALSE`:
+   elpd elpd.se 
+ 43.442   0.087 

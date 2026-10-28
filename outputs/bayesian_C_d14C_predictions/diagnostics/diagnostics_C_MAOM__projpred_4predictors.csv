@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+C_MAOM,4-predictor refit,15,4,GMD_oxalate + CEC_K + soil_pH + CEC_Na,1.0007193088482826,3520.639374564287,3956.4827141928695,0,0

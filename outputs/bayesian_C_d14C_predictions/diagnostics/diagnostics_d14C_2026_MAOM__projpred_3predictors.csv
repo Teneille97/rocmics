@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+d14C_2026_MAOM,3-predictor refit,15,3,Tessier_Hydroxylamine_Si_mg_g + GMD_oxalate + soil_pH,1.0016156890022825,3892.473580454697,3660.260111382229,0,0

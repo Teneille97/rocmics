@@ -1,0 +1,38 @@
+
+Family: gaussian 
+Link function: identity 
+
+Formula: y_std ~ GMD_h2o + GMD_oxalate + Fe_ox_over_DCB + Al_ox_over_DCB + 
+    Mn_ox_over_DCB + Si_ox_over_DCB + Tessier_Acetic_Ca_mg_g + 
+    Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + Tessier_Hydroxylamine_Fe_mg_g + 
+    Tessier_Hydroxylamine_Al_mg_g + Tessier_Hydroxylamine_Mn_mg_g + 
+    Tessier_Hydroxylamine_Si_mg_g + soil_pH + soil_EC + pH_Oct2023 + 
+    EC_Oct2023 + Ca_Oct2023 + K_Oct2023 + Mg_Oct2023 + Na_Oct2023 + 
+    Al_Oct2023 + Fe_Oct2023 + Mn_Oct2023 + CEC_Oct2023 + Base_saturation_Oct2023 + 
+    Tessier_H2O2_Fe_mg_g + Tessier_H2O2_Al_mg_g + Tessier_H2O2_Si_mg_g + 
+    Tessier_H2O2_Ca_mg_g + Tessier_H2O2_K_mg_g + Tessier_H2O2_Mg_mg_g + 
+    CEC_H + CEC_Ca + CEC_K + CEC_Mg + CEC_Na + CEC_Al + CEC_Fe + 
+    CEC_Mn + CEC_CEC + CEC_Base_saturation + FTIR_delta_aromatic + 
+    FTIR_delta_Carbonate_bend + FTIR_delta_carbonate_stretch + 
+    FTIR_delta_Aliphatic_total + FTIR_delta_COO_total + FTIR_delta_polysaccharide + 
+    FTIR_delta_Silicate + FTIR_delta_total_area
+Observations: 15
+Projection method: traditional
+Search method: forward
+Maximum submodel size for the search: 5
+Number of projected draws in the search: 20 (from clustered projection)
+Number of projected draws in the performance evaluation: 20 (from clustered projection)
+Argument `refit_prj`: TRUE
+
+Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
+ size              ranking_fulldata cv_proportions_diag  elpd elpd.se elpd.diff elpd.diff.se
+    0                   (Intercept)                  NA -21.3    1.93     -24.7         1.94
+    1 Tessier_Hydroxylamine_Si_mg_g                  NA -17.2    1.48     -20.6         1.47
+    2                   GMD_oxalate                  NA -12.1    0.93     -15.5         0.92
+    3                       soil_pH                  NA  -9.6    1.05     -13.0         1.05
+    4                        CEC_Fe                  NA  -7.8    0.60     -11.2         0.60
+    5         FTIR_delta_total_area                  NA  -5.1    0.51      -8.5         0.52
+
+Reference model performance evaluation summary with `deltas = FALSE`:
+   elpd elpd.se 
+  3.362   0.029 

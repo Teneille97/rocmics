@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+C_oPOM,5-predictor refit,15,5,Al_Oct2023 + Tessier_Hydroxylamine_Si_mg_g + Ca_Oct2023 + pH_Oct2023 + Mn_Oct2023,1.0010419255472092,3090.273552992,3917.6318661941696,0,0

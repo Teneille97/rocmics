@@ -1,0 +1,9 @@
+$fulldata
+[1] "Al_Oct2023"                    "Tessier_Hydroxylamine_Si_mg_g" "Ca_Oct2023"                    "pH_Oct2023"                   
+[5] "Mn_Oct2023"                   
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"

@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+d14C_2026_oPOM,4-predictor refit,15,4,Al_Oct2023 + Fe_ox_over_DCB + soil_EC + GMD_oxalate,1.0019447232317762,3001.436609370802,3549.4372799708212,0,0

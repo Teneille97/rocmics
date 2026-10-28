@@ -1,0 +1,9 @@
+$fulldata
+[1] "CEC_Ca"                        "Tessier_Hydroxylamine_Fe_mg_g" "Tessier_Acetic_Ca_mg_g"        "FTIR_delta_polysaccharide"    
+[5] "CEC_Oct2023"                  
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"

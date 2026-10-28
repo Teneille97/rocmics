@@ -1,0 +1,9 @@
+$fulldata
+[1] "Tessier_Hydroxylamine_Si_mg_g" "GMD_oxalate"                   "soil_pH"                       "CEC_Fe"                       
+[5] "FTIR_delta_total_area"        
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"

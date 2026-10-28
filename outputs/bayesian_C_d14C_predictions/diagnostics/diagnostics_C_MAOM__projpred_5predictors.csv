@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+C_MAOM,5-predictor refit,15,5,GMD_oxalate + CEC_K + soil_pH + CEC_Na + FTIR_delta_total_area,1.0028649610521825,2737.5476369316248,3682.533855745526,0,0

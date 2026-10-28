@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+d14C_2026_Bulk,3-predictor refit,15,3,Tessier_Acetic_Na_mg_g + Fe_ox_over_DCB + Mg_Oct2023,1.001192990417846,4130.224573928842,4479.959081719995,0,0

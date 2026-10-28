@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+d14C_2026_oPOM,3-predictor refit,15,3,Al_Oct2023 + Fe_ox_over_DCB + soil_EC,1.00148859221531,4593.150082517814,4410.547676480976,0,0

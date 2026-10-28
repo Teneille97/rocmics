@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+d14C_2026_fPOM,5-predictor refit,15,5,Mn_Oct2023 + FTIR_delta_aromatic + CEC_Mn + FTIR_delta_Carbonate_bend + CEC_K,1.0029376006049404,1935.9051032862144,3385.703826609398,0,0

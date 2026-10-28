@@ -1,0 +1,2 @@
+response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+C_Bulk,5-predictor refit,15,5,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g + FTIR_delta_polysaccharide + CEC_Oct2023,1.001755110058913,2975.118089073966,3076.1092892570455,0,0

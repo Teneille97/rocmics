@@ -1,0 +1,9 @@
+$fulldata
+[1] "Al_Oct2023"                    "Fe_ox_over_DCB"                "soil_EC"                       "GMD_oxalate"                  
+[5] "Tessier_Hydroxylamine_Fe_mg_g"
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"
