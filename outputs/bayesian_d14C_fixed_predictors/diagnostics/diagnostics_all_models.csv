@@ -1,0 +1,4 @@
+response,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+d14C_2026_MAOM,15,3,soil_pH + Fe_ox_over_DCB + Si_ox_over_DCB,1.000565956538647,4732.9678838588525,4430.767921996365,0,0
+d14C_2026_oPOM,15,3,soil_EC + CEC_Ca + GMD_h2o,1.0014577069768251,4378.438426652118,4547.837006883428,0,0
+d14C_2026_fPOM,15,2,Mn_ox_over_DCB + Tessier_Acetic_Mg_mg_g,1.0008182773752141,4789.820852965915,4218.424893781843,0,0

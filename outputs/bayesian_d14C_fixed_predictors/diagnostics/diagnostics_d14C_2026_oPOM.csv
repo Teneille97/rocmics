@@ -1,0 +1,2 @@
+response,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
+d14C_2026_oPOM,15,3,soil_EC + CEC_Ca + GMD_h2o,1.0014577069768251,4378.438426652118,4547.837006883428,0,0
