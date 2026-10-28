@@ -1,5 +1,3 @@
-term,Estimate,Est.Error,Q2.5,Q50,Q97.5,prob_positive,prob_negative,response,model,n_predictors,predictors,estimate_original_response_per_predictor_SD,lower_original_response_per_predictor_SD,upper_original_response_per_predictor_SD
-Intercept,-0.00417031646915325,0.11263879882709216,-0.23192647325,-0.0033131725000000002,0.21545020899999992,0.48575,0.51425,d14C_2026_MAOM,3-predictor refit,3,Tessier_Hydroxylamine_Si_mg_g + GMD_oxalate + soil_pH,-0.11381623406694817,-6.329734916041874,5.880064882053384
-Tessier_Hydroxylamine_Si_mg_g,0.72186233631475,0.14258294681466552,0.42370201725,0.726432215,0.9884734279999996,0.999875,1.25e-4,d14C_2026_MAOM,3-predictor refit,3,Tessier_Hydroxylamine_Si_mg_g + GMD_oxalate + soil_pH,19.70105943801323,11.563671085076104,26.97740660268157
-GMD_oxalate,-0.563309716121125,0.12029348527696072,-0.79336614075,-0.56653011,-0.3103550042500003,1.25e-4,0.999875,d14C_2026_MAOM,3-predictor refit,3,Tessier_Hydroxylamine_Si_mg_g + GMD_oxalate + soil_pH,-15.373842962868927,-21.652540531229185,-8.470205575247116
-soil_pH,-0.29844975867351625,0.14094858320289033,-0.5614611645,-0.304336245,-0.016214992725000196,0.02075,0.97925,d14C_2026_MAOM,3-predictor refit,3,Tessier_Hydroxylamine_Si_mg_g + GMD_oxalate + soil_pH,-8.145287735754533,-15.323392311089611,-0.44253941422273024
+version https://git-lfs.github.com/spec/v1
+oid sha256:c9abc3c7dcc732bc39ab21ee67b40725d2fd46dc200898e98a61e7f4646f955d
+size 1303

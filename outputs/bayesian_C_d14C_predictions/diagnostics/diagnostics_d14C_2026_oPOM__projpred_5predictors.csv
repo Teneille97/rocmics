@@ -1,2 +1,3 @@
-response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-d14C_2026_oPOM,5-predictor refit,15,5,Al_Oct2023 + Fe_ox_over_DCB + soil_EC + GMD_oxalate + Tessier_Hydroxylamine_Fe_mg_g,1.0015972637716994,2696.8412966533174,3608.556496786819,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:ddc95f1d8a16a8c926113a96f4b529982d0827dbc4b513fc3dee230352c111b6
+size 285

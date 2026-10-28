@@ -1,2 +1,3 @@
-model,outcome,predictors,n_treatments,n_predictors,residual_df_nominal,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-alpha_is__multivariable,alpha_is,Fe_ox_over_DCB + CEC_Ca + Si_ox_over_DCB,5,1,3,1.0008134344921011,4868.068768322491,4112.943578030466,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:877486236cf7848daa46c9afa70f388654fe1f0a95333e49c84049ae7e9829e0
+size 272

@@ -1,2 +1,3 @@
-response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-C_Bulk,5-predictor refit,15,5,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g + FTIR_delta_polysaccharide + CEC_Oct2023,1.001755110058913,2975.118089073966,3076.1092892570455,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:aa64f428da99f98f273a43d04f579653ad4dbfdacd091d0591a32292acbecc3f
+size 298

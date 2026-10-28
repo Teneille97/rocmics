@@ -1,6 +1,3 @@
-term,Estimate,Est.Error,Q2.5,Q50,Q97.5,prob_positive,prob_negative,response,model,n_predictors,predictors,estimate_original_response_per_predictor_SD,lower_original_response_per_predictor_SD,upper_original_response_per_predictor_SD
-Intercept,9.467908459887494e-5,0.058740894451157676,-0.117106569,1.2973815e-4,0.11948067874999996,0.500875,0.499125,C_Bulk,4-predictor refit,4,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g + FTIR_delta_polysaccharide,1.665255136014959e-5,-0.02059719063767305,0.021014758939204518
-CEC_Ca,0.99777087261125,0.0907754927696605,0.8047884922499999,1.0031428,1.1633991074999999,1,0,C_Bulk,4-predictor refit,4,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g + FTIR_delta_polysaccharide,0.17549209281241354,0.14154954875228828,0.20462347594588126
-Tessier_Hydroxylamine_Fe_mg_g,-0.8866156166825,0.10097302272742295,-1.065713905,-0.894294595,-0.6577978755,0,1,C_Bulk,4-predictor refit,4,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g + FTIR_delta_polysaccharide,-0.15594164388120285,-0.18744219606078621,-0.1156962274484348
-Tessier_Acetic_Ca_mg_g,0.579483790406625,0.09956887295467746,0.36622865849999997,0.5833773550000001,0.7611755422500001,0.99975,2.5e-4,C_Bulk,4-predictor refit,4,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g + FTIR_delta_polysaccharide,0.10192202029628782,0.06441382033917979,0.13387872163223746
-FTIR_delta_polysaccharide,0.18152498836014874,0.0665174461909539,0.042684661625,0.18236865,0.30943091474999984,0.99275,0.00725,C_Bulk,4-predictor refit,4,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g + FTIR_delta_polysaccharide,0.03192737028061479,0.0075075558980358505,0.05442399683228108
+version https://git-lfs.github.com/spec/v1
+oid sha256:a20dc20fabf0babde6de6fec0c497089305852fa8705ac9b5db1eea0d8a59bd9
+size 1717

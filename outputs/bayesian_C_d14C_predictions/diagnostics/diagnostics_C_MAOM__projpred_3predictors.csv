@@ -1,2 +1,3 @@
-response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-C_MAOM,3-predictor refit,15,3,GMD_oxalate + CEC_K + soil_pH,1.0008495747830022,3752.090169715522,4269.559824338385,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:7fd48fd5dbcb40ea38cd0fb4a924a123873ddbb6c3e1ff2431d5f659a63cf940
+size 222

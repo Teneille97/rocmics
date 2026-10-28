@@ -1,2 +1,3 @@
-response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-C_oPOM,3-predictor refit,15,3,Al_Oct2023 + Tessier_Hydroxylamine_Si_mg_g + Ca_Oct2023,1.0010106892293527,3850.536406559669,4277.638501370753,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:559faa925437b22a7544933314da181873d6647b25e045786332ba9810d18345
+size 248

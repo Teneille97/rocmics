@@ -1,2 +1,3 @@
-model,outcome,predictors,n_treatments,n_predictors,residual_df_nominal,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-ki__multivariable,ki,GMD_h2o + CEC_Ca + soil_EC,5,1,3,1.0016575756740926,7785.432075477195,3681.212584319606,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:21672c72262574a46cf8c97ded8f84a87d2d976e0c5350d56118449bcacd0545
+size 246

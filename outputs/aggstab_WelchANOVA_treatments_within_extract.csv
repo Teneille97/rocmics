@@ -1,10 +1,3 @@
-"metric","comparison","extract_type","test","p_overall"
-"MWD","treatments within extract","h2o","Welch ANOVA",4.35556779612386e-05
-"MWD","treatments within extract","oxalate","Welch ANOVA",0.0135495937827499
-"MWD","treatments within extract","h2o2","Welch ANOVA",0.0787151657005779
-"GMD","treatments within extract","h2o","Welch ANOVA",3.18162198146523e-05
-"GMD","treatments within extract","oxalate","Welch ANOVA",0.000171075025038479
-"GMD","treatments within extract","h2o2","Welch ANOVA",0.0694925059679563
-"D","treatments within extract","h2o","Welch ANOVA",0.000182964005441081
-"D","treatments within extract","oxalate","Welch ANOVA",0.00144524831858195
-"D","treatments within extract","h2o2","Welch ANOVA",1.61317192136444e-08
+version https://git-lfs.github.com/spec/v1
+oid sha256:2eb93d1372eb64951015218bde05c0814d6ee16073e33b672c7fb1c1562051fb
+size 733

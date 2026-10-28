@@ -1,16 +1,3 @@
-"Metric","Value"
-"fPOM_resp_eff_median",0.577087318096811
-"fPOM_resp_eff_lci",0.50506858586239
-"fPOM_resp_eff_uci",0.649145955894555
-"fPOM_stab_eff_median",0.422912681903189
-"fPOM_stab_eff_lci",0.350854044105445
-"fPOM_stab_eff_uci",0.49493141413761
-"oPOM_resp_eff_median",0.932791872726995
-"oPOM_resp_eff_lci",0.901946179326648
-"oPOM_resp_eff_uci",0.985023994082908
-"oPOM_stab_eff_median",0.0672081272730055
-"oPOM_stab_eff_lci",0.0149760059170917
-"oPOM_stab_eff_uci",0.0980538206733519
-"MAOM_resp_eff_median",1
-"MAOM_resp_eff_lci",1
-"MAOM_resp_eff_uci",1
+version https://git-lfs.github.com/spec/v1
+oid sha256:93095548803aa6bdf1295ef7c3165fb01d1e006f95999566684296efdac2895d
+size 555

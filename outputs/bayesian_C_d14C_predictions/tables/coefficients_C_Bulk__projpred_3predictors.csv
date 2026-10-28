@@ -1,5 +1,3 @@
-term,Estimate,Est.Error,Q2.5,Q50,Q97.5,prob_positive,prob_negative,response,model,n_predictors,predictors,estimate_original_response_per_predictor_SD,lower_original_response_per_predictor_SD,upper_original_response_per_predictor_SD
-Intercept,1.8595089589015497e-4,0.08371496660553698,-0.16711351,9.50225495e-4,0.1658182144999998,0.50475,0.49525,C_Bulk,3-predictor refit,3,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g,3.2705817313250945e-5,-0.029392619500283386,0.029164797538001972
-CEC_Ca,0.950417485789125,0.12194474731658303,0.6881749215,0.9585661249999999,1.1775303924999998,1,0,C_Bulk,3-predictor refit,3,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g,0.16716338210008122,0.12103906869819736,0.20710894515214148
-Tessier_Hydroxylamine_Fe_mg_g,-0.8214544261725,0.13890306927797774,-1.0617342625,-0.833714545,-0.5103402970000003,2.5e-4,0.99975,C_Bulk,3-predictor refit,3,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g,-0.1444808225577449,-0.1867422399785421,-0.08976077496895747
-Tessier_Acetic_Ca_mg_g,0.4913991416079625,0.1298850376680119,0.22631010275,0.494945845,0.73701169775,0.999125,8.75e-4,C_Bulk,3-predictor refit,3,CEC_Ca + Tessier_Hydroxylamine_Fe_mg_g + Tessier_Acetic_Ca_mg_g,0.08642932574421253,0.03980436255094389,0.12962868411550696
+version https://git-lfs.github.com/spec/v1
+oid sha256:7a9701e8116dadd9ac0b23c000a51b4d0733d0c04a7e84d9f0bb75d9bda0667b
+size 1302

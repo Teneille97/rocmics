@@ -1,2 +1,3 @@
-response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-d14C_2026_fPOM,3-predictor refit,15,3,Mn_Oct2023 + FTIR_delta_aromatic + CEC_Mn,1.0013623300335504,4057.194326596332,4255.2543496363,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:8e38f8224d4fa49dadfb4749599fbda4f250002c4986b998eb311e92ee90155e
+size 240

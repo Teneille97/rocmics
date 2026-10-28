@@ -1,2 +1,3 @@
-response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-d14C_2026_MAOM,5-predictor refit,15,5,Tessier_Hydroxylamine_Si_mg_g + GMD_oxalate + soil_pH + CEC_Fe + FTIR_delta_total_area,1.0010601053778745,2497.3191603367973,2988.0095401422063,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:4b72914c26a234bf9b8d856a8c55acba410692ff523f250f763e664c9a42c76c
+size 289

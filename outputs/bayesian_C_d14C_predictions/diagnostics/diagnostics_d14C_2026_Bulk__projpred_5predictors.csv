@@ -1,2 +1,3 @@
-response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-d14C_2026_Bulk,5-predictor refit,15,5,Tessier_Acetic_Na_mg_g + Fe_ox_over_DCB + Mg_Oct2023 + Si_ox_over_DCB + EC_Oct2023,1.0018606281203026,3137.351507142086,3618.510936886408,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:46fbfa7ee5ce0ca2a552d76ef976d0f748a662624ef0b054f6447d67b4788a61
+size 283

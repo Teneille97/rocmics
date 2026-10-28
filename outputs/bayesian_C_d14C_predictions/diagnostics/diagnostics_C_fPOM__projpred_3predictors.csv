@@ -1,2 +1,3 @@
-response,model,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-C_fPOM,3-predictor refit,15,3,pH_Oct2023 + Mn_ox_over_DCB + FTIR_delta_Aliphatic_total,1.0009199569278115,4153.671451774533,4420.047800808957,0,0
+version https://git-lfs.github.com/spec/v1
+oid sha256:eda75479e5be029536bae2995456536e348bc3d13bbe4fc5b9b78f4252521138
+size 249

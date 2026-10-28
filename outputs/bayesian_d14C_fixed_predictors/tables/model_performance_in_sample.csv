@@ -1,4 +1,0 @@
-response,model,n,n_predictors,predictors,RMSE_in_sample,MAE_in_sample,squared_correlation_in_sample,observed_coverage_fitted_mean_95,observed_coverage_predictive_95
-d14C_2026_MAOM,fixed predictor set,15,3,soil_pH + Fe_ox_over_DCB + Si_ox_over_DCB,20.47537774235085,15.750288578139756,0.41399175494415724,0.7333333333333333,1
-d14C_2026_oPOM,fixed predictor set,15,3,soil_EC + CEC_Ca + GMD_h2o,14.219580588677687,11.098454613240294,0.22307905177235562,0.6,1
-d14C_2026_fPOM,fixed predictor set,15,2,Mn_ox_over_DCB + Tessier_Acetic_Mg_mg_g,15.026945223023809,12.047457052882264,0.16289498892539883,0.7333333333333333,1

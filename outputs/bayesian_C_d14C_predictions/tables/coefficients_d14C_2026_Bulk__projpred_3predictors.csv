@@ -1,5 +1,3 @@
-term,Estimate,Est.Error,Q2.5,Q50,Q97.5,prob_positive,prob_negative,response,model,n_predictors,predictors,estimate_original_response_per_predictor_SD,lower_original_response_per_predictor_SD,upper_original_response_per_predictor_SD
-Intercept,-0.0024825972238359997,0.1324820409933402,-0.26846308550000003,-9.5996258e-4,0.2625088587499999,0.497,0.503,d14C_2026_Bulk,3-predictor refit,3,Tessier_Acetic_Na_mg_g + Fe_ox_over_DCB + Mg_Oct2023,-0.06376845516887927,-6.8957928687898455,6.74285149033054
-Tessier_Acetic_Na_mg_g,-0.72150102505625,0.13699780571582096,-0.976796945,-0.726047375,-0.43290491950000026,0,1,d14C_2026_Bulk,3-predictor refit,3,Tessier_Acetic_Na_mg_g + Fe_ox_over_DCB + Mg_Oct2023,-18.532609852640064,-25.090188451949036,-11.119676476906706
-Fe_ox_over_DCB,-0.40706983926885,0.13494874137649993,-0.67337346775,-0.40837817,-0.1359162307500004,0.004,0.996,d14C_2026_Bulk,3-predictor refit,3,Tessier_Acetic_Na_mg_g + Fe_ox_over_DCB + Mg_Oct2023,-10.456071789168066,-17.296396442343426,-3.4911696444710936
-Mg_Oct2023,-0.20723956873607188,0.1342423435874825,-0.4743983815,-0.20748516,0.0642312441749999,0.058625,0.941375,d14C_2026_Bulk,3-predictor refit,3,Tessier_Acetic_Na_mg_g + Fe_ox_over_DCB + Mg_Oct2023,-5.323194202136545,-12.18548527824748,1.649855713721444
+version https://git-lfs.github.com/spec/v1
+oid sha256:9c701c3722f72ac60e7797d629f5e56c72a58b88cc5aa643d8059b6d68c206be
+size 1274

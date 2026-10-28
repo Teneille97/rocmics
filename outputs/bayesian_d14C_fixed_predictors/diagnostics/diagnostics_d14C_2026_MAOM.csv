@@ -1,2 +1,0 @@
-response,n,n_predictors,predictors,max_Rhat,min_bulk_ESS,min_tail_ESS,divergences,treedepth_hits
-d14C_2026_MAOM,15,3,soil_pH + Fe_ox_over_DCB + Si_ox_over_DCB,1.000565956538647,4732.9678838588525,4430.767921996365,0,0
