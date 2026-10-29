@@ -98,6 +98,70 @@ metrics_long <- extraction_metrics %>%
     values_to = "Value"
   )
 
+
+# ==============================================================================
+# RESTORE: AMORPHOUS FRACTION RATIO (OXALATE / DCB) WITH TUKEY HSD GROUPS
+# ==============================================================================
+
+ratio_50_amorphous <- extraction_metrics %>%
+  filter(
+    analysis_group %in% c(
+      "Control", "Bolsdorfer_50", "Eifelgold_50",
+      "Huhnerberg_50", "Lime_2"
+    )
+  ) %>%
+  mutate(
+    analysis_group = factor(
+      analysis_group,
+      levels = c(
+        "Control", "Bolsdorfer_50", "Eifelgold_50",
+        "Huhnerberg_50", "Lime_2"
+      )
+    )
+  ) %>%
+  filter(is.finite(Ratio_Ox_DCB))
+
+# Calculate Tukey HSD letters separately for each element
+letters_amorphous <- ratio_50_amorphous %>%
+  group_by(Element) %>%
+  group_modify(~ {
+    
+    dat <- .x %>% droplevels()
+    
+    if (n_distinct(dat$analysis_group) < 2 ||
+        nrow(dat) <= n_distinct(dat$analysis_group)) {
+      return(tibble(
+        analysis_group = character(),
+        .group = character(),
+        y = numeric()
+      ))
+    }
+    
+    mod <- aov(Ratio_Ox_DCB ~ analysis_group, data = dat)
+    emm <- emmeans(mod, ~ analysis_group)
+    
+    cld(emm, Letters = letters, adjust = "tukey") %>%
+      as.data.frame() %>%
+      transmute(
+        analysis_group = as.character(analysis_group),
+        .group = str_trim(.group),
+        y = max(dat$Ratio_Ox_DCB, na.rm = TRUE) +
+          0.10 * max(
+            diff(range(dat$Ratio_Ox_DCB, na.rm = TRUE)),
+            0.1 * abs(max(dat$Ratio_Ox_DCB, na.rm = TRUE)),
+            0.01
+          )
+      )
+  }) %>%
+  ungroup() %>%
+  mutate(
+    analysis_group = factor(
+      analysis_group,
+      levels = levels(ratio_50_amorphous$analysis_group)
+    )
+  )
+
+
 # ==============================================================================
 # 6. COMBINED PLOTS: OXALATE VS DCB (SHARED SCALE)
 # ==============================================================================
@@ -213,20 +277,6 @@ ggplot(metrics_50, aes(x = analysis_group, y = Diff_DCB_Ox, fill = analysis_grou
     legend.position = "none"
   )
 
-# --- Plot 5: Extraction Ratio (Oxalate / DCB) across 50 t/ha groups ---
-ggplot(metrics_50, aes(x = analysis_group, y = Ratio_Ox_DCB, fill = analysis_group)) +
-  geom_boxplot(outlier.shape = NA, fill = "grey90") +
-  geom_jitter(width = 0.15, size = 2, alpha = 0.8) +
-  facet_grid(Element ~ ., scales = "free_y") +
-  labs(
-    x = "",
-    y = expression("Active Ratio (Oxalate / DCB)"),
-    title = "Amorphous Fraction Ratio (Oxalate / DCB)"
-  ) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none"
-  )
 
 # ==============================================================================
 # 8. TUKEY STATISTICAL ANALYSIS FOR AMORPHOUS FRACTION RATIO (Oxalate / DCB)
@@ -649,3 +699,340 @@ correlation_matrices$Al
 correlation_matrices$Mn
 correlation_matrices$Si
 
+################## ratios
+
+# ==============================================================================
+# 9. SECONDARY-MINERAL GEOCHEMICAL RATIOS
+# ==============================================================================
+# Calculates element ratios separately for oxalate and DCB extractions.
+# Each row represents an individual soil sample/plot.
+#
+# Ratios are operational geochemical indicators, not definitive mineral IDs.
+# All elemental concentrations must be expressed in the same units.
+# ==============================================================================
+
+library(tidyverse)
+library(emmeans)
+library(multcomp)
+library(multcompView)
+
+# ==============================================================================
+# 9. SECONDARY-MINERAL GEOCHEMICAL RATIOS
+# ==============================================================================
+
+library(tidyverse)
+library(emmeans)
+library(multcomp)
+library(multcompView)
+
+treatment_levels <- c(
+  "Control", "Bolsdorfer_50", "Eifelgold_50",
+  "Huhnerberg_50", "Lime_2"
+)
+
+# ------------------------------------------------------------------------------
+# 9.1 Calculate ratios separately for each extraction method and plot
+# ------------------------------------------------------------------------------
+
+ratio_wide <- combined_extractions %>%
+  dplyr::select(
+    sample, analysis_group, Tmt, App_rate, Method,
+    Element, Concentration
+  ) %>%
+  pivot_wider(
+    names_from = Element,
+    values_from = Concentration
+  ) %>%
+  mutate(
+    # Oxalate-extractable ratios
+    Ox_Al_Si = if_else(Si > 0, Al / Si, NA_real_),
+    Ox_Fe_Si = if_else(Si > 0, Fe / Si, NA_real_),
+    Ox_Al_Fe = if_else(Fe > 0, Al / Fe, NA_real_),
+    
+    # DCB-extractable ratios
+    DCB_Al_Si = if_else(Si > 0, Al / Si, NA_real_),
+    DCB_Fe_Si = if_else(Si > 0, Fe / Si, NA_real_),
+    DCB_Al_Fe = if_else(Fe > 0, Al / Fe, NA_real_)
+  ) %>%
+  mutate(
+    across(
+      c(
+        Ox_Al_Si, Ox_Fe_Si, Ox_Al_Fe,
+        DCB_Al_Si, DCB_Fe_Si, DCB_Al_Fe
+      ),
+      ~ if_else(is.finite(.x), .x, NA_real_)
+    )
+  )
+
+# ------------------------------------------------------------------------------
+# 9.2 Long-format dataset
+# ------------------------------------------------------------------------------
+
+ratio_long <- ratio_wide %>%
+  dplyr::select(
+    sample, analysis_group, Tmt, App_rate, Method,
+    Ox_Al_Si, Ox_Fe_Si, Ox_Al_Fe,
+    DCB_Al_Si, DCB_Fe_Si, DCB_Al_Fe
+  ) %>%
+  pivot_longer(
+    cols = c(
+      Ox_Al_Si, Ox_Fe_Si, Ox_Al_Fe,
+      DCB_Al_Si, DCB_Fe_Si, DCB_Al_Fe
+    ),
+    names_to = "Ratio",
+    values_to = "Value"
+  ) %>%
+  filter(
+    (Method == "Oxalate" & str_starts(Ratio, "Ox_")) |
+      (Method == "DCB" & str_starts(Ratio, "DCB_"))
+  ) %>%
+  mutate(
+    Ratio = recode(
+      Ratio,
+      Ox_Al_Si = "Oxalate Al:Si",
+      Ox_Fe_Si = "Oxalate Fe:Si",
+      Ox_Al_Fe = "Oxalate Al:Fe",
+      DCB_Al_Si = "DCB Al:Si",
+      DCB_Fe_Si = "DCB Fe:Si",
+      DCB_Al_Fe = "DCB Al:Fe"
+    )
+  )
+
+print(ratio_long, n = Inf)
+
+# ==============================================================================
+# 10. TUKEY HSD TREATMENT COMPARISONS
+# ==============================================================================
+
+ratio_50 <- ratio_long %>%
+  filter(analysis_group %in% treatment_levels) %>%
+  mutate(
+    analysis_group = factor(
+      analysis_group,
+      levels = treatment_levels
+    )
+  )
+
+# ANOVA results for each ratio
+ratio_anova_results <- ratio_50 %>%
+  group_by(Ratio) %>%
+  group_modify(~ {
+    
+    dat <- .x %>%
+      filter(is.finite(Value)) %>%
+      droplevels()
+    
+    if (n_distinct(dat$analysis_group) < 2 ||
+        nrow(dat) <= n_distinct(dat$analysis_group)) {
+      return(tibble(
+        n = nrow(dat),
+        F_statistic = NA_real_,
+        p_value = NA_real_
+      ))
+    }
+    
+    fit <- aov(Value ~ analysis_group, data = dat)
+    tab <- summary(fit)[[1]]
+    
+    tibble(
+      n = nrow(dat),
+      F_statistic = unname(tab[1, "F value"]),
+      p_value = unname(tab[1, "Pr(>F)"])
+    )
+  }) %>%
+  ungroup() %>%
+  mutate(
+    p_adjusted_BH = p.adjust(p_value, method = "BH")
+  )
+
+print(ratio_anova_results)
+
+# ------------------------------------------------------------------------------
+# 10.1 Tukey HSD compact letter displays
+# ------------------------------------------------------------------------------
+
+ratio_tukey_results <- ratio_50 %>%
+  group_by(Ratio) %>%
+  group_modify(~ {
+    
+    dat <- .x %>%
+      filter(is.finite(Value)) %>%
+      droplevels()
+    
+    if (n_distinct(dat$analysis_group) < 2 ||
+        nrow(dat) <= n_distinct(dat$analysis_group)) {
+      return(tibble(
+        analysis_group = character(),
+        mean = numeric(),
+        SE = numeric(),
+        .group = character()
+      ))
+    }
+    
+    fit <- aov(Value ~ analysis_group, data = dat)
+    emm <- emmeans(fit, ~ analysis_group)
+    
+    cld(emm, Letters = letters, adjust = "tukey") %>%
+      as.data.frame() %>%
+      transmute(
+        analysis_group = as.character(analysis_group),
+        mean = emmean,
+        SE = SE,
+        .group = str_trim(.group)
+      )
+  }) %>%
+  ungroup()
+
+print(ratio_tukey_results)
+
+# ------------------------------------------------------------------------------
+# 10.2 Plot: treatment ratios WITH Tukey HSD letters
+# ------------------------------------------------------------------------------
+
+# Calculate an appropriate label height for each ratio.
+ratio_label_positions <- ratio_50 %>%
+  group_by(Ratio) %>%
+  summarise(
+    y_min = min(Value, na.rm = TRUE),
+    y_max = max(Value, na.rm = TRUE),
+    y_range = y_max - y_min,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    y_range = if_else(
+      is.finite(y_range) & y_range > 0,
+      y_range,
+      pmax(abs(y_max), 0.1) * 0.1
+    ),
+    label_y = y_max + 0.12 * y_range
+  )
+
+ratio_letters_plot <- ratio_tukey_results %>%
+  left_join(ratio_label_positions, by = "Ratio") %>%
+  mutate(
+    analysis_group = factor(
+      analysis_group,
+      levels = treatment_levels
+    )
+  )
+
+p_ratios_tukey <- ggplot(
+  ratio_50,
+  aes(x = analysis_group, y = Value)
+) +
+  geom_boxplot(
+    outlier.shape = NA,
+    fill = "grey90",
+    color = "grey30"
+  ) +
+  geom_jitter(
+    width = 0.12,
+    size = 2,
+    alpha = 0.85,
+    color = "#2B5C8F"
+  ) +
+  geom_text(
+    data = ratio_letters_plot,
+    aes(
+      x = analysis_group,
+      y = label_y,
+      label = .group
+    ),
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 4.5
+  ) +
+  facet_wrap(
+    ~ Ratio,
+    scales = "free_y",
+    ncol = 2
+  ) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0.05, 0.22))
+  ) +
+  labs(
+    x = NULL,
+    y = "Element concentration ratio (mass basis)",
+    title = "Secondary-mineral geochemical ratios by treatment",
+    subtitle = "Different Tukey letters indicate significant pairwise differences (p < 0.05)"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(face = "bold"),
+    legend.position = "none"
+  )
+
+print(p_ratios_tukey)
+
+# ==============================================================================
+# 11. HÜHNERBERG DOSE-RESPONSE RATIOS
+# ==============================================================================
+
+# Dose-response plot only: no Tukey letters are calculated for this plot.
+
+dose_levels <- c("0", "2", "4", "8", "12", "20", "30", "50")
+
+ratio_dose <- ratio_long %>%
+  filter(Tmt %in% c("Control", "Huhnerberg")) %>%
+  mutate(
+    Dose = if_else(
+      Tmt == "Control",
+      "0",
+      as.character(App_rate)
+    ),
+    Dose = factor(Dose, levels = dose_levels)
+  )
+
+p_ratios_dose <- ggplot(
+  ratio_dose,
+  aes(x = Dose, y = Value)
+) +
+  geom_boxplot(
+    outlier.shape = NA,
+    fill = "grey90",
+    color = "grey30"
+  ) +
+  geom_jitter(
+    width = 0.12,
+    size = 2,
+    alpha = 0.85,
+    color = "#2B5C8F"
+  ) +
+  facet_wrap(
+    ~ Ratio,
+    scales = "free_y",
+    ncol = 2
+  ) +
+  labs(
+    x = expression("Hühnerberg application rate (t ha"^{-1}*")"),
+    y = "Element concentration ratio (mass basis)",
+    title = "Hühnerberg dose-response in secondary-mineral ratios",
+    subtitle = "Control shown at 0 t ha⁻¹"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(face = "bold")
+  )
+
+print(p_ratios_dose)
+
+# ==============================================================================
+# 12. SUMMARY STATISTICS
+# ==============================================================================
+
+ratio_summary <- ratio_50 %>%
+  group_by(Ratio, analysis_group) %>%
+  summarise(
+    n = sum(is.finite(Value)),
+    mean = if (n > 0) mean(Value, na.rm = TRUE) else NA_real_,
+    SD = if (n > 1) sd(Value, na.rm = TRUE) else NA_real_,
+    median = if (n > 0) median(Value, na.rm = TRUE) else NA_real_,
+    IQR = if (n > 0) IQR(Value, na.rm = TRUE) else NA_real_,
+    .groups = "drop"
+  )
+
+print(ratio_summary, n = Inf)
