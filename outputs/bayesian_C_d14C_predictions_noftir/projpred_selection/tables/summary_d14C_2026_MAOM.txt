@@ -1,0 +1,35 @@
+
+Family: gaussian 
+Link function: identity 
+
+Formula: y_std ~ GMD_h2o + GMD_oxalate + Fe_ox_over_DCB + Al_ox_over_DCB + 
+    Mn_ox_over_DCB + Si_ox_over_DCB + Tessier_Acetic_Ca_mg_g + 
+    Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + Tessier_Hydroxylamine_Fe_mg_g + 
+    Tessier_Hydroxylamine_Al_mg_g + Tessier_Hydroxylamine_Mn_mg_g + 
+    Tessier_Hydroxylamine_Si_mg_g + soil_pH + soil_EC + pH_Oct2023 + 
+    EC_Oct2023 + Ca_Oct2023 + K_Oct2023 + Mg_Oct2023 + Na_Oct2023 + 
+    Al_Oct2023 + Fe_Oct2023 + Mn_Oct2023 + CEC_Oct2023 + Base_saturation_Oct2023 + 
+    Tessier_H2O2_Fe_mg_g + Tessier_H2O2_Al_mg_g + Tessier_H2O2_Si_mg_g + 
+    Tessier_H2O2_Ca_mg_g + Tessier_H2O2_K_mg_g + Tessier_H2O2_Mg_mg_g + 
+    CEC_H + CEC_Ca + CEC_K + CEC_Mg + CEC_Na + CEC_Al + CEC_Fe + 
+    CEC_Mn + CEC_CEC + CEC_Base_saturation
+Observations: 15
+Projection method: traditional
+Search method: forward
+Maximum submodel size for the search: 5
+Number of projected draws in the search: 20 (from clustered projection)
+Number of projected draws in the performance evaluation: 20 (from clustered projection)
+Argument `refit_prj`: TRUE
+
+Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
+ size              ranking_fulldata cv_proportions_diag  elpd elpd.se elpd.diff elpd.diff.se
+    0                   (Intercept)                  NA -21.1    2.09       -29         2.08
+    1 Tessier_Hydroxylamine_Si_mg_g                  NA -16.7    1.63       -25         1.64
+    2                   GMD_oxalate                  NA -11.2    1.08       -19         1.09
+    3                       soil_pH                  NA  -8.4    1.26       -16         1.27
+    4                        CEC_Fe                  NA  -6.3    0.76       -14         0.78
+    5          Tessier_H2O2_Ca_mg_g                  NA  -4.4    0.69       -12         0.71
+
+Reference model performance evaluation summary with `deltas = FALSE`:
+   elpd elpd.se 
+  7.914   0.039 

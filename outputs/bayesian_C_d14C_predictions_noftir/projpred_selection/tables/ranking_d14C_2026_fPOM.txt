@@ -1,0 +1,9 @@
+$fulldata
+[1] "Mn_Oct2023"                    "Tessier_Hydroxylamine_Si_mg_g" "Tessier_Hydroxylamine_Fe_mg_g" "Fe_ox_over_DCB"               
+[5] "Tessier_Acetic_Na_mg_g"       
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"

@@ -1,0 +1,8 @@
+$fulldata
+[1] "pH_Oct2023"           "Mn_ox_over_DCB"       "Mn_Oct2023"           "Tessier_H2O2_Fe_mg_g" "Tessier_H2O2_Al_mg_g"
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"

@@ -1,0 +1,8 @@
+$fulldata
+[1] "CEC_Ca"                        "Tessier_Hydroxylamine_Fe_mg_g" "Tessier_Acetic_Ca_mg_g"        "CEC_H"                         "GMD_oxalate"                  
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"
