@@ -513,3 +513,156 @@ message(
   "\nand an RDS backup.",
   "\nInterpret cautiously: only five independent treatment-level observations."
 )
+
+# -----------------------------------------------------------------------------
+# 7. System transit time: correlation plot for weak correlations only
+# -----------------------------------------------------------------------------
+
+system_transit_plot_data <- correlation_summary %>%
+  filter(
+    outcome == "system_transit_time",
+    method == "spearman",
+    abs(correlation_median) <= 0.5
+  ) %>%
+  mutate(
+    predictor = forcats::fct_reorder(
+      predictor,
+      correlation_median
+    )
+  )
+
+if (nrow(system_transit_plot_data) > 0) {
+  
+  p_system_transit_weak <- ggplot(
+    system_transit_plot_data,
+    aes(
+      x = predictor,
+      y = correlation_median
+    )
+  ) +
+    geom_point(size = 3) +
+    geom_errorbar(
+      aes(
+        ymin = correlation_q025,
+        ymax = correlation_q975
+      ),
+      width = 0.2
+    ) +
+    geom_hline(
+      yintercept = 0,
+      linetype = "dashed",
+      colour = "grey40"
+    ) +
+    geom_hline(
+      yintercept = c(-0.5, 0.5),
+      linetype = "dotted",
+      colour = "grey50"
+    ) +
+    coord_flip() +
+    scale_y_continuous(
+      limits = c(-1, 1),
+      breaks = seq(-1, 1, by = 0.25)
+    ) +
+    labs(
+      title = "System transit time vs geochemistry",
+      subtitle = paste(
+        "Spearman correlations with |median rho| <= 0.5;",
+        "posterior median and 95% interval"
+      ),
+      x = "Geochemical predictor (treatment mean)",
+      y = "Spearman correlation (rho)",
+      caption = paste(
+        "Five independent treatment-level observations.",
+        "Intervals propagate SoilR posterior uncertainty;",
+        "they are not significance intervals."
+      )
+    ) +
+    theme_bw(base_size = 11) +
+    theme(
+      plot.background = element_rect(fill = "white", colour = NA),
+      panel.background = element_rect(fill = "white", colour = NA),
+      panel.grid.minor = element_blank(),
+      axis.text = element_text(colour = "black"),
+      axis.title = element_text(colour = "black"),
+      plot.title = element_text(face = "bold", colour = "black"),
+      plot.subtitle = element_text(colour = "black"),
+      plot.caption = element_text(colour = "black")
+    )
+  
+  ggsave(
+    file.path(
+      out_dir,
+      "system_transit_time_spearman_absrho_le_0.5.png"
+    ),
+    p_system_transit_weak,
+    width = 10,
+    height = max(5, 0.35 * nrow(system_transit_plot_data) + 2),
+    dpi = 300,
+    bg = "white"
+  )
+  
+  ggsave(
+    file.path(
+      out_dir,
+      "system_transit_time_spearman_absrho_le_0.5.pdf"
+    ),
+    p_system_transit_weak,
+    width = 10,
+    height = max(5, 0.35 * nrow(system_transit_plot_data) + 2),
+    bg = "white"
+  )
+  
+  print(p_system_transit_weak)
+  
+} else {
+  message(
+    "No system transit time predictors with |median Spearman rho| <= 0.5."
+  )
+}
+
+```r
+# -----------------------------------------------------------------------------
+# 3.1 Identify strong geochemical predictors
+#     EXCLUDING all FTIR-derived variables
+# -----------------------------------------------------------------------------
+
+# Identify FTIR-derived predictor names
+ftir_predictors <- correlation_summary %>%
+  distinct(predictor) %>%
+  filter(
+    grepl(
+      "FTIR|ftir|DRIFT|drift|aromatic|carbonate|carbonyl|"
+      %+% "carboxyl|aliphatic|spectral|peak",
+      predictor
+    )
+  ) %>%
+  pull(predictor)
+
+# Select predictors with at least one strong correlation
+# across the nine SoilR outcomes, excluding FTIR variables
+strong_soilR_predictors <- correlation_summary %>%
+  filter(
+    method == "spearman",
+    outcome %in% soilR_outcomes,
+    !predictor %in% ftir_predictors
+  ) %>%
+  group_by(predictor) %>%
+  summarise(
+    max_abs_rho = max(
+      abs(correlation_median),
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  ) %>%
+  filter(
+    max_abs_rho >= 0.5
+  ) %>%
+  pull(predictor)
+
+message(
+  "\nExcluded ", length(ftir_predictors),
+  " FTIR-derived predictors:"
+)
+
+print(ftir_predictors)
+```
