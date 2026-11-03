@@ -1,0 +1,74 @@
+---
+title: "Malle ERW — Original Correlation Heatmaps"
+subtitle: "Display-only report"
+format:
+  html:
+    toc: false
+    embed-resources: true
+    theme: cosmo
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+The posterior correlation analysis was conducted by relating treatment-level geochemical measurements to SoilR-derived decomposition rates, transfer coefficients, pool ages, and system transit time across the five treatment-level observations. Correlations were calculated using posterior draws to propagate uncertainty in the fitted SoilR parameters and derived persistence metrics. Pearson, Spearman, and Kendall correlation coefficients were summarised using their posterior means, medians, standard deviations, and 95% uncertainty intervals (2.5th–97.5th percentiles). The present visualisation focuses on Pearson correlations and excludes FTIR/DRIFT-derived predictors. Predictors are displayed only where the 95% posterior correlation interval excludes zero, with separate heatmaps for the full set of SoilR outcomes, pool ages and system transit time, and decomposition rates and transfer coefficients. The analysis is exploratory and reflects associations at the treatment level; correlations should not be interpreted as evidence of causality.
+The 95% posterior intervals describe uncertainty in the correlation estimates. Excluding zero is being used as the visualisation filter, but it is not equivalent to a conventional frequentist p-value significance test.
+
+
+## 1. Spearman — significant predictors, excluding FTIR
+
+```{r}
+#| fig-cap: "Original Spearman heatmap showing significant predictors excluding FTIR-derived variables."
+#| out-width: 100%
+
+heatmap_spearman <- here::here(
+  "outputs",
+  "soilR_posterior_correlations_age_transfer",
+  "heatmap_spearman_significant_only_no_FTIR.png"
+)
+
+if (!file.exists(heatmap_spearman)) {
+  stop("Saved heatmap not found: ", heatmap_spearman)
+}
+
+knitr::include_graphics(heatmap_spearman)
+```
+
+## 2. Pearson — pool ages and system transit time
+
+```{r}
+#| fig-cap: "Original Pearson heatmap for pool ages and system transit time."
+#| out-width: 100%
+
+heatmap_ages_transit <- here::here(
+  "outputs",
+  "soilR_posterior_correlations_age_transfer",
+  "heatmap_pearson_ages_transit_only.png"
+)
+
+if (!file.exists(heatmap_ages_transit)) {
+  stop("Saved heatmap not found: ", heatmap_ages_transit)
+}
+
+knitr::include_graphics(heatmap_ages_transit)
+```
+
+## 3. Pearson — rates, transfer coefficients, ages and transit time
+
+```{r}
+#| fig-cap: "Original Pearson heatmap for decomposition rates, transfer coefficients, pool ages and system transit time."
+#| out-width: 100%
+
+heatmap_rates_transfers_ages <- here::here(
+  "outputs",
+  "soilR_posterior_correlations_age_transfer",
+  "heatmap_pearson_all_rates_transfers_ages.png"
+)
+
+if (!file.exists(heatmap_rates_transfers_ages)) {
+  stop("Saved heatmap not found: ", heatmap_rates_transfers_ages)
+}
+
+knitr::include_graphics(heatmap_rates_transfers_ages)
+```

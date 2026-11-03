@@ -11,15 +11,11 @@
 #   outputs/integrated_geochemistry_for_bayesian.csv
 #
 # Important:
-#   * C and d14C responses are never used as predictors.
-#   * Treatment labels, plot IDs, and metadata flags are never used as predictors.
 #   * Predictors are standardised; responses are also standardised for fitting.
-#   * Regularising Normal priors reduce coefficient overfitting. They do not
-#     remove the limitations of a small dataset or strongly correlated predictors.
+#   * Regularising Normal priors reduce coefficient overfitting. 
 #   * Predictions shown are in-sample fitted predictions, not cross-validation.
 #     Use the intervals to assess model uncertainty, not as external validation.
 #   * Models are specified in Stan and fitted directly with cmdstanr.
-#     Neither brms nor rstan is loaded or required.
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -122,7 +118,6 @@ normalise_treatment <- function(x) {
 }
 
 # Keep the five main treatment groups used in the Malle Bayesian analyses.
-# If the CSV contains additional treatment rows, they are excluded here.
 allowed_treatments <- c(
   "Control", "Lime_2", "Bolsdorfer_50", "Huhnerberg_50", "Eifelgold_50"
 )
@@ -145,7 +140,7 @@ readr::write_csv(
   file.path(table_dir, "treatment_sample_counts.csv")
 )
 
-# Response columns: use the known C and d14C columns that actually exist.
+# Response columns: use the known C and d14C columns
 c_responses <- c("C_Bulk", "C_MAOM", "C_oPOM", "C_fPOM")
 d14c_responses <- c(
   "d14C_2026_Bulk", "d14C_2026_MAOM",
@@ -169,7 +164,7 @@ if (length(missing_responses)) {
 
 # Reuse the combined geochemical predictor family considered in the integrated
 # correlation / MLR workflow. Add October 2023 variables only when present.
-# The script intersects this list with the columns actually in the CSV.
+
 explicit_geochem_predictors <- c(
   "Agg stab", "GMD_h2o", "GMD_oxalate", "MWD_h2o", "MWD_oxalate",
   "D_h2o", "D_oxalate", "Dh2o", "Doxalate",
@@ -185,7 +180,7 @@ explicit_geochem_predictors <- c(
 )
 
 # Include additional numeric geochemical columns in known families, but not
-# response columns or metadata. This catches extra CEC/Tessier/ columns.
+# response columns or metadata. This catches extra CEC/Tessier/ox columns.
 numeric_cols <- names(dat)[vapply(dat, is.numeric, logical(1))]
 pattern_predictors <- numeric_cols[
   stringr::str_starts(numeric_cols, "Tessier_") |
@@ -524,8 +519,7 @@ for (response in responses) {
   # ---------------------------------------------------------------------------
   # Projection predictive variable selection (projpred)
   # ---------------------------------------------------------------------------
-  # Custom reference-model adapter: use posterior draws from direct cmdstanr
-  # fits, without loading brms or rstan.
+  # Custom reference-model adapter: use posterior draws from  cmdstanr fits
   tryCatch({
     ref_fit <- list(
       draw_matrix = as.matrix(draw_matrix),
