@@ -11,27 +11,41 @@ Teneille's data analysis repository is available at <https://github.com/Teneille
 
 ## Aggregate stability tests
 
-**ERW can influence aggregation via**:
+**ERW can influence aggregation via:**
 
 - Cation bridging
-
 - Microbial EPS production
-
-- Secondary mineral formation e.g. amorphous sesquioxides, silicates
-
+- Secondary mineral formation, e.g. amorphous sesquioxides and silicates
 - Salt-induced flocculation
 
 ## Treatment effect
 
-Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the **mean weight diameter (MWD)**. A log-based calculation of **geometric mean diameter (GMD)** better reflects changes in the mid-sized aggregate size class. The cumulative mass M of aggregates smaller than size x is proportional to the aggregate size to the power of the fractal dimension (D). Plotting log(M) vs log(x) gives a slope = D. **For the water extract**, estimated marginal means (emmeans) with Tukey-adjusted pariwise comparisons were used to **compare MWD, GMD and D between treatments** (lime, basalt, control etc) while accounting for multiple testing and unequal group comparisons within each extract, thereby showing which treatment had the greatest aggregate stability. Water is the most relevant extract for this baseline comparison; higher MWD, GMD or D indicates greater aggregate stability.
+The mean weight diameter (MWD) was calculated by multiplying the proportion of aggregates in each size class by the midpoint diameter of that class and summing across size classes. The geometric mean diameter (GMD) was calculated using a logarithmic weighting of the aggregate size classes. The fractal dimension (D) was calculated from the slope of the relationship between log cumulative aggregate mass and log normalized sieve diameter.
+
+Treatment differences in MWD, GMD and D were assessed separately within each extract using **Welch's one-way ANOVA followed by Games–Howell pairwise comparisons**. This approach allows for unequal variances among treatments. Compact letter displays were used to identify statistically distinguishable groups.
+
+The H₂O extract represents the baseline aggregate stability measurement. Comparisons of MWD, GMD and D between treatments under H₂O extraction were used to assess treatment effects on aggregate stability.
+
+## Extract effect
+
+Extract effects were assessed separately for each treatment and aggregate stability metric (MWD, GMD and D). **Welch's one-way ANOVA followed by Games–Howell pairwise comparisons** was used to compare aggregate stability between extracts within each treatment.
+
+Oxalate extraction targets acid-soluble and poorly crystalline Fe and Al phases; H₂O₂ extraction oxidizes soil organic matter; and NaOH extraction targets additional mineral-associated and siliceous components. Changes in aggregate stability following these extractions provide an indication of the potential contribution of these components to aggregation.
+
+Oxalate:H₂O ratios were calculated for MWD, GMD and D using matched sample, replicate and treatment observations. These ratios express the aggregate stability index following oxalate extraction relative to the H₂O baseline. A ratio of 1 indicates no change, ratios below 1 indicate a decrease, and ratios above 1 indicate an increase following oxalate extraction.
+
+Treatment differences in the oxalate:H₂O ratios were assessed separately for GMD, D and MWD using Welch's one-way ANOVA followed by Games–Howell pairwise comparisons.
 
 ```{r}
 #| echo: false
 #| message: false
 #| label: MWD comparison extracts
-#| warning: FALSE
+#| warning: false
 
-#load packages
+# ==============================================================================
+# PACKAGES
+# ==============================================================================
+
 library(ggplot2)
 library(viridis)
 library(RColorBrewer)
@@ -41,8 +55,6 @@ library(car)
 library(lme4)
 library(lmerTest)
 library(ggthemr)
-#set theme
-ggthemr('fresh')
 library(rstatix)
 library(emmeans)
 library(multcomp)
@@ -51,73 +63,99 @@ library(here)
 library(ARTool)
 library(tidyr)
 
-# Read treatment names once
-treatment_names <- read.csv(here("csv_files", "treatment_names.csv"), header = TRUE)
-tmt_names_vec <- rep(treatment_names$Treatment, each = 2)
+ggthemr("fresh")
 
-#--------------------------------------------------
-# Fractal dimension calculation
-#--------------------------------------------------
+# ==============================================================================
+# TREATMENT NAMES
+# ==============================================================================
 
-calc_fractal_D <- function(f_gt2,
-                           f_gt025,
-                           f_gt0063,
-                           f_lt0063){
-  
-  # cumulative mass finer than sieve size
+treatment_names <- read.csv(
+  here("csv_files", "treatment_names.csv"),
+  header = TRUE
+)
+
+tmt_names_vec <- rep(
+  treatment_names$Treatment,
+  each = 2
+)
+
+# ==============================================================================
+# FRACTAL DIMENSION CALCULATION
+# ==============================================================================
+
+calc_fractal_D <- function(
+    f_gt2,
+    f_gt025,
+    f_gt0063,
+    f_lt0063
+) {
+
+  # Cumulative mass finer than sieve size
   cum_mass <- c(
     f_lt0063,
     f_lt0063 + f_gt0063,
     f_lt0063 + f_gt0063 + f_gt025
   )
-  
+
   R <- c(0.063, 0.25, 2)
-  
+
   fit <- lm(
-    log(cum_mass) ~ log(R/max(R))
+    log(cum_mass) ~ log(R / max(R))
   )
-  
+
   slope <- coef(fit)[2]
-  
+
   D <- 3 - slope
-  
+
   return(as.numeric(D))
 }
 
-# data cleaning function
+# ==============================================================================
+# DATA CLEANING AND AGGREGATE STABILITY CALCULATIONS
+# ==============================================================================
+
 clean_aggstab_extract <- function(filename, extract_label) {
-  
+
   # Import data
-  df <- read.csv(here("csv_files", filename), header = TRUE)
-  
+  df <- read.csv(
+    here("csv_files", filename),
+    header = TRUE
+  )
+
   # Add treatment names
   df$treatment <- tmt_names_vec
-  
+
   # Convert to factors
-  df[c("extract", "rep", "treatment")] <- 
-    lapply(df[c("extract", "rep", "treatment")], as.factor)
-  
+  df[c("extract", "rep", "treatment")] <-
+    lapply(
+      df[c("extract", "rep", "treatment")],
+      as.factor
+    )
+
   # Select columns
   df <- df %>%
     dplyr::select(
-      sample, extract, rep, recovery....,
+      sample,
+      extract,
+      rep,
+      recovery....,
       X...2mm.fraction,
       X...0.25mm.fraction,
       X...0.063mm.fraction,
       X...0.063mm.fraction.1,
       treatment
     )
-  
+
   # Rename columns
   df <- df %>%
     rename(
       recovery = recovery....,
-      `>2mm.fraction`   = X...2mm.fraction,
+      `>2mm.fraction` = X...2mm.fraction,
       `>0.25mm.fraction` = X...0.25mm.fraction,
       `>0.063mm.fraction` = X...0.063mm.fraction,
       `<0.063mm.fraction` = X...0.063mm.fraction.1
     )
-  
+
   # Remove missing rows
   df <- df %>%
     filter(
@@ -126,29 +164,30 @@ clean_aggstab_extract <- function(filename, extract_label) {
       !is.na(`>0.063mm.fraction`),
       !is.na(`<0.063mm.fraction`)
     )
-  
-  #--------------------------------------------------
-  # Aggregate metrics (fractions are PERCENTAGES → convert to proportions)
-  #--------------------------------------------------
-  
+
+  # ---------------------------------------------------------------------------
+  # Aggregate metrics
+  # Fractions are percentages and are converted to proportions
+  # ---------------------------------------------------------------------------
+
   df <- df %>%
     mutate(
-      
+
       # Mean Weight Diameter
       MWD =
         (`>0.25mm.fraction` / 100) * 1.125 +
         (`>0.063mm.fraction` / 100) * 0.1565 +
         (`<0.063mm.fraction` / 100) * 0.0315,
-      
+
       # Geometric Mean Diameter
       GMD = exp(
-        (`>0.25mm.fraction` / 100)  * log(1.125) +
+        (`>0.25mm.fraction` / 100) * log(1.125) +
           (`>0.063mm.fraction` / 100) * log(0.1565) +
           (`<0.063mm.fraction` / 100) * log(0.0315)
       )
     )
-  
-  # Fractal dimension (unchanged — slope invariant to scaling)
+
+  # Fractal dimension
   df$D <- mapply(
     calc_fractal_D,
     df$`>2mm.fraction`,
@@ -156,7 +195,7 @@ clean_aggstab_extract <- function(filename, extract_label) {
     df$`>0.063mm.fraction`,
     df$`<0.063mm.fraction`
   )
-  
+
   # Pivot to long format
   df_long <- df %>%
     tidyr::pivot_longer(
@@ -171,74 +210,236 @@ clean_aggstab_extract <- function(filename, extract_label) {
     ) %>%
     mutate(
       fraction_type = case_when(
-        fraction_type == ">2mm.fraction"    ~ ">2",
-        fraction_type == ">0.25mm.fraction"  ~ ">0.25",
+        fraction_type == ">2mm.fraction" ~ ">2",
+        fraction_type == ">0.25mm.fraction" ~ ">0.25",
         fraction_type == ">0.063mm.fraction" ~ ">0.063",
         fraction_type == "<0.063mm.fraction" ~ "<0.063"
       ),
+
       fraction_type = factor(
         fraction_type,
         levels = c(">2", ">0.25", ">0.063", "<0.063")
       ),
+
       extract_type = factor(
         extract_label,
         levels = c("h2o", "oxalate", "h2o2", "naoh")
       )
     )
-  
+
   return(as.data.frame(df_long))
 }
 
-#--------------------------------------------------
-# Generic analysis function
-# Compare treatments within extracts
-#--------------------------------------------------
-#--------------------------------------------------
-# Generic analysis function
-# Compare treatments within extracts (EMMEANS ONLY)
-#--------------------------------------------------
+# ==============================================================================
+# GAMES-HOWELL COMPACT LETTER DISPLAY FUNCTION
+# ==============================================================================
 
-analyze_metric_by_extract <- function(df,
-                                      metric = "MWD",
-                                      ylab = metric){
-  
+# ==============================================================================
+# GAMES-HOWELL COMPACT LETTER DISPLAY FUNCTION
+# Handles NA and non-finite adjusted p-values
+# ==============================================================================
+
+make_games_howell_letters <- function(
+    gh_results,
+    group_levels
+) {
+
+  # Initialize matrix of adjusted p-values
+  p_matrix <- matrix(
+    1,
+    nrow = length(group_levels),
+    ncol = length(group_levels),
+    dimnames = list(
+      group_levels,
+      group_levels
+    )
+  )
+
+  # Fill matrix with Games-Howell adjusted p-values
+  if (nrow(gh_results) > 0) {
+
+    for (i in seq_len(nrow(gh_results))) {
+
+      group1 <- as.character(gh_results$group1[i])
+      group2 <- as.character(gh_results$group2[i])
+
+      p_adj <- suppressWarnings(
+        as.numeric(gh_results$p.adj[i])
+      )
+
+      # Replace undefined p-values with 1
+      if (!is.finite(p_adj)) {
+        p_adj <- 1
+      }
+
+      # Ensure p-value is within valid bounds
+      p_adj <- min(
+        max(p_adj, 0),
+        1
+      )
+
+      # Populate matrix only for valid group names
+      if (
+        group1 %in% group_levels &&
+        group2 %in% group_levels
+      ) {
+
+        p_matrix[group1, group2] <- p_adj
+        p_matrix[group2, group1] <- p_adj
+
+      }
+    }
+  }
+
+  # Ensure matrix contains no NA values
+  p_matrix[is.na(p_matrix)] <- 1
+
+  # Set diagonal
+  diag(p_matrix) <- 1
+
+  # Generate compact letter display
+  cld_results <- multcompView::multcompLetters(
+    p_matrix,
+    Letters = letters
+  )$Letters
+
+  tibble::tibble(
+    group = names(cld_results),
+    .group = unname(cld_results)
+  )
+}
+# ==============================================================================
+# ANALYSIS FUNCTION:
+# COMPARE TREATMENTS WITHIN EACH EXTRACT
+# WELCH ANOVA + GAMES-HOWELL
+# ==============================================================================
+
+analyze_metric_by_extract <- function(
+    df,
+    metric = "MWD",
+    ylab = metric
+) {
+
   results_list <- list()
-  plot_list <- list()
-  
-  for(xtract in unique(df$extract_type)) {
-    
+  plots_list <- list()
+  overall_results_list <- list()
+  pairwise_results_list <- list()
+  letters_results_list <- list()
+
+  for (xtract in unique(df$extract_type)) {
+
     metric_df <- df %>%
-      filter(extract_type == xtract)
-    
-    metric_df$response <- metric_df[[metric]]
-    
-    # ---- MODEL (no ANOVA decision tree anymore) ----
-    fit <- lm(response ~ treatment, data = metric_df)
-    
-    emm <- emmeans(fit, ~ treatment)
-    
-    letters_df <- multcomp::cld(
-      emm,
-      Letters = letters,
-      adjust = "tukey"
+      filter(extract_type == xtract) %>%
+      filter(
+        !is.na(.data[[metric]]),
+        !is.na(treatment)
+      ) %>%
+      mutate(
+        treatment = droplevels(as.factor(treatment)),
+        response = .data[[metric]]
+      )
+
+    group_levels <- levels(metric_df$treatment)
+
+    # Require at least two groups with sufficient replication
+    if (
+      length(group_levels) < 2 ||
+      any(table(metric_df$treatment) < 2)
+    ) {
+
+      warning(
+        "Insufficient replication for metric ",
+        metric,
+        " in extract ",
+        xtract
+      )
+
+      next
+    }
+
+    # -------------------------------------------------------------------------
+    # Welch ANOVA
+    # -------------------------------------------------------------------------
+
+    welch_result <- stats::oneway.test(
+      response ~ treatment,
+      data = metric_df,
+      var.equal = FALSE
+    )
+
+    overall_results_list[[as.character(xtract)]] <-
+      tibble(
+        metric = metric,
+        extract_type = as.character(xtract),
+        test = "Welch ANOVA",
+        p_overall = welch_result$p.value
+      )
+
+    # -------------------------------------------------------------------------
+    # Games-Howell pairwise comparisons
+    # -------------------------------------------------------------------------
+
+    gh_result <- rstatix::games_howell_test(
+      metric_df,
+      response ~ treatment
     ) %>%
-      as.data.frame() %>%
-      dplyr::select(treatment, .group)
-    
-    # ---- SUMMARY ----
+      mutate(
+        metric = metric,
+        extract_type = as.character(xtract)
+      )
+
+    pairwise_results_list[[as.character(xtract)]] <-
+      gh_result
+
+    # -------------------------------------------------------------------------
+    # Compact letter display
+    # -------------------------------------------------------------------------
+
+    letters_df <- make_games_howell_letters(
+      gh_result,
+      group_levels
+    ) %>%
+      rename(
+        treatment = group
+      ) %>%
+      mutate(
+        extract_type = as.character(xtract),
+        metric = metric
+      )
+
+    letters_results_list[[as.character(xtract)]] <-
+      letters_df
+
+    # -------------------------------------------------------------------------
+    # Summary statistics
+    # -------------------------------------------------------------------------
+
     summary_df <- metric_df %>%
       group_by(treatment) %>%
       summarise(
         mean_value = mean(response, na.rm = TRUE),
-        se_value = sd(response, na.rm = TRUE)/sqrt(n()),
+        se_value = sd(response, na.rm = TRUE) /
+          sqrt(sum(!is.na(response))),
+        n = sum(!is.na(response)),
         .groups = "drop"
       ) %>%
-      left_join(letters_df, by = "treatment")
-    
-    # ---- PLOT ----
+      left_join(
+        letters_df %>%
+          dplyr::select(treatment, .group),
+        by = "treatment"
+      )
+
+    # -------------------------------------------------------------------------
+    # Plot
+    # -------------------------------------------------------------------------
+
     p <- ggplot(
       summary_df,
-      aes(treatment, mean_value, fill = treatment)
+      aes(
+        x = treatment,
+        y = mean_value,
+        fill = treatment
+      )
     ) +
       geom_col(width = 0.7) +
       geom_errorbar(
@@ -249,9 +450,12 @@ analyze_metric_by_extract <- function(df,
         width = 0.2
       ) +
       geom_text(
-        aes(label = .group,
-            y = mean_value + se_value),
-        fontface = "bold"
+        aes(
+          label = .group,
+          y = mean_value + se_value
+        ),
+        fontface = "bold",
+        colour = "black"
       ) +
       scale_fill_viridis_d() +
       labs(
@@ -261,82 +465,202 @@ analyze_metric_by_extract <- function(df,
       ) +
       theme(
         legend.position = "none",
-        axis.text.x = element_text(angle = 45, hjust = 1)
+        axis.text.x = element_text(
+          angle = 45,
+          hjust = 1
+        )
       )
-    
-    results_list[[xtract]] <- summary_df
-    plot_list[[xtract]] <- p
+
+    results_list[[as.character(xtract)]] <- summary_df
+    plots_list[[as.character(xtract)]] <- p
+
   }
-  
-  list(results = results_list, plots = plot_list)
+
+  list(
+    results = results_list,
+    plots = plots_list,
+    overall = bind_rows(overall_results_list),
+    pairwise = bind_rows(pairwise_results_list),
+    letters = bind_rows(letters_results_list)
+  )
 }
 
-#--------------------------------------------------
-# Compare extracts within treatments (EMMEANS ONLY)
-#--------------------------------------------------
+# ==============================================================================
+# ANALYSIS FUNCTION:
+# COMPARE EXTRACTS WITHIN EACH TREATMENT
+# WELCH ANOVA + GAMES-HOWELL
+# ==============================================================================
 
-analyze_metric_by_treatment <- function(df,
-                                        metric = "MWD") {
-  
+analyze_metric_by_treatment <- function(
+    df,
+    metric = "MWD"
+) {
+
   results_list <- list()
-  
-  for(tmt in unique(df$treatment)) {
-    
+  overall_results_list <- list()
+  pairwise_results_list <- list()
+  letters_results_list <- list()
+
+  for (tmt in unique(df$treatment)) {
+
     metric_df <- df %>%
-      filter(treatment == tmt)
-    
-    metric_df$response <- metric_df[[metric]]
-    
-    # ---- MODEL ----
-    fit <- lm(response ~ extract_type, data = metric_df)
-    
-    emm <- emmeans(fit, ~ extract_type)
-    
-    letters_df <- multcomp::cld(
-      emm,
-      Letters = letters,
-      adjust = "tukey"
+      filter(treatment == tmt) %>%
+      filter(
+        !is.na(.data[[metric]]),
+        !is.na(extract_type)
+      ) %>%
+      mutate(
+        extract_type = droplevels(as.factor(extract_type)),
+        response = .data[[metric]]
+      )
+
+    group_levels <- levels(metric_df$extract_type)
+
+    # Require at least two groups with sufficient replication
+    if (
+      length(group_levels) < 2 ||
+      any(table(metric_df$extract_type) < 2)
+    ) {
+
+      warning(
+        "Insufficient replication for metric ",
+        metric,
+        " in treatment ",
+        tmt
+      )
+
+      next
+    }
+
+    # -------------------------------------------------------------------------
+    # Welch ANOVA
+    # -------------------------------------------------------------------------
+
+    welch_result <- stats::oneway.test(
+      response ~ extract_type,
+      data = metric_df,
+      var.equal = FALSE
+    )
+
+    overall_results_list[[as.character(tmt)]] <-
+      tibble(
+        metric = metric,
+        treatment = as.character(tmt),
+        test = "Welch ANOVA",
+        p_overall = welch_result$p.value
+      )
+
+    # -------------------------------------------------------------------------
+    # Games-Howell pairwise comparisons
+    # -------------------------------------------------------------------------
+
+    gh_result <- rstatix::games_howell_test(
+      metric_df,
+      response ~ extract_type
     ) %>%
-      as.data.frame() %>%
-      dplyr::select(extract_type, .group)
-    
-    # ---- SUMMARY ----
+      mutate(
+        metric = metric,
+        treatment = as.character(tmt)
+      )
+
+    pairwise_results_list[[as.character(tmt)]] <-
+      gh_result
+
+    # -------------------------------------------------------------------------
+    # Compact letter display
+    # -------------------------------------------------------------------------
+
+    letters_df <- make_games_howell_letters(
+      gh_result,
+      group_levels
+    ) %>%
+      rename(
+        extract_type = group
+      ) %>%
+      mutate(
+        treatment = as.character(tmt),
+        metric = metric
+      )
+
+    letters_results_list[[as.character(tmt)]] <-
+      letters_df
+
+    # -------------------------------------------------------------------------
+    # Summary statistics
+    # -------------------------------------------------------------------------
+
     summary_df <- metric_df %>%
       group_by(extract_type) %>%
       summarise(
         mean_value = mean(response, na.rm = TRUE),
-        se_value = sd(response, na.rm = TRUE)/sqrt(n()),
+        se_value = sd(response, na.rm = TRUE) /
+          sqrt(sum(!is.na(response))),
+        n = sum(!is.na(response)),
         .groups = "drop"
       ) %>%
-      left_join(letters_df, by = "extract_type") %>%
+      left_join(
+        letters_df %>%
+          dplyr::select(extract_type, .group),
+        by = "extract_type"
+      ) %>%
       mutate(
-        treatment = tmt,
+        treatment = as.character(tmt),
         metric = metric
       )
-    
-    results_list[[tmt]] <- summary_df
+
+    results_list[[as.character(tmt)]] <- summary_df
+
   }
-  
-  results_list
+
+  list(
+    results = results_list,
+    overall = bind_rows(overall_results_list),
+    pairwise = bind_rows(pairwise_results_list),
+    letters = bind_rows(letters_results_list)
+  )
 }
-aggstab_h2o <- clean_aggstab_extract("aggstab_2026_h2o.csv", "h2o")
 
-aggstab_h2o <- aggstab_h2o %>% #remove faulty sample
-  filter(!(sample == 4 &
-             rep == "b" &
-             treatment == "Bolsdorfer_50"))
+# ==============================================================================
+# IMPORT AND CLEAN AGGREGATE STABILITY DATA
+# ==============================================================================
 
+aggstab_h2o <- clean_aggstab_extract(
+  "aggstab_2026_h2o.csv",
+  "h2o"
+)
 
-aggstab_oxalate <- clean_aggstab_extract("aggstab_2026_oxalate.csv", "oxalate")
-aggstab_h2o2    <- clean_aggstab_extract("aggstab_2026_h2o2.csv", "h2o2")
-aggstab_naoh    <- clean_aggstab_extract("aggstab_2026_naoh.csv", "naoh")
+# Remove faulty sample
+aggstab_h2o <- aggstab_h2o %>%
+  filter(
+    !(sample == 4 &
+        rep == "b" &
+        treatment == "Bolsdorfer_50")
+  )
 
+aggstab_oxalate <- clean_aggstab_extract(
+  "aggstab_2026_oxalate.csv",
+  "oxalate"
+)
+
+aggstab_h2o2 <- clean_aggstab_extract(
+  "aggstab_2026_h2o2.csv",
+  "h2o2"
+)
+
+aggstab_naoh <- clean_aggstab_extract(
+  "aggstab_2026_naoh.csv",
+  "naoh"
+)
+
+# Combine all extracts
 aggstab_all <- bind_rows(
   aggstab_h2o,
   aggstab_oxalate,
   aggstab_h2o2,
   aggstab_naoh
 )
+
+# Retain unique aggregate stability metrics
 aggstab_metrics <- aggstab_all %>%
   distinct(
     sample,
@@ -347,6 +671,335 @@ aggstab_metrics <- aggstab_all %>%
     GMD,
     D
   )
+
+# ==============================================================================
+# PAIRED OXALATE:H2O AGGREGATE STABILITY RATIOS
+# ==============================================================================
+
+# Calculate ratios using matched sample, replicate and treatment.
+# Each oxalate observation is divided by its corresponding H2O observation.
+
+aggstab_ratios <- aggstab_metrics %>%
+  filter(
+    extract_type %in% c("h2o", "oxalate")
+  ) %>%
+  dplyr::select(
+    sample,
+    rep,
+    treatment,
+    extract_type,
+    MWD,
+    GMD,
+    D
+  ) %>%
+  pivot_wider(
+    names_from = extract_type,
+    values_from = c(MWD, GMD, D),
+    names_sep = "_"
+  ) %>%
+  mutate(
+    MWD_oxalate_over_h2o = MWD_oxalate / MWD_h2o,
+    GMD_oxalate_over_h2o = GMD_oxalate / GMD_h2o,
+    D_oxalate_over_h2o = D_oxalate / D_h2o
+  ) %>%
+  filter(
+    is.finite(MWD_oxalate_over_h2o),
+    is.finite(GMD_oxalate_over_h2o),
+    is.finite(D_oxalate_over_h2o)
+  )
+
+# Export matched ratios
+write.csv(
+  aggstab_ratios,
+  here("outputs", "aggstab_oxalate_over_h2o_ratios.csv"),
+  row.names = FALSE
+)
+
+# ==============================================================================
+# LONG FORMAT FOR RATIO ANALYSIS
+# ==============================================================================
+
+aggstab_ratios_long <- aggstab_ratios %>%
+  dplyr::select(
+    sample,
+    rep,
+    treatment,
+    GMD_oxalate_over_h2o,
+    D_oxalate_over_h2o,
+    MWD_oxalate_over_h2o
+  ) %>%
+  pivot_longer(
+    cols = c(
+      GMD_oxalate_over_h2o,
+      D_oxalate_over_h2o,
+      MWD_oxalate_over_h2o
+    ),
+    names_to = "metric",
+    values_to = "ratio"
+  ) %>%
+  mutate(
+    metric = factor(
+      metric,
+      levels = c(
+        "GMD_oxalate_over_h2o",
+        "D_oxalate_over_h2o",
+        "MWD_oxalate_over_h2o"
+      ),
+      labels = c(
+        "GMD oxalate:H2O",
+        "D oxalate:H2O",
+        "MWD oxalate:H2O"
+      )
+    )
+  )
+
+# ==============================================================================
+# STATISTICAL COMPARISONS OF OXALATE:H2O RATIOS BETWEEN TREATMENTS
+# WELCH ANOVA + GAMES-HOWELL
+# ==============================================================================
+
+ratio_overall_results <- list()
+ratio_pairwise_results <- list()
+ratio_letters_results <- list()
+
+for (metric_name in levels(aggstab_ratios_long$metric)) {
+
+  ratio_df <- aggstab_ratios_long %>%
+    filter(metric == metric_name) %>%
+    filter(
+      !is.na(ratio),
+      !is.na(treatment)
+    ) %>%
+    mutate(
+      treatment = droplevels(as.factor(treatment))
+    )
+
+  group_levels <- levels(ratio_df$treatment)
+
+  if (
+    length(group_levels) < 2 ||
+    any(table(ratio_df$treatment) < 2)
+  ) {
+
+    warning(
+      "Insufficient replication for ratio metric: ",
+      metric_name
+    )
+
+    next
+  }
+
+  # ---------------------------------------------------------------------------
+  # Welch ANOVA
+  # ---------------------------------------------------------------------------
+
+  welch_ratio <- stats::oneway.test(
+    ratio ~ treatment,
+    data = ratio_df,
+    var.equal = FALSE
+  )
+
+  ratio_overall_results[[metric_name]] <-
+    tibble(
+      metric = metric_name,
+      test = "Welch ANOVA",
+      p_overall = welch_ratio$p.value
+    )
+
+  # ---------------------------------------------------------------------------
+  # Games-Howell post-hoc
+  # ---------------------------------------------------------------------------
+
+  gh_ratio <- rstatix::games_howell_test(
+    ratio_df,
+    ratio ~ treatment
+  ) %>%
+    mutate(
+      metric = metric_name
+    )
+
+  ratio_pairwise_results[[metric_name]] <- gh_ratio
+
+  # ---------------------------------------------------------------------------
+  # Compact letter display
+  # ---------------------------------------------------------------------------
+
+  ratio_letters <- make_games_howell_letters(
+    gh_ratio,
+    group_levels
+  ) %>%
+    rename(
+      treatment = group
+    ) %>%
+    mutate(
+      metric = metric_name
+    )
+
+  ratio_letters_results[[metric_name]] <- ratio_letters
+
+}
+
+# Combine statistical results
+ratio_overall_results_df <- bind_rows(
+  ratio_overall_results
+)
+
+ratio_pairwise_results_df <- bind_rows(
+  ratio_pairwise_results
+)
+
+ratio_letters_results_df <- bind_rows(
+  ratio_letters_results
+)
+
+# Export statistical results
+write.csv(
+  ratio_overall_results_df,
+  here("outputs", "aggstab_ratio_welch_anova.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  ratio_pairwise_results_df,
+  here("outputs", "aggstab_ratio_games_howell.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  ratio_letters_results_df,
+  here("outputs", "aggstab_ratio_letters.csv"),
+  row.names = FALSE
+)
+
+# ==============================================================================
+# SUMMARY DATA FOR OXALATE:H2O RATIO PLOTS
+# ==============================================================================
+
+ratio_summary <- aggstab_ratios_long %>%
+  group_by(
+    treatment,
+    metric
+  ) %>%
+  summarise(
+    mean_value = mean(ratio, na.rm = TRUE),
+    se_value = sd(ratio, na.rm = TRUE) /
+      sqrt(sum(!is.na(ratio))),
+    n = sum(!is.na(ratio)),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    ratio_letters_results_df,
+    by = c("treatment", "metric")
+  )
+
+# ==============================================================================
+# PLOT: OXALATE:H2O RATIOS FOR GMD, D AND MWD
+# ==============================================================================
+
+p_oxalate_h2o_ratios <- ggplot(
+  ratio_summary,
+  aes(
+    x = treatment,
+    y = mean_value,
+    fill = treatment
+  )
+) +
+  geom_hline(
+    yintercept = 1,
+    linetype = "dashed",
+    colour = "grey40",
+    linewidth = 0.6
+  ) +
+  geom_col(
+    width = 0.7,
+    colour = "grey20"
+  ) +
+  geom_errorbar(
+    aes(
+      ymin = mean_value - se_value,
+      ymax = mean_value + se_value
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+  geom_point(
+    data = aggstab_ratios_long,
+    aes(
+      x = treatment,
+      y = ratio
+    ),
+    inherit.aes = FALSE,
+    position = position_jitter(
+      width = 0.12,
+      height = 0
+    ),
+    colour = "black",
+    size = 2,
+    alpha = 0.7
+  ) +
+  geom_text(
+    aes(
+      label = .group,
+      y = mean_value + se_value
+    ),
+    colour = "black",
+    fontface = "bold",
+    vjust = -0.5,
+    size = 4
+  ) +
+  scale_fill_viridis(
+    discrete = TRUE,
+    option = "D",
+    end = 0.9
+  ) +
+  facet_wrap(
+    ~ metric,
+    scales = "free_y",
+    nrow = 1
+  ) +
+  labs(
+    title = "Oxalate:H2O aggregate stability ratios",
+    subtitle = paste(
+      "Ratio = oxalate index / H2O index;",
+      "dashed line indicates ratio = 1"
+    ),
+    x = NULL,
+    y = "Oxalate:H2O ratio"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
+    legend.position = "none",
+    strip.text = element_text(
+      face = "bold"
+    ),
+    plot.title = element_text(
+      face = "bold"
+    )
+  )
+
+print(p_oxalate_h2o_ratios)
+
+# Save ratio plot
+ggsave(
+  filename = here(
+    "outputs",
+    "aggstab_oxalate_over_h2o_ratios.png"
+  ),
+  plot = p_oxalate_h2o_ratios,
+  width = 13,
+  height = 5,
+  dpi = 300
+)
+
+# ==============================================================================
+# RUN AGGREGATE STABILITY ANALYSES
+# ==============================================================================
+
+# Treatment comparisons within each extract
 MWD_extract <- analyze_metric_by_extract(
   aggstab_metrics,
   metric = "MWD",
@@ -364,6 +1017,8 @@ D_extract <- analyze_metric_by_extract(
   metric = "D",
   ylab = "Fractal Dimension (D)"
 )
+
+# Extract comparisons within each treatment
 MWD_treatment <- analyze_metric_by_treatment(
   aggstab_metrics,
   metric = "MWD"
@@ -379,13 +1034,89 @@ D_treatment <- analyze_metric_by_treatment(
   metric = "D"
 )
 
+# ==============================================================================
+# EXPORT OVERALL AND PAIRWISE STATISTICAL RESULTS
+# ==============================================================================
 
-#--------------------------------------------------
-# H2O-only comparison: MWD, GMD, D
-#--------------------------------------------------
+# Treatment comparisons within extracts
+write.csv(
+  MWD_extract$overall,
+  here("outputs", "aggstab_MWD_treatment_welch.csv"),
+  row.names = FALSE
+)
 
-# Letters from treatment comparisons WITHIN H2O
+write.csv(
+  MWD_extract$pairwise,
+  here("outputs", "aggstab_MWD_treatment_games_howell.csv"),
+  row.names = FALSE
+)
 
+write.csv(
+  GMD_extract$overall,
+  here("outputs", "aggstab_GMD_treatment_welch.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  GMD_extract$pairwise,
+  here("outputs", "aggstab_GMD_treatment_games_howell.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  D_extract$overall,
+  here("outputs", "aggstab_D_treatment_welch.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  D_extract$pairwise,
+  here("outputs", "aggstab_D_treatment_games_howell.csv"),
+  row.names = FALSE
+)
+
+# Extract comparisons within treatments
+write.csv(
+  MWD_treatment$overall,
+  here("outputs", "aggstab_MWD_extract_welch.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  MWD_treatment$pairwise,
+  here("outputs", "aggstab_MWD_extract_games_howell.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  GMD_treatment$overall,
+  here("outputs", "aggstab_GMD_extract_welch.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  GMD_treatment$pairwise,
+  here("outputs", "aggstab_GMD_extract_games_howell.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  D_treatment$overall,
+  here("outputs", "aggstab_D_extract_welch.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  D_treatment$pairwise,
+  here("outputs", "aggstab_D_extract_games_howell.csv"),
+  row.names = FALSE
+)
+
+# ==============================================================================
+# H2O-ONLY COMPARISON: MWD, GMD, D
+# ==============================================================================
+
+# Compact letters from treatment comparisons within H2O
 MWD_letters <- MWD_extract$results$h2o %>%
   dplyr::select(treatment, .group) %>%
   mutate(metric = "MWD")
@@ -404,6 +1135,7 @@ letters_all <- bind_rows(
   D_letters
 )
 
+# Convert H2O metrics to long format
 h2o_metrics <- aggstab_metrics %>%
   filter(extract_type == "h2o") %>%
   pivot_longer(
@@ -411,21 +1143,24 @@ h2o_metrics <- aggstab_metrics %>%
     names_to = "metric",
     values_to = "value"
   )
+
+# Summary statistics
 h2o_summary <- h2o_metrics %>%
   group_by(treatment, metric) %>%
   summarise(
     mean_value = mean(value, na.rm = TRUE),
-    se_value = sd(value, na.rm = TRUE) / sqrt(n()),
+    se_value = sd(value, na.rm = TRUE) /
+      sqrt(sum(!is.na(value))),
+    n = sum(!is.na(value)),
     .groups = "drop"
-  )
-
-h2o_summary <- h2o_summary %>%
+  ) %>%
   left_join(
     letters_all,
     by = c("treatment", "metric")
   )
 
-ggplot(
+# H2O-only plot
+p_h2o_comparison <- ggplot(
   h2o_summary,
   aes(
     x = treatment,
@@ -433,7 +1168,10 @@ ggplot(
     fill = treatment
   )
 ) +
-  geom_col(width = 0.7, colour = "grey20") +
+  geom_col(
+    width = 0.7,
+    colour = "grey20"
+  ) +
   geom_errorbar(
     aes(
       ymin = mean_value - se_value,
@@ -445,50 +1183,63 @@ ggplot(
   geom_text(
     aes(
       label = .group,
-      y = mean_value + se_value + 0.02
+      y = mean_value + se_value
     ),
     fontface = "bold",
-    vjust = 0
+    colour = "black",
+    vjust = -0.5
   ) +
-  facet_wrap(~ metric, scales = "free_y") +
-  scale_fill_viridis_d(option = "D", end = 0.9) +
+  facet_wrap(
+    ~ metric,
+    scales = "free_y"
+  ) +
+  scale_fill_viridis_d(
+    option = "D",
+    end = 0.9
+  ) +
   labs(
     x = NULL,
     y = NULL
   ) +
   theme_minimal() +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    ),
     legend.position = "none",
-    strip.text = element_text(face = "bold")
+    strip.text = element_text(
+      face = "bold"
+    )
   )
 
+print(p_h2o_comparison)
 
-```
+ggsave(
+  filename = here(
+    "outputs",
+    "aggstab_h2o_treatment_comparison.png"
+  ),
+  plot = p_h2o_comparison,
+  width = 12,
+  height = 5,
+  dpi = 300
+)
 
-## Extract effect
+# ==============================================================================
+# MWD FACETED PLOT: EXTRACTS WITHIN TREATMENTS
+# ==============================================================================
 
-Here, **within each treatment group** (lime, basalt, control etc) we **compare MWD, GMD and D between extracts**. The extracts that show the greatest decrease in MWD compared to H$_2$O within each treatment, indicate which **cementing agents** were the most important driver of aggregate stability **for that treatment**. The extracts oxalate, H$_2$O$_2$ and NaOH removed amorphous Fe/Al oxides, organic matter and siliceous cementing agents, respectively.
-
-```{r}
-#| echo: false
-#| message: false
-#| label: MWD comparison tmts
-#| warning: FALSE
-
-
-#--------------------------------------------------
-# MWD faceted plot
-#--------------------------------------------------
-
-MWD_all_summary <- bind_rows(MWD_treatment)
+MWD_all_summary <- bind_rows(
+  MWD_treatment$results
+)
 
 MWD_all_summary$treatment <- factor(
   MWD_all_summary$treatment,
   levels = unique(MWD_all_summary$treatment)
 )
 
-ggplot(
+p_MWD_extracts <- ggplot(
   MWD_all_summary,
   aes(
     x = extract_type,
@@ -511,10 +1262,11 @@ ggplot(
   geom_text(
     aes(
       label = .group,
-      y = mean_value + se_value + 0.01
+      y = mean_value + se_value
     ),
     size = 4,
-    fontface = "bold"
+    fontface = "bold",
+    vjust = -0.5
   ) +
   facet_wrap(
     ~ treatment,
@@ -540,19 +1292,33 @@ ggplot(
     )
   )
 
+print(p_MWD_extracts)
 
-#--------------------------------------------------
-# GMD faceted plot
-#--------------------------------------------------
+ggsave(
+  filename = here(
+    "outputs",
+    "aggstab_MWD_extract_comparison.png"
+  ),
+  plot = p_MWD_extracts,
+  width = 14,
+  height = 8,
+  dpi = 300
+)
 
-GMD_all_summary <- bind_rows(GMD_treatment)
+# ==============================================================================
+# GMD FACETED PLOT: EXTRACTS WITHIN TREATMENTS
+# ==============================================================================
+
+GMD_all_summary <- bind_rows(
+  GMD_treatment$results
+)
 
 GMD_all_summary$treatment <- factor(
   GMD_all_summary$treatment,
   levels = unique(GMD_all_summary$treatment)
 )
 
-ggplot(
+p_GMD_extracts <- ggplot(
   GMD_all_summary,
   aes(
     x = extract_type,
@@ -575,10 +1341,11 @@ ggplot(
   geom_text(
     aes(
       label = .group,
-      y = mean_value + se_value + 0.01
+      y = mean_value + se_value
     ),
     size = 4,
-    fontface = "bold"
+    fontface = "bold",
+    vjust = -0.5
   ) +
   facet_wrap(
     ~ treatment,
@@ -604,18 +1371,33 @@ ggplot(
     )
   )
 
-#--------------------------------------------------
-# Fractal dimension faceted plot
-#--------------------------------------------------
+print(p_GMD_extracts)
 
-D_all_summary <- bind_rows(D_treatment)
+ggsave(
+  filename = here(
+    "outputs",
+    "aggstab_GMD_extract_comparison.png"
+  ),
+  plot = p_GMD_extracts,
+  width = 14,
+  height = 8,
+  dpi = 300
+)
+
+# ==============================================================================
+# FRACTAL DIMENSION FACETED PLOT: EXTRACTS WITHIN TREATMENTS
+# ==============================================================================
+
+D_all_summary <- bind_rows(
+  D_treatment$results
+)
 
 D_all_summary$treatment <- factor(
   D_all_summary$treatment,
   levels = unique(D_all_summary$treatment)
 )
 
-ggplot(
+p_D_extracts <- ggplot(
   D_all_summary,
   aes(
     x = extract_type,
@@ -638,10 +1420,11 @@ ggplot(
   geom_text(
     aes(
       label = .group,
-      y = mean_value + se_value + 0.05
+      y = mean_value + se_value
     ),
     size = 4,
-    fontface = "bold"
+    fontface = "bold",
+    vjust = -0.5
   ) +
   facet_wrap(
     ~ treatment,
@@ -667,5 +1450,20 @@ ggplot(
     )
   )
 
+print(p_D_extracts)
 
+ggsave(
+  filename = here(
+    "outputs",
+    "aggstab_D_extract_comparison.png"
+  ),
+  plot = p_D_extracts,
+  width = 14,
+  height = 8,
+  dpi = 300
+)
+
+# ==============================================================================
+# END OF ANALYSIS
+# ==============================================================================
 ```

@@ -764,27 +764,13 @@ soilR_outcome_labels <- c(
 
 # -----------------------------------------------------------------------------
 # 3.1 Identify strong geochemical predictors
-#     EXCLUDING FTIR-derived variables
 # -----------------------------------------------------------------------------
-
-# Identify FTIR-derived predictor names
-ftir_predictors <- correlation_summary %>%
-  distinct(predictor) %>%
-  filter(
-    grepl(
-      "FTIR|DRIFT|aromatic|carbonate|carbonyl|carboxyl|aliphatic|spectral|peak",
-      predictor,
-      ignore.case = TRUE
-    )
-  ) %>%
-  pull(predictor)
 
 # Identify retained predictors with at least one strong correlation
 strong_soilR_predictors <- correlation_summary %>%
   filter(
     method == "spearman",
     outcome %in% soilR_outcomes,
-    !predictor %in% ftir_predictors
   ) %>%
   group_by(predictor) %>%
   summarise(
@@ -799,129 +785,11 @@ strong_soilR_predictors <- correlation_summary %>%
   ) %>%
   pull(predictor)
 
-# Report excluded predictors
-message(
-  "\nExcluded FTIR-derived predictors:"
-)
-
-print(ftir_predictors)
 
 message(
   "\nRetained non-FTIR predictors:"
 )
 
-print(strong_soilR_predictors)
-
-# -----------------------------------------------------------------------------
-# 3.2 Prepare combined heatmap data
-#     Show all correlations for retained non-FTIR predictors
-# -----------------------------------------------------------------------------
-
-soilR_heatmap_data <- correlation_summary %>%
-  filter(
-    method == "spearman",
-    outcome %in% soilR_outcomes,
-    predictor %in% strong_soilR_predictors,
-    !predictor %in% ftir_predictors
-  ) %>%
-  mutate(
-    outcome = factor(
-      outcome,
-      levels = rev(soilR_outcomes),
-      labels = rev(
-        unname(soilR_outcome_labels[soilR_outcomes])
-      )
-    ),
-    predictor = factor(
-      predictor,
-      levels = strong_soilR_predictors
-    )
-  )
-
-# Explicit check that no FTIR predictors remain
-stopifnot(
-  !any(
-    as.character(soilR_heatmap_data$predictor) %in%
-      ftir_predictors
-  )
-)
-
-message(
-  "\nNumber of non-FTIR predictors in heatmap: ",
-  n_distinct(soilR_heatmap_data$predictor)
-)
-
-
-# =============================================================================
-# 4. STRONG CORRELATIONS ONLY — EXCLUDING FTIR
-# =============================================================================
-
-# -----------------------------------------------------------------------------
-# 4.1 Identify FTIR-derived predictors
-# -----------------------------------------------------------------------------
-
-ftir_predictors <- correlation_summary %>%
-  distinct(predictor) %>%
-  filter(
-    grepl(
-      "FTIR|DRIFT|aromatic|carbonate|carbonyl|carboxyl|aliphatic|spectral|peak",
-      predictor,
-      ignore.case = TRUE
-    )
-  ) %>%
-  pull(predictor)
-
-# -----------------------------------------------------------------------------
-# 4.2 Identify non-FTIR predictors with at least one strong correlation
-# -----------------------------------------------------------------------------
-
-strong_soilR_predictors <- correlation_summary %>%
-  filter(
-    method == "spearman",
-    outcome %in% soilR_outcomes,
-    !predictor %in% ftir_predictors
-  ) %>%
-  group_by(predictor) %>%
-  summarise(
-    max_abs_rho = max(
-      abs(correlation_median),
-      na.rm = TRUE
-    ),
-    .groups = "drop"
-  ) %>%
-  filter(
-    max_abs_rho >= 0.5
-  ) %>%
-  pull(predictor)
-
-# -----------------------------------------------------------------------------
-# 4.3 Retain ONLY strong correlations
-# -----------------------------------------------------------------------------
-
-significant_heatmap_data <- correlation_summary %>%
-  filter(
-    method == "spearman",
-    outcome %in% soilR_outcomes,
-    predictor %in% strong_soilR_predictors,
-    !predictor %in% ftir_predictors
-  ) %>%
-  mutate(
-    outcome = factor(
-      outcome,
-      levels = rev(soilR_outcomes),
-      labels = rev(
-        unname(soilR_outcome_labels[soilR_outcomes])
-      )
-    ),
-    predictor = factor(
-      predictor,
-      levels = strong_soilR_predictors
-    )
-  )
-
-# -----------------------------------------------------------------------------
-# 4.4 Plot strong correlations only
-# -----------------------------------------------------------------------------
 
 if (nrow(significant_heatmap_data) > 0) {
   
@@ -949,8 +817,9 @@ if (nrow(significant_heatmap_data) > 0) {
     labs(
       title = "Strong persistence parameter correlations with geochemistry",
       subtitle = paste(
-        "Only correlations with |median Spearman rho| >= 0.5",
-        "are displayed"
+        "FTIR, aggregate stability, secondary-mineral ratios,",
+        "and other geochemical predictors are included;",
+        "only correlations with |median Spearman rho| >= 0.5 are displayed"
       ),
       x = "Geochemical predictor",
       y = NULL
@@ -1006,21 +875,42 @@ if (nrow(significant_heatmap_data) > 0) {
       )
     )
   
+  # ---------------------------------------------------------------------------
+  # Dynamic plot dimensions
+  # ---------------------------------------------------------------------------
+  
+  n_predictors <- length(
+    unique(significant_heatmap_data$predictor)
+  )
+  
+  n_outcomes <- length(
+    unique(significant_heatmap_data$outcome)
+  )
+  
   width <- max(
     12,
     min(
-      24,
-      0.28 * length(strong_soilR_predictors) + 5
+      30,
+      0.35 * n_predictors + 5
     )
   )
   
-  height <- 9
+  height <- max(
+    9,
+    min(
+      18,
+      0.35 * n_outcomes + 4
+    )
+  )
   
+  # ---------------------------------------------------------------------------
   # Save PNG
+  # ---------------------------------------------------------------------------
+  
   ggsave(
     file.path(
       out_dir,
-      "heatmap_spearman_significant_only_no_FTIR.png"
+      "heatmap_spearman_significant_only_with_FTIR_aggstab_secondary_minerals.png"
     ),
     p_significant_only,
     width = width,
@@ -1030,11 +920,14 @@ if (nrow(significant_heatmap_data) > 0) {
     bg = "white"
   )
   
+  # ---------------------------------------------------------------------------
   # Save PDF
+  # ---------------------------------------------------------------------------
+  
   ggsave(
     file.path(
       out_dir,
-      "heatmap_spearman_significant_only_no_FTIR.pdf"
+      "heatmap_spearman_significant_only_with_FTIR_aggstab_secondary_minerals.pdf"
     ),
     p_significant_only,
     width = width,
@@ -1045,8 +938,17 @@ if (nrow(significant_heatmap_data) > 0) {
   
   print(p_significant_only)
   
+  # ---------------------------------------------------------------------------
+  # Report retained predictors
+  # ---------------------------------------------------------------------------
+  
+  strong_soilR_predictors <- unique(
+    significant_heatmap_data$predictor
+  )
+  
   message(
-    "\nStrong non-FTIR predictors retained: ",
+    "\nStrong predictors retained (including FTIR, aggregate stability,",
+    " and secondary-mineral ratios): ",
     length(strong_soilR_predictors)
   )
   
@@ -1060,6 +962,6 @@ if (nrow(significant_heatmap_data) > 0) {
 } else {
   
   message(
-    "No non-FTIR correlations met the |median Spearman rho| >= 0.5 threshold."
+    "No correlations met the |median Spearman rho| >= 0.5 threshold."
   )
 }

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -13,10 +13,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -34,40 +37,11 @@ ul.task-list li input[type="checkbox"] {
 <script src="aggstab_2026_files/libs/quarto-html/tippy.umd.min.js"></script>
 <script src="aggstab_2026_files/libs/quarto-html/anchor.min.js"></script>
 <link href="aggstab_2026_files/libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="aggstab_2026_files/libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="aggstab_2026_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="aggstab_2026_files/libs/bootstrap/bootstrap.min.js"></script>
 <link href="aggstab_2026_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="aggstab_2026_files/libs/bootstrap/bootstrap-efbb37e9afcc02144ebbc7afd12a776f.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="aggstab_2026_files/libs/bootstrap/bootstrap-215b371544c282197b31c8aa00ce3677.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 
-  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
-
-<script type="text/javascript">
-const typesetMath = (el) => {
-  if (window.MathJax) {
-    // MathJax Typeset
-    window.MathJax.typeset([el]);
-  } else if (window.katex) {
-    // KaTeX Render
-    var mathElements = el.getElementsByClassName("math");
-    var macros = [];
-    for (var i = 0; i < mathElements.length; i++) {
-      var texText = mathElements[i].firstChild;
-      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
-        window.katex.render(texText.data, mathElements[i], {
-          displayMode: mathElements[i].classList.contains('display'),
-          throwOnError: false,
-          macros: macros,
-          fleqn: false
-        });
-      }
-    }
-  }
-}
-window.Quarto = {
-  typesetMath
-};
-</script>
 
 </head>
 
@@ -108,17 +82,26 @@ window.Quarto = {
 </section>
 <section id="aggregate-stability-tests" class="level2">
 <h2 class="anchored" data-anchor-id="aggregate-stability-tests">Aggregate stability tests</h2>
-<p><strong>ERW can influence aggregation via</strong>:</p>
+<p><strong>ERW can influence aggregation via:</strong></p>
 <ul>
-<li><p>Cation bridging</p></li>
-<li><p>Microbial EPS production</p></li>
-<li><p>Secondary mineral formation e.g.&nbsp;amorphous sesquioxides, silicates</p></li>
-<li><p>Salt-induced flocculation</p></li>
+<li>Cation bridging</li>
+<li>Microbial EPS production</li>
+<li>Secondary mineral formation, e.g.&nbsp;amorphous sesquioxides and silicates</li>
+<li>Salt-induced flocculation</li>
 </ul>
 </section>
 <section id="treatment-effect" class="level2">
 <h2 class="anchored" data-anchor-id="treatment-effect">Treatment effect</h2>
-<p>Multiplying the proportion of each size class with the midpoint-diameter of that class, yields the <strong>mean weight diameter (MWD)</strong>. A log-based calculation of <strong>geometric mean diameter (GMD)</strong> better reflects changes in the mid-sized aggregate size class. The cumulative mass M of aggregates smaller than size x is proportional to the aggregate size to the power of the fractal dimension (D). Plotting log(M) vs log(x) gives a slope = D. <strong>For the water extract</strong>, estimated marginal means (emmeans) with Tukey-adjusted pariwise comparisons were used to <strong>compare MWD, GMD and D between treatments</strong> (lime, basalt, control etc) while accounting for multiple testing and unequal group comparisons within each extract, thereby showing which treatment had the greatest aggregate stability. Water is the most relevant extract for this baseline comparison; higher MWD, GMD or D indicates greater aggregate stability.</p>
+<p>The mean weight diameter (MWD) was calculated by multiplying the proportion of aggregates in each size class by the midpoint diameter of that class and summing across size classes. The geometric mean diameter (GMD) was calculated using a logarithmic weighting of the aggregate size classes. The fractal dimension (D) was calculated from the slope of the relationship between log cumulative aggregate mass and log normalized sieve diameter.</p>
+<p>Treatment differences in MWD, GMD and D were assessed separately within each extract using <strong>Welch’s one-way ANOVA followed by Games–Howell pairwise comparisons</strong>. This approach allows for unequal variances among treatments. Compact letter displays were used to identify statistically distinguishable groups.</p>
+<p>The H₂O extract represents the baseline aggregate stability measurement. Comparisons of MWD, GMD and D between treatments under H₂O extraction were used to assess treatment effects on aggregate stability.</p>
+</section>
+<section id="extract-effect" class="level2">
+<h2 class="anchored" data-anchor-id="extract-effect">Extract effect</h2>
+<p>Extract effects were assessed separately for each treatment and aggregate stability metric (MWD, GMD and D). <strong>Welch’s one-way ANOVA followed by Games–Howell pairwise comparisons</strong> was used to compare aggregate stability between extracts within each treatment.</p>
+<p>Oxalate extraction targets acid-soluble and poorly crystalline Fe and Al phases; H₂O₂ extraction oxidizes soil organic matter; and NaOH extraction targets additional mineral-associated and siliceous components. Changes in aggregate stability following these extractions provide an indication of the potential contribution of these components to aggregation.</p>
+<p>Oxalate:H₂O ratios were calculated for MWD, GMD and D using matched sample, replicate and treatment observations. These ratios express the aggregate stability index following oxalate extraction relative to the H₂O baseline. A ratio of 1 indicates no change, ratios below 1 indicate a decrease, and ratios above 1 indicate an increase following oxalate extraction.</p>
+<p>Treatment differences in the oxalate:H₂O ratios were assessed separately for GMD, D and MWD using Welch’s one-way ANOVA followed by Games–Howell pairwise comparisons.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div>
@@ -127,30 +110,31 @@ window.Quarto = {
 </figure>
 </div>
 </div>
-</div>
-</section>
-<section id="extract-effect" class="level2">
-<h2 class="anchored" data-anchor-id="extract-effect">Extract effect</h2>
-<p>Here, <strong>within each treatment group</strong> (lime, basalt, control etc) we <strong>compare MWD, GMD and D between extracts</strong>. The extracts that show the greatest decrease in MWD compared to H<span class="math inline">\(_2\)</span>O within each treatment, indicate which <strong>cementing agents</strong> were the most important driver of aggregate stability <strong>for that treatment</strong>. The extracts oxalate, H<span class="math inline">\(_2\)</span>O<span class="math inline">\(_2\)</span> and NaOH removed amorphous Fe/Al oxides, organic matter and siliceous cementing agents, respectively.</p>
-<div class="cell">
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20tmts-1.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20extracts-2.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20tmts-2.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20extracts-3.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
-<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20tmts-3.png" class="img-fluid figure-img" width="672"></p>
+<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20extracts-4.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="aggstab_2026_files/figure-html/MWD%20comparison%20extracts-5.png" class="img-fluid figure-img" width="672"></p>
 </figure>
 </div>
 </div>

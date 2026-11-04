@@ -117,23 +117,121 @@ if (nrow(treatment_check) != 5L || any(treatment_check$n_plots != 3L) ||
   stop("Expected exactly five modeled treatments with three plot rows each.")
 }
 
+
 metadata_regex <- paste(metadata_patterns, collapse = "|")
-num_cols <- names(integrated)[vapply(integrated, is.numeric, logical(1))]
-predictor_candidates <- setdiff(num_cols, c("sample", response_columns))
-predictor_candidates <- predictor_candidates[
-  !stringr::str_detect(predictor_candidates,
-                       regex(metadata_regex, ignore_case = TRUE))
+
+num_cols <- names(integrated)[
+  vapply(integrated, is.numeric, logical(1))
 ]
+
+# Exclude response variables and metadata
+predictor_candidates <- setdiff(
+  num_cols,
+  c("sample", response_columns)
+)
+
 predictor_candidates <- predictor_candidates[
   !stringr::str_detect(
     predictor_candidates,
-    regex("^(C_total|C_stock|SOC_stock|SIC_stock|CaCO3_stock|carbon_stock)$",
-          ignore_case = TRUE)
+    regex(metadata_regex, ignore_case = TRUE)
   )
 ]
+
+# Exclude carbon-stock variables
+predictor_candidates <- predictor_candidates[
+  !stringr::str_detect(
+    predictor_candidates,
+    regex(
+      "^(C_total|C_stock|SOC_stock|SIC_stock|CaCO3_stock|carbon_stock)$",
+      ignore_case = TRUE
+    )
+  )
+]
+
+# Explicitly identify aggregate-stability and secondary-mineral
+# ratio candidates from the integrated geochemistry CSV.
+#
+# These are classifications for checking/reporting only.
+# All eligible numeric geochemical predictors remain candidates.
+
+aggregate_stability_pattern <- paste(
+  "MWD",
+  "GMD",
+  "aggregate.?stability",
+  "agg.?stab",
+  "ox.*h2o",
+  "h2o.*ox",
+  "stability.*h2o",
+  "h2o.*stability",
+  sep = "|"
+)
+
+secondary_mineral_ratio_pattern <- paste(
+  "Fe.*(ox.*DCB|ratio|over)",
+  "Al.*(ox.*DCB|ratio|over)",
+  "Mn.*(ox.*DCB|ratio|over)",
+  "Si.*(ox.*DCB|ratio|over)",
+  "ox.*DCB",
+  "secondary.?mineral.*ratio",
+  "mineral.*ratio",
+  "ratio",
+  sep = "|"
+)
+
+candidate_domains <- tibble(
+  predictor = predictor_candidates
+) %>%
+  mutate(
+    candidate_domain = case_when(
+      str_detect(
+        predictor,
+        regex(aggregate_stability_pattern, ignore_case = TRUE)
+      ) ~ "Aggregate stability",
+      
+      str_detect(
+        predictor,
+        regex(secondary_mineral_ratio_pattern, ignore_case = TRUE)
+      ) ~ "Secondary-mineral ratios",
+      
+      TRUE ~ "Other geochemistry"
+    )
+  )
+
+# Save a candidate-variable inventory for verification
+readr::write_csv(
+  candidate_domains,
+  file.path(out_dir, "geochemical_predictor_candidates.csv")
+)
+
+message("\nGeochemical predictor candidates by domain:")
+print(
+  candidate_domains %>%
+    count(candidate_domain, name = "n_predictors"),
+  n = Inf
+)
+
+cat(
+  "\nAggregate-stability candidates:\n"
+)
+
+candidate_domains %>%
+  filter(candidate_domain == "Aggregate stability") %>%
+  pull(predictor) %>%
+  print()
+
+
+cat(
+  "\nSecondary-mineral-ratio candidates:"
+)
+candidate_domains %>%
+  filter(candidate_domain == "Secondary-mineral ratios") %>%
+  pull(predictor) %>%
+  print()
+
 if (length(predictor_candidates) == 0L) {
   stop("No numeric geochemical predictor columns remain after exclusions.")
 }
+
 
 geochem_summary <- integrated %>%
   group_by(Treatment_model) %>%
@@ -621,8 +719,9 @@ if (nrow(system_transit_plot_data) > 0) {
 }
 
 ```r
+
 # -----------------------------------------------------------------------------
-# 3.1 Identify strong geochemical predictors
+# 8. Identify strong geochemical predictors
 #     EXCLUDING all FTIR-derived variables
 # -----------------------------------------------------------------------------
 
@@ -631,19 +730,32 @@ ftir_predictors <- correlation_summary %>%
   distinct(predictor) %>%
   filter(
     grepl(
-      "FTIR|ftir|DRIFT|drift|aromatic|carbonate|carbonyl|"
-      %+% "carboxyl|aliphatic|spectral|peak",
-      predictor
+      paste0(
+        "FTIR|ftir|DRIFT|drift|aromatic|carbonate|carbonyl|",
+        "carboxyl|aliphatic|spectral|peak"
+      ),
+      predictor,
+      ignore.case = TRUE
     )
   ) %>%
   pull(predictor)
 
-# Select predictors with at least one strong correlation
-# across the nine SoilR outcomes, excluding FTIR variables
+# Identify predictors with at least one strong Spearman correlation
+# across the five treatment-level observations.
+#
+# Includes:
+#   - SoilR decomposition rates
+#   - SoilR transfer coefficients
+#   - Pool mean ages
+#   - System mean transit time
+#
+# Aggregate stability and secondary-mineral ratios are eligible
+# if present in the integrated geochemistry CSV.
+
 strong_soilR_predictors <- correlation_summary %>%
   filter(
     method == "spearman",
-    outcome %in% soilR_outcomes,
+    outcome %in% all_outcomes,
     !predictor %in% ftir_predictors
   ) %>%
   group_by(predictor) %>%
@@ -655,14 +767,26 @@ strong_soilR_predictors <- correlation_summary %>%
     .groups = "drop"
   ) %>%
   filter(
+    is.finite(max_abs_rho),
     max_abs_rho >= 0.5
   ) %>%
-  pull(predictor)
+  arrange(desc(max_abs_rho))
+
+readr::write_csv(
+  strong_soilR_predictors,
+  file.path(
+    out_dir,
+    "strong_soilR_geochemical_predictors_excluding_FTIR.csv"
+  )
+)
 
 message(
   "\nExcluded ", length(ftir_predictors),
   " FTIR-derived predictors:"
 )
-
 print(ftir_predictors)
-```
+
+message(
+  "\nStrong non-FTIR geochemical predictors (|median Spearman rho| >= 0.5):"
+)
+print(strong_soilR_predictors, n = Inf)

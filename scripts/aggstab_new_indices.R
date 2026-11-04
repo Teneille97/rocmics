@@ -450,6 +450,325 @@ aggstab_metrics <- aggstab_all %>%
     GMD,
     D
   )
+
+# ==============================================================================
+# PAIRED OXALATE:H2O AGGREGATE STABILITY RATIOS
+# ==============================================================================
+
+# Calculate ratios using matched sample, replicate and treatment.
+# Each oxalate observation is divided by its corresponding H2O observation.
+
+aggstab_ratios <- aggstab_metrics %>%
+  dplyr::filter(
+    extract_type %in% c("h2o", "oxalate")
+  ) %>%
+  dplyr::select(
+    sample,
+    rep,
+    treatment,
+    extract_type,
+    MWD,
+    GMD,
+    D
+  ) %>%
+  tidyr::pivot_wider(
+    names_from = extract_type,
+    values_from = c(MWD, GMD, D),
+    names_sep = "_"
+  ) %>%
+  dplyr::mutate(
+    # Oxalate:H2O ratios
+    MWD_oxalate_over_h2o = MWD_oxalate / MWD_h2o,
+    GMD_oxalate_over_h2o = GMD_oxalate / GMD_h2o,
+    D_oxalate_over_h2o = D_oxalate / D_h2o
+  ) %>%
+  dplyr::filter(
+    is.finite(MWD_oxalate_over_h2o),
+    is.finite(GMD_oxalate_over_h2o),
+    is.finite(D_oxalate_over_h2o)
+  )
+
+# Export paired ratio data
+write.csv(
+  aggstab_ratios,
+  here::here("outputs", "aggstab_oxalate_over_h2o_ratios.csv"),
+  row.names = FALSE
+)
+
+# Convert ratio data to long format
+aggstab_ratios_long <- aggstab_ratios %>%
+  dplyr::select(
+    sample,
+    rep,
+    treatment,
+    GMD_oxalate_over_h2o,
+    D_oxalate_over_h2o,
+    MWD_oxalate_over_h2o
+  ) %>%
+  tidyr::pivot_longer(
+    cols = c(
+      GMD_oxalate_over_h2o,
+      D_oxalate_over_h2o,
+      MWD_oxalate_over_h2o
+    ),
+    names_to = "metric",
+    values_to = "ratio"
+  ) %>%
+  dplyr::mutate(
+    metric = factor(
+      metric,
+      levels = c(
+        "GMD_oxalate_over_h2o",
+        "D_oxalate_over_h2o",
+        "MWD_oxalate_over_h2o"
+      ),
+      labels = c(
+        "GMD oxalate:H2O",
+        "D oxalate:H2O",
+        "MWD oxalate:H2O"
+      )
+    )
+  )
+
+# ==============================================================================
+# STATISTICAL COMPARISONS OF OXALATE:H2O RATIOS BETWEEN TREATMENTS
+# Welch ANOVA + Games-Howell
+# ==============================================================================
+
+ratio_overall_results <- list()
+ratio_pairwise_results <- list()
+ratio_letters_results <- list()
+
+for (metric_name in levels(aggstab_ratios_long$metric)) {
+  
+  ratio_df <- aggstab_ratios_long %>%
+    dplyr::filter(metric == metric_name) %>%
+    dplyr::filter(
+      !is.na(ratio),
+      !is.na(treatment)
+    ) %>%
+    dplyr::mutate(
+      treatment = droplevels(as.factor(treatment))
+    )
+  
+  group_levels <- levels(ratio_df$treatment)
+  
+  if (
+    length(group_levels) < 2 ||
+    any(table(ratio_df$treatment) < 2)
+  ) {
+    warning(
+      "Insufficient replication for ratio metric: ",
+      metric_name
+    )
+    next
+  }
+  
+  # Welch ANOVA
+  welch_ratio <- stats::oneway.test(
+    ratio ~ treatment,
+    data = ratio_df,
+    var.equal = FALSE
+  )
+  
+  ratio_overall_results[[metric_name]] <- tibble::tibble(
+    metric = metric_name,
+    test = "Welch ANOVA",
+    p_overall = welch_ratio$p.value
+  )
+  
+  # Games-Howell post-hoc
+  gh_ratio <- rstatix::games_howell_test(
+    ratio_df,
+    ratio ~ treatment
+  ) %>%
+    dplyr::mutate(
+      metric = metric_name
+    )
+  
+  ratio_pairwise_results[[metric_name]] <- gh_ratio
+  
+  # Compact letter display
+  ratio_letters <- make_games_howell_letters(
+    gh_ratio,
+    group_levels
+  ) %>%
+    dplyr::rename(
+      treatment = group
+    ) %>%
+    dplyr::mutate(
+      metric = metric_name
+    )
+  
+  ratio_letters_results[[metric_name]] <- ratio_letters
+}
+
+# Combine statistical results
+ratio_overall_results_df <- dplyr::bind_rows(
+  ratio_overall_results
+)
+
+ratio_pairwise_results_df <- dplyr::bind_rows(
+  ratio_pairwise_results
+)
+
+ratio_letters_results_df <- dplyr::bind_rows(
+  ratio_letters_results
+)
+
+# Export ratio statistics
+write.csv(
+  ratio_overall_results_df,
+  here::here(
+    "outputs",
+    "aggstab_oxalate_over_h2o_WelchANOVA.csv"
+  ),
+  row.names = FALSE
+)
+
+write.csv(
+  ratio_pairwise_results_df,
+  here::here(
+    "outputs",
+    "aggstab_oxalate_over_h2o_GamesHowell.csv"
+  ),
+  row.names = FALSE
+)
+
+write.csv(
+  ratio_letters_results_df,
+  here::here(
+    "outputs",
+    "aggstab_oxalate_over_h2o_CLD_letters.csv"
+  ),
+  row.names = FALSE
+)
+
+# ==============================================================================
+# SUMMARY DATA FOR OXALATE:H2O RATIO PLOTS
+# ==============================================================================
+
+ratio_summary <- aggstab_ratios_long %>%
+  dplyr::group_by(
+    treatment,
+    metric
+  ) %>%
+  dplyr::summarise(
+    mean_value = mean(ratio, na.rm = TRUE),
+    se_value = stats::sd(ratio, na.rm = TRUE) /
+      sqrt(sum(!is.na(ratio))),
+    n = sum(!is.na(ratio)),
+    .groups = "drop"
+  ) %>%
+  dplyr::left_join(
+    ratio_letters_results_df,
+    by = c("treatment", "metric")
+  )
+
+# ==============================================================================
+# PLOT: OXALATE:H2O RATIOS FOR GMD, D AND MWD
+# ==============================================================================
+
+p_oxalate_h2o_ratios <- ggplot2::ggplot(
+  ratio_summary,
+  ggplot2::aes(
+    x = treatment,
+    y = mean_value,
+    fill = treatment
+  )
+) +
+  ggplot2::geom_hline(
+    yintercept = 1,
+    linetype = "dashed",
+    colour = "grey40",
+    linewidth = 0.6
+  ) +
+  ggplot2::geom_col(
+    width = 0.7,
+    colour = "grey20"
+  ) +
+  ggplot2::geom_errorbar(
+    ggplot2::aes(
+      ymin = mean_value - se_value,
+      ymax = mean_value + se_value
+    ),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+  ggplot2::geom_point(
+    data = aggstab_ratios_long,
+    ggplot2::aes(
+      x = treatment,
+      y = ratio
+    ),
+    inherit.aes = FALSE,
+    position = ggplot2::position_jitter(
+      width = 0.12,
+      height = 0
+    ),
+    colour = "black",
+    size = 2,
+    alpha = 0.7
+  ) +
+  ggplot2::geom_text(
+    ggplot2::aes(
+      label = .group,
+      y = mean_value + se_value
+    ),
+    colour = "black",
+    fontface = "bold",
+    vjust = -0.5,
+    size = 4
+  ) +
+  viridis::scale_fill_viridis(
+    discrete = TRUE,
+    option = "D",
+    end = 0.9
+  ) +
+  ggplot2::facet_wrap(
+    ~ metric,
+    scales = "free_y",
+    nrow = 1
+  ) +
+  ggplot2::labs(
+    title = "Oxalate:H2O aggregate stability ratios",
+    subtitle = paste(
+      "Ratio = oxalate index / H2O index;",
+      "dashed line indicates ratio = 1"
+    ),
+    x = NULL,
+    y = "Oxalate:H2O ratio"
+  ) +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(
+    axis.text.x = ggplot2::element_text(
+      angle = 45,
+      hjust = 1
+    ),
+    legend.position = "none",
+    strip.text = ggplot2::element_text(
+      face = "bold"
+    ),
+    plot.title = ggplot2::element_text(
+      face = "bold"
+    )
+  )
+
+print(p_oxalate_h2o_ratios)
+
+# Save plot
+ggplot2::ggsave(
+  filename = here::here(
+    "outputs",
+    "aggstab_oxalate_over_h2o_ratios.png"
+  ),
+  plot = p_oxalate_h2o_ratios,
+  width = 13,
+  height = 5,
+  dpi = 300
+)
+
+
 MWD_extract <- analyze_metric_by_extract(
   aggstab_metrics,
   metric = "MWD",

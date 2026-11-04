@@ -1,0 +1,512 @@
+---
+title: "Malle ERW — SoilR Posterior Correlation Plots"
+subtitle: "Plot-only report of existing posterior correlation analysis"
+author: "Teneille Nel"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: show
+    theme: cosmo
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Purpose and scope
+
+This report regenerates and displays plots from the previously saved SoilR posterior correlation analysis.
+
+The report does not:
+- Fit Bayesian models.
+- Calculate SoilR pool ages or system transit time.
+- Recalculate posterior correlations.
+- Write CSV, PNG, or PDF files.
+
+All plots are displayed directly in the rendered HTML report.
+
+The correlation analysis is based on five independent treatment-level observations. Posterior draws propagate uncertainty from the SoilR model, but do not increase the number of independent treatments. Correlations are exploratory and should not be interpreted as causal or as conventional significance tests.
+
+# 1. Load existing statistical results
+
+```{r}
+#| echo: false
+#| message: false
+#| label: load stats
+#| warning: FALSE
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(here)
+})
+
+out_dir <- here::here(
+  "outputs",
+  "soilR_posterior_correlations_age_transfer"
+)
+
+analysis_file <- file.path(
+  out_dir,
+  "soilR_rates_transfer_ages_correlation_analysis.rds"
+)
+
+if (!file.exists(analysis_file)) {
+  stop(
+    "Analysis file not found: ",
+    analysis_file,
+    "\nCheck that the original analysis has been run."
+  )
+}
+
+analysis <- readRDS(analysis_file)
+
+# Restore existing statistical results
+correlation_summary <- analysis$correlation_summary
+correlation_draws <- analysis$correlation_draws
+persistence_draws <- analysis$persistence_draws
+geochem_summary <- analysis$geochemistry_summary
+
+all_outcomes <- analysis$outcomes
+valid_predictors <- analysis$predictors
+
+methods <- c("spearman", "kendall", "pearson")
+
+age_outcomes <- c(
+  "fPOM_age",
+  "oPOM_age",
+  "MAOM_age",
+  "system_transit_time"
+)
+
+message("Existing statistical results successfully loaded.")
+
+
+outcome_labels <- c(
+  kf = "kf: fPOM decomposition rate",
+  ki = "ki: oPOM decomposition rate",
+  ks = "ks: MAOM decomposition rate",
+  alpha_fi = "alpha_fi: fPOM -> oPOM transfer",
+  alpha_is = "alpha_is: oPOM -> MAOM transfer",
+  fPOM_age = "fPOM mean age",
+  oPOM_age = "oPOM mean age",
+  MAOM_age = "MAOM mean age",
+  system_transit_time = "System mean transit time"
+)
+
+soilR_outcomes <- c(
+  "kf",
+  "ki",
+  "ks",
+  "alpha_fi",
+  "alpha_is",
+  "fPOM_age",
+  "oPOM_age",
+  "MAOM_age",
+  "system_transit_time"
+)
+
+soilR_outcome_labels <- c(
+  "kf" = "fPOM decomposition rate (kf)",
+  "ki" = "oPOM decomposition rate (ki)",
+  "ks" = "MAOM decomposition rate (ks)",
+  "alpha_fi" = "fPOM -> oPOM transfer (alpha_fi)",
+  "alpha_is" = "oPOM -> MAOM transfer (alpha_is)",
+  "fPOM_age" = "fPOM mean age",
+  "oPOM_age" = "oPOM mean age",
+  "MAOM_age" = "MAOM mean age",
+  "system_transit_time" = "System mean transit time"
+)
+
+plot_heatmap <- function(
+    method_name,
+    outcome_subset,
+    title_text
+) {
+
+  plot_dat <- correlation_summary %>%
+    dplyr::filter(
+      method == method_name,
+      outcome %in% outcome_subset
+    ) %>%
+    dplyr::mutate(
+      outcome = factor(
+        outcome,
+        levels = rev(outcome_subset),
+        labels = rev(
+          unname(outcome_labels[outcome_subset])
+        )
+      ),
+      predictor = factor(
+        predictor,
+        levels = valid_predictors
+      )
+    )
+
+  ggplot(
+    plot_dat,
+    aes(
+      x = predictor,
+      y = outcome,
+      fill = correlation_median
+    )
+  ) +
+    geom_tile(
+      colour = "white",
+      linewidth = 0.25
+    ) +
+    scale_fill_gradient2(
+      low = "#2166AC",
+      mid = "white",
+      high = "#B2182B",
+      midpoint = 0,
+      limits = c(-1, 1),
+      oob = scales::squish,
+      name = ifelse(
+        method_name == "spearman",
+        "Median rho",
+        ifelse(
+          method_name == "kendall",
+          "Median tau",
+          "Median r"
+        )
+      )
+    ) +
+    labs(
+      title = title_text,
+      subtitle = paste0(
+        "Five treatment-level observations; median ",
+        method_name,
+        " correlation across sampled SoilR posterior draws"
+      ),
+      x = "Geochemical predictor",
+      y = NULL,
+      caption = paste(
+        "Exploratory only: posterior draws propagate SoilR uncertainty,",
+        "but do not increase the number of independent treatments."
+      )
+    ) +
+    theme_bw(base_size = 10) +
+    theme(
+      plot.title = element_text(
+        face = "bold",
+        colour = "black"
+      ),
+      plot.subtitle = element_text(
+        colour = "black"
+      ),
+      axis.text.x = element_text(
+        colour = "black",
+        angle = 45,
+        hjust = 1
+      ),
+      axis.text.y = element_text(
+        colour = "black"
+      ),
+      axis.title = element_text(
+        colour = "black"
+      ),
+      panel.background = element_rect(
+        fill = "white",
+        colour = NA
+      ),
+      plot.background = element_rect(
+        fill = "white",
+        colour = NA
+      ),
+      panel.grid = element_blank()
+    )
+}
+```
+
+## 3.2 All rates, transfer coefficients, pool ages, and transit time
+
+```{r, fig.width=18, fig.height=8}
+#| echo: false
+#| message: false
+#| label: rates and transfer 
+#| warning: FALSE
+
+for (method_name in methods) {
+
+  method_label <- stringr::str_to_title(method_name)
+
+  p_all <- plot_heatmap(
+    method_name,
+    all_outcomes,
+    paste0(
+      "SoilR rates, transfer coefficients and ages vs geochemistry: ",
+      method_label
+    )
+  )
+
+  print(p_all)
+}
+
+for (method_name in methods) {
+
+  method_label <- stringr::str_to_title(method_name)
+
+  p_ages <- plot_heatmap(
+    method_name,
+    age_outcomes,
+    paste0(
+      "SoilR pool ages and system transit time vs geochemistry: ",
+      method_label
+    )
+  )
+
+  print(p_ages)
+}
+```
+
+
+# 5. Strong persistence correlations — including FTIR and geochemical ratios
+
+This heatmap includes all nine SoilR outcomes:
+
+- Decomposition rates: kf, ki, ks
+- Transfer coefficients: alpha_fi, alpha_is
+- Pool ages: fPOM, oPOM, MAOM
+- System mean transit time
+
+A predictor is retained if it has at least one Spearman posterior median correlation with an absolute value of at least 0.5 across the nine outcomes.
+
+Only cells with absolute median Spearman rho of at least 0.5 are displayed.
+
+FTIR-derived variables, aggregate stability variables, and secondary-mineral ratios are not excluded.
+
+
+```{r}
+#| echo: false
+#| message: false
+#| label: strong predictors
+#| warning: FALSE
+
+strong_soilR_predictors <- correlation_summary %>%
+  dplyr::filter(
+    method == "spearman",
+    outcome %in% soilR_outcomes
+  ) %>%
+  dplyr::group_by(predictor) %>%
+  dplyr::summarise(
+    max_abs_rho = max(
+      abs(correlation_median),
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  ) %>%
+  dplyr::filter(
+    max_abs_rho >= 0.5
+  ) %>%
+  dplyr::pull(predictor)
+
+message(
+  "Number of predictors with at least one strong correlation: ",
+  length(strong_soilR_predictors)
+)
+
+significant_heatmap_data <- correlation_summary %>%
+  dplyr::filter(
+    method == "spearman",
+    outcome %in% soilR_outcomes,
+    predictor %in% strong_soilR_predictors,
+    abs(correlation_median) >= 0.5
+  ) %>%
+  dplyr::mutate(
+    outcome = factor(
+      outcome,
+      levels = rev(soilR_outcomes),
+      labels = rev(
+        unname(
+          soilR_outcome_labels[soilR_outcomes]
+        )
+      )
+    ),
+    predictor = factor(
+      predictor,
+      levels = strong_soilR_predictors
+    )
+  )
+
+message(
+  "Strong correlation cells displayed: ",
+  nrow(significant_heatmap_data)
+)
+
+if (nrow(significant_heatmap_data) > 0) {
+  
+  p_significant_only <- ggplot(
+    significant_heatmap_data,
+    aes(
+      x = predictor,
+      y = outcome,
+      fill = correlation_median
+    )
+  ) +
+    geom_tile(
+      colour = "white",
+      linewidth = 0.25
+    ) +
+    scale_fill_gradient2(
+      low = "#2166AC",
+      mid = "white",
+      high = "#B2182B",
+      midpoint = 0,
+      limits = c(-1, 1),
+      oob = scales::squish,
+      name = "Median rho"
+    ) +
+    labs(
+      title = "Strong persistence parameter correlations with geochemistry",
+      subtitle = paste(
+        "FTIR, aggregate stability, secondary-mineral ratios,",
+        "and other geochemical predictors are included;",
+        "only correlations with |median Spearman rho| >= 0.5 are displayed"
+      ),
+      x = "Geochemical predictor",
+      y = NULL
+    ) +
+    theme_bw(base_size = 10) +
+    theme(
+      plot.background = element_rect(
+        fill = "white",
+        colour = NA
+      ),
+      panel.background = element_rect(
+        fill = "white",
+        colour = NA
+      ),
+      legend.background = element_rect(
+        fill = "white",
+        colour = NA
+      ),
+      legend.key = element_rect(
+        fill = "white",
+        colour = NA
+      ),
+      panel.grid = element_blank(),
+      axis.text = element_text(
+        colour = "black"
+      ),
+      axis.title = element_text(
+        colour = "black"
+      ),
+      axis.ticks = element_line(
+        colour = "black"
+      ),
+      plot.title = element_text(
+        face = "bold",
+        colour = "black"
+      ),
+      plot.subtitle = element_text(
+        colour = "black"
+      ),
+      plot.caption = element_text(
+        colour = "black"
+      ),
+      legend.text = element_text(
+        colour = "black"
+      ),
+      legend.title = element_text(
+        colour = "black"
+      ),
+      axis.text.x = element_text(
+        angle = 65,
+        hjust = 1,
+        vjust = 1
+      )
+    )
+  
+  # ---------------------------------------------------------------------------
+  # Dynamic plot dimensions
+  # ---------------------------------------------------------------------------
+  
+  n_predictors <- length(
+    unique(significant_heatmap_data$predictor)
+  )
+  
+  n_outcomes <- length(
+    unique(significant_heatmap_data$outcome)
+  )
+  
+  width <- max(
+    12,
+    min(
+      30,
+      0.35 * n_predictors + 5
+    )
+  )
+  
+  height <- max(
+    9,
+    min(
+      18,
+      0.35 * n_outcomes + 4
+    )
+  )
+  
+  # ---------------------------------------------------------------------------
+  # Save PNG
+  # ---------------------------------------------------------------------------
+  
+  ggsave(
+    file.path(
+      out_dir,
+      "heatmap_spearman_significant_only_with_FTIR_aggstab_secondary_minerals.png"
+    ),
+    p_significant_only,
+    width = width,
+    height = height,
+    dpi = 300,
+    limitsize = FALSE,
+    bg = "white"
+  )
+  
+  # ---------------------------------------------------------------------------
+  # Save PDF
+  # ---------------------------------------------------------------------------
+  
+  ggsave(
+    file.path(
+      out_dir,
+      "heatmap_spearman_significant_only_with_FTIR_aggstab_secondary_minerals.pdf"
+    ),
+    p_significant_only,
+    width = width,
+    height = height,
+    limitsize = FALSE,
+    bg = "white"
+  )
+  
+  print(p_significant_only)
+  
+  # ---------------------------------------------------------------------------
+  # Report retained predictors
+  # ---------------------------------------------------------------------------
+  
+  strong_soilR_predictors <- unique(
+    significant_heatmap_data$predictor
+  )
+  
+  message(
+    "\nStrong predictors retained (including FTIR, aggregate stability,",
+    " and secondary-mineral ratios): ",
+    length(strong_soilR_predictors)
+  )
+  
+  message(
+    "Strong correlation cells displayed: ",
+    nrow(significant_heatmap_data)
+  )
+  
+} else {
+  
+  message(
+    "No correlations met the |median Spearman rho| >= 0.5 threshold."
+  )
+}
+```

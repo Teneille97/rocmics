@@ -34,21 +34,21 @@ Call:
 lm(formula = new_formula, data = dat)
 
 Residuals:
-      Min        1Q    Median        3Q       Max 
--0.083123 -0.025308  0.008446  0.039094  0.046951 
+     Min       1Q   Median       3Q      Max 
+-0.04961 -0.04160 -0.01401  0.04094  0.06740 
 
 Coefficients:
                      Estimate Std. Error t value Pr(>|t|)    
-(Intercept)            1.6181     0.1426  11.343 2.81e-05 ***
-GMD_oxalate           -2.8660     0.4375  -6.551 0.000605 ***
-Mn_Oct2023            18.2343     4.2371   4.303 0.005074 ** 
-Tessier_H2O2_Fe_mg_g  -1.4736     0.5653  -2.607 0.040303 *  
+(Intercept)          -5.38488    0.77343  -6.962 0.000436 ***
+D_h2o                 2.95950    0.38485   7.690 0.000253 ***
+FTIR_delta_Silicate  -0.33493    0.06593  -5.080 0.002266 ** 
+Al_Oct2023          -19.66995    7.72853  -2.545 0.043778 *  
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
-Residual standard error: 0.05489 on 6 degrees of freedom
-Multiple R-squared:  0.958,	Adjusted R-squared:  0.937 
-F-statistic: 45.59 on 3 and 6 DF,  p-value: 0.0001598
+Residual standard error: 0.05658 on 6 degrees of freedom
+Multiple R-squared:  0.9553,	Adjusted R-squared:  0.933 
+F-statistic: 42.78 on 3 and 6 DF,  p-value: 0.0001916
 
 
 ========================================

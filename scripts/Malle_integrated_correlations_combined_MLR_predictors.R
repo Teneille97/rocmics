@@ -241,11 +241,34 @@ agg_files <- c(
 )
 
 agg_tables <- imap(agg_files, ~ read_aggstab(.x, .y)) %>% compact()
-agg_data <- if (length(agg_tables)) {
+agg_data_all <- if (length(agg_tables)) {
   reduce(agg_tables, full_join, by = "sample")
 } else {
   tibble(sample = integer())
 }
+
+# Keep only the H2O aggregate-stability indices and the oxalate:H2O ratios.
+# Do not carry the raw GMD/D/MWD indices from oxalate, H2O2 or NaOH extracts.
+agg_data <- agg_data_all %>%
+  mutate(
+    GMD_oxalate_over_h2o = if_else(
+      is.finite(GMD_oxalate) & is.finite(GMD_h2o) & GMD_h2o != 0,
+      GMD_oxalate / GMD_h2o, NA_real_
+    ),
+    D_oxalate_over_h2o = if_else(
+      is.finite(D_oxalate) & is.finite(D_h2o) & D_h2o != 0,
+      D_oxalate / D_h2o, NA_real_
+    ),
+    MWD_oxalate_over_h2o = if_else(
+      is.finite(MWD_oxalate) & is.finite(MWD_h2o) & MWD_h2o != 0,
+      MWD_oxalate / MWD_h2o, NA_real_
+    )
+  ) %>%
+  dplyr::select(
+    sample, GMD_h2o, D_h2o, MWD_h2o,
+    GMD_oxalate_over_h2o, D_oxalate_over_h2o, MWD_oxalate_over_h2o
+  ) %>%
+  mutate(across(-sample, ~ if_else(is.finite(.x), .x, NA_real_)))
 
 
 # ---- Oxalate and DCB mineral data ----------------------------------------
@@ -282,6 +305,23 @@ for (el in c("Fe", "Al", "Mn", "Si")) {
   mineral_data[[paste0(el, "_ox_over_DCB")]] <-
     mineral_data[[ox_col]] / mineral_data[[dcb_col]]
 }
+
+# Oxalate-extractable secondary-mineral ratios, matching the calculations in
+# dcb_oxalate_combined.R (Ox_Fe_Si = Fe/Si; Ox_Al_Si = Al/Si).
+# These are plot-level candidate predictors and are included in the Bayesian CSV.
+mineral_data <- mineral_data %>%
+  mutate(
+    Fe_ox_over_Si_ox = if_else(
+      is.finite(ox_Si_mg_g) & ox_Si_mg_g > 0,
+      ox_Fe_mg_g / ox_Si_mg_g, NA_real_
+    ),
+    Al_ox_over_Si_ox = if_else(
+      is.finite(ox_Si_mg_g) & ox_Si_mg_g > 0,
+      ox_Al_mg_g / ox_Si_mg_g, NA_real_
+    )
+  ) %>%
+  mutate(across(c(Fe_ox_over_Si_ox, Al_ox_over_Si_ox),
+                ~ if_else(is.finite(.x), .x, NA_real_)))
 
 
 # ---- Tessier extraction data ---------------------------------------------
@@ -366,7 +406,7 @@ read_tessier <- function(filename, extract_label) {
       element = str_remove(element, "_mg_g$"),
       variable = paste0("Tessier_", extract_label, "_", element, "_mg_g")
     ) %>%
-    select(sample, variable, concentration_mg_g) %>%
+    dplyr::select(sample, variable, concentration_mg_g) %>%
     pivot_wider(names_from = variable, values_from = concentration_mg_g)
 }
 
@@ -556,7 +596,7 @@ if (file.exists(ftir_path)) {
     selected_change_cols <- character(0)
   }
   
-  ftir <- ftir %>% select(sample, all_of(selected_change_cols))
+  ftir <- ftir %>% dplyr::select(sample, all_of(selected_change_cols))
   names(ftir) <- ifelse(
     names(ftir) == "sample" | str_starts(names(ftir), "FTIR_"),
     names(ftir), paste0("FTIR_", names(ftir))
@@ -643,7 +683,7 @@ print(
 
 # Verify the joins
 integrated %>%
-  select(
+  dplyr::select(
     sample, Treatment,
     pH_Oct2023, EC_Oct2023,
     H_Oct2023, Ca_Oct2023, K_Oct2023, Mg_Oct2023,
@@ -708,7 +748,7 @@ if (nrow(duplicate_14c) > 0) {
 
 radiocarbon_2026_wide <- radiocarbon_2026 %>%
   mutate(variable = paste0("d14C_2026_", SOM_fraction)) %>%
-  select(sample, variable, d14C) %>%
+  dplyr::select(sample, variable, d14C) %>%
   pivot_wider(names_from = variable, values_from = d14C)
 
 integrated <- integrated %>% left_join(radiocarbon_2026_wide, by = "sample")
@@ -732,9 +772,11 @@ explicit_keep <- c(
   "C_Bulk", "C_MAOM", "C_oPOM", "C_fPOM",
   
   # Existing variables used by correlations and PCA
-  "Agg stab", "GMD_h2o", "GMD_oxalate",
+  "GMD_h2o", "D_h2o", "MWD_h2o",
+  "GMD_oxalate_over_h2o", "D_oxalate_over_h2o", "MWD_oxalate_over_h2o",
   "Fe_ox_over_DCB", "Al_ox_over_DCB",
   "Mn_ox_over_DCB", "Si_ox_over_DCB",
+  "Fe_ox_over_Si_ox", "Al_ox_over_Si_ox",
   "Tessier_Acetic_Ca_mg_g", "Tessier_Acetic_K_mg_g",
   "Tessier_Acetic_Na_mg_g", "Tessier_Acetic_Mg_mg_g",
   "Tessier_Hydroxylamine_Fe_mg_g",
@@ -767,7 +809,7 @@ if (length(missing_requested)) {
   message("Requested columns not present in the integrated data (skipped): ",
           paste(missing_requested, collapse = ", "))
 }
-integrated <- integrated %>% select(all_of(keep_cols))
+integrated <- integrated %>% dplyr::select(all_of(keep_cols))
 
 readr::write_csv(
   integrated,
@@ -779,8 +821,10 @@ readr::write_csv(
 # but are deliberately excluded from correlations and MLR predictors.
 geochem_vars <- names(integrated)[
   names(integrated) %in% c(
-    "Agg stab", "GMD_h2o", "GMD_oxalate",
+    "GMD_h2o", "D_h2o", "MWD_h2o",
+    "GMD_oxalate_over_h2o", "D_oxalate_over_h2o", "MWD_oxalate_over_h2o",
     "Fe_ox_over_DCB", "Al_ox_over_DCB", "Mn_ox_over_DCB", "Si_ox_over_DCB",
+    "Fe_ox_over_Si_ox", "Al_ox_over_Si_ox",
     "Tessier_Acetic_Ca_mg_g", "Tessier_Acetic_K_mg_g",
     "Tessier_Acetic_Na_mg_g", "Tessier_Acetic_Mg_mg_g",
     "Tessier_Hydroxylamine_Fe_mg_g", "Tessier_Hydroxylamine_Al_mg_g",
@@ -796,9 +840,9 @@ geochem_vars <- names(integrated)[
 
 correlate_vars <- function(dat, group_name, variables = geochem_vars) {
   numeric_data <- dat %>%
-    select(any_of(variables)) %>%
-    select(where(is.numeric)) %>%
-    select(where(~ sum(is.finite(.x)) >= 3 &&
+    dplyr::select(any_of(variables)) %>%
+    dplyr::select(where(is.numeric)) %>%
+    dplyr::select(where(~ sum(is.finite(.x)) >= 3 &&
                    is.finite(sd(.x, na.rm = TRUE)) &&
                    sd(.x, na.rm = TRUE) > 0))
   
@@ -880,9 +924,10 @@ classify_analysis <- function(variable) {
     str_starts(variable, "d14C") ~ "Predicted_persistence_d14C",
     str_starts(variable, "soil_") ~ "Soil_chemistry",
     str_starts(variable, "clay_") ~ "Clay_dispersion",
-    variable %in% c("Agg stab", "GMD_h2o", "GMD_oxalate") ~ "Aggregate_stability",
-    str_detect(variable, "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$") ~ "Secondary_minerals_oxalate_DCB",
-    variable %in% c("Fe_ox_over_DCB", "Al_ox_over_DCB", "Mn_ox_over_DCB", "Si_ox_over_DCB") ~ "Secondary_minerals_oxalate_DCB",
+    variable %in% c("GMD_h2o", "D_h2o", "MWD_h2o",
+                    "GMD_oxalate_over_h2o", "D_oxalate_over_h2o", "MWD_oxalate_over_h2o") ~ "Aggregate_stability",
+    str_detect(variable, "^(ox_|dcb_)|_DCB_minus_ox_|_ox_over_DCB$|_ox_over_Si_ox$") ~ "Secondary_minerals_oxalate_DCB",
+    variable %in% c("Fe_ox_over_DCB", "Al_ox_over_DCB", "Mn_ox_over_DCB", "Si_ox_over_DCB", "Fe_ox_over_Si_ox", "Al_ox_over_Si_ox") ~ "Secondary_minerals_oxalate_DCB",
     TRUE ~ "Other"
   )
 }
@@ -901,7 +946,7 @@ if (!is.null(all_results) && nrow(all_results$pairs) > 0) {
   
   selected_cross_pca_vars <- cross_analysis_pairs_all %>%
     filter(abs_rho >= 0.5) %>%
-    select(var1, var2) %>%
+    dplyr::select(var1, var2) %>%
     unlist(use.names = FALSE) %>%
     unique() %>%
     intersect(all_results$variables)
@@ -927,14 +972,14 @@ run_subset_pca <- function(data_subset, subset_name, plot_title, variable_set) {
     return(NULL)
   }
   
-  pca_input <- data_subset %>% select(all_of(available_vars))
+  pca_input <- data_subset %>% dplyr::select(all_of(available_vars))
   n_observed <- vapply(pca_input, function(x) sum(is.finite(x)), integer(1))
   medians <- vapply(pca_input, function(x) {
     if (all(!is.finite(x))) NA_real_ else median(x[is.finite(x)])
   }, numeric(1))
   
   usable_vars <- names(pca_input)[n_observed >= 3 & is.finite(medians)]
-  pca_matrix <- as.data.frame(pca_input %>% select(all_of(usable_vars)))
+  pca_matrix <- as.data.frame(pca_input %>% dplyr::select(all_of(usable_vars)))
   
   for (nm in names(pca_matrix)) {
     x <- pca_matrix[[nm]]
@@ -1164,19 +1209,19 @@ fit_stepwise <- function(data, response, predictors,
   dat_all <- data %>%
     dplyr::select(all_of(vars)) %>%
     as.data.frame()
-
+  
   dat_all[] <- lapply(dat_all, function(x) {
     suppressWarnings(as.numeric(as.character(x)))
   })
   dat_all <- dat_all[is.finite(dat_all[[response]]), , drop = FALSE]
-
+  
   # A candidate must have enough finite observations and some variation.
   predictors <- predictors[vapply(predictors, function(v) {
     x <- dat_all[[v]]
     x <- x[is.finite(x)]
     length(x) >= min_n && length(unique(x)) > 1
   }, logical(1))]
-
+  
   # Stepwise AIC requires all compared models to use the same rows. If
   # complete cases are too few, iteratively remove the candidate with the
   # greatest missingness, reporting each removal.
@@ -1187,9 +1232,9 @@ fit_stepwise <- function(data, response, predictors,
     } else {
       complete_rows <- is.finite(dat_all[[response]])
     }
-
+    
     if (sum(complete_rows) >= min_n || !length(predictors)) break
-
+    
     missing_counts <- vapply(predictors, function(v) {
       sum(!is.finite(dat_all[[v]]))
     }, numeric(1))
@@ -1199,15 +1244,15 @@ fit_stepwise <- function(data, response, predictors,
             min_n, " complete plots.")
     predictors <- setdiff(predictors, drop_predictor)
   }
-
+  
   dat <- dat_all[complete_rows, c(response, predictors), drop = FALSE]
-
+  
   # Remove predictors that are constant in the final model sample.
   predictors <- predictors[vapply(predictors, function(v) {
     length(unique(dat[[v]])) > 1
   }, logical(1))]
   dat <- dat[, c(response, predictors), drop = FALSE]
-
+  
   n <- nrow(dat)
   
   if (n <= min_residual_df + 1) {
@@ -1405,7 +1450,7 @@ if (length(missing_responses)) {
 }
 if (!length(available_responses)) stop("No expected Δ14C response columns are available.")
 
-mlr_results <- setNames(
+mlr_results_14c <- setNames(
   lapply(available_responses, function(resp) {
     fit_stepwise(
       data = integrated,
@@ -1419,15 +1464,15 @@ mlr_results <- setNames(
 )
 
 model_comparison <- bind_rows(
-  lapply(mlr_results, `[[`, "comparison")
+  lapply(mlr_results_14c, `[[`, "comparison")
 )
 
 selected_coefficients <- bind_rows(
-  lapply(mlr_results, `[[`, "coefficients")
+  lapply(mlr_results_14c, `[[`, "coefficients")
 )
 
 selected_vifs <- bind_rows(
-  lapply(mlr_results, `[[`, "vifs")
+  lapply(mlr_results_14c, `[[`, "vifs")
 )
 
 cat("\nMODEL COMPARISON\n")
@@ -1448,11 +1493,11 @@ readr::write_csv(tibble(candidate_predictor = candidate_predictors),
 
 summary_file <- file.path(mlr_out_dir, "full_model_summaries.txt")
 summary_con <- file(summary_file, open = "wt")
-for (resp in names(mlr_results)) {
+for (resp in names(mlr_results_14c)) {
   writeLines(c("", "========================================",
                paste("RESPONSE:", resp), "========================================", ""),
              con = summary_con)
-  writeLines(capture.output(summary(mlr_results[[resp]]$model)), con = summary_con)
+  writeLines(capture.output(summary(mlr_results_14c[[resp]]$model)), con = summary_con)
 }
 close(summary_con)
 
@@ -1522,19 +1567,19 @@ fit_stepwise <- function(data, response, predictors,
   dat_all <- data %>%
     dplyr::select(all_of(vars)) %>%
     as.data.frame()
-
+  
   dat_all[] <- lapply(dat_all, function(x) {
     suppressWarnings(as.numeric(as.character(x)))
   })
   dat_all <- dat_all[is.finite(dat_all[[response]]), , drop = FALSE]
-
+  
   # A candidate must have enough finite observations and some variation.
   predictors <- predictors[vapply(predictors, function(v) {
     x <- dat_all[[v]]
     x <- x[is.finite(x)]
     length(x) >= min_n && length(unique(x)) > 1
   }, logical(1))]
-
+  
   # Stepwise AIC requires all compared models to use the same rows. If
   # complete cases are too few, iteratively remove the candidate with the
   # greatest missingness, reporting each removal.
@@ -1545,9 +1590,9 @@ fit_stepwise <- function(data, response, predictors,
     } else {
       complete_rows <- is.finite(dat_all[[response]])
     }
-
+    
     if (sum(complete_rows) >= min_n || !length(predictors)) break
-
+    
     missing_counts <- vapply(predictors, function(v) {
       sum(!is.finite(dat_all[[v]]))
     }, numeric(1))
@@ -1557,15 +1602,15 @@ fit_stepwise <- function(data, response, predictors,
             min_n, " complete plots.")
     predictors <- setdiff(predictors, drop_predictor)
   }
-
+  
   dat <- dat_all[complete_rows, c(response, predictors), drop = FALSE]
-
+  
   # Remove predictors that are constant in the final model sample.
   predictors <- predictors[vapply(predictors, function(v) {
     length(unique(dat[[v]])) > 1
   }, logical(1))]
   dat <- dat[, c(response, predictors), drop = FALSE]
-
+  
   n <- nrow(dat)
   
   if (n <= min_residual_df + 1) {
@@ -1758,7 +1803,7 @@ if (!length(available_responses)) {
   stop("None of the expected carbon concentration response columns are available.")
 }
 
-mlr_results <- setNames(
+mlr_results_C <- setNames(
   lapply(available_responses, function(resp) {
     # Ensure d14C predictors cannot enter even if geochem_vars changes upstream.
     fit_stepwise(
@@ -1772,9 +1817,9 @@ mlr_results <- setNames(
   available_responses
 )
 
-model_comparison <- bind_rows(lapply(mlr_results, `[[`, "comparison"))
-selected_coefficients <- bind_rows(lapply(mlr_results, `[[`, "coefficients"))
-selected_vifs <- bind_rows(lapply(mlr_results, `[[`, "vifs"))
+model_comparison <- bind_rows(lapply(mlr_results_C, `[[`, "comparison"))
+selected_coefficients <- bind_rows(lapply(mlr_results_C, `[[`, "coefficients"))
+selected_vifs <- bind_rows(lapply(mlr_results_C, `[[`, "vifs"))
 
 cat("\nMODEL COMPARISON\n")
 print(model_comparison, n = Inf, width = Inf)
@@ -1792,214 +1837,102 @@ readr::write_csv(tibble(candidate_geochemical_predictor = candidate_predictors),
 
 summary_file <- file.path(mlr_out_dir, "full_model_summaries.txt")
 summary_con <- file(summary_file, open = "wt")
-for (resp in names(mlr_results)) {
+for (resp in names(mlr_results_C)) {
   writeLines(c("", "========================================",
                paste("RESPONSE:", resp), "========================================", ""),
              con = summary_con)
-  writeLines(capture.output(summary(mlr_results[[resp]]$model)), con = summary_con)
+  writeLines(capture.output(summary(mlr_results_C[[resp]]$model)), con = summary_con)
 }
 close(summary_con)
 
 cat("\nSaved carbon concentration MLR summaries to:", mlr_out_dir, "\n")
 
 # =============================================================================
-# Add-on: Observed vs. Predicted Plots for Bulk & Fractions 
-# (Saved into dedicated C and Delta-14C subdirectories)
+# Observed vs. predicted plots from the ACTUAL selected stepwise-AIC models
 # =============================================================================
+# These plots use the same fitted models, response data and predictor subsets
+# reported in model_comparison / selected_coefficients. They do not refit fixed
+# soil_pH + soil_EC + CEC models.
 
 library(ggplot2)
 
-# 1. Ensure target subdirectories exist inside outputs/
 mlr_c_out_dir <- file.path(outputs_dir, "stepwise_MLR_C_Oct2023")
 mlr_14c_out_dir <- file.path(outputs_dir, "stepwise_MLR_14C_Oct2023")
 dir.create(mlr_c_out_dir, recursive = TRUE, showWarnings = FALSE)
 dir.create(mlr_14c_out_dir, recursive = TRUE, showWarnings = FALSE)
 
-
-# =============================================================================
-# PART A: BULK SOIL PLOTS
-# =============================================================================
-
-# --- A1. Bulk Δ14C Plot ---
-model_data_bulk_14c <- integrated %>%
-  select(sample, Treatment, d14C_2026_Bulk, soil_pH, soil_EC, CEC_Oct2023) %>%
-  drop_na()
-
-if (nrow(model_data_bulk_14c) > 5) {
-  fit_bulk_14c <- lm(d14C_2026_Bulk ~ soil_pH + soil_EC + CEC_Oct2023, data = model_data_bulk_14c)
+plot_selected_model <- function(result, response, response_label, output_dir,
+                                filename, treatment_data = integrated) {
+  if (is.null(result) || is.null(result$model)) {
+    message("No selected model available for ", response, "; skipping plot.")
+    return(invisible(NULL))
+  }
+  fit <- result$model
+  mf <- model.frame(fit)
+  observed <- as.numeric(model.response(mf))
+  fitted_values <- as.numeric(fitted(fit))
+  pred_int <- tryCatch(
+    as.data.frame(predict(fit, interval = "prediction", level = 0.95)),
+    error = function(e) NULL
+  )
+  pred_conf <- tryCatch(
+    as.data.frame(predict(fit, interval = "confidence", level = 0.95)),
+    error = function(e) NULL
+  )
+  plot_dat <- tibble(
+    observed = observed,
+    predicted = fitted_values,
+    pred_lwr = if (!is.null(pred_int)) pred_int$lwr else NA_real_,
+    pred_upr = if (!is.null(pred_int)) pred_int$upr else NA_real_,
+    conf_lwr = if (!is.null(pred_conf)) pred_conf$lwr else NA_real_,
+    conf_upr = if (!is.null(pred_conf)) pred_conf$upr else NA_real_
+  ) %>% filter(is.finite(observed), is.finite(predicted))
   
-  pred_bulk_14c <- model_data_bulk_14c %>%
-    mutate(fitted_val = fitted(fit_bulk_14c)) %>%
-    bind_cols(
-      as.data.frame(predict(fit_bulk_14c, interval = "confidence", level = 0.95)) %>% rename(conf_lwr = lwr, conf_upr = upr),
-      as.data.frame(predict(fit_bulk_14c, interval = "prediction", level = 0.95)) %>% select(lwr, upr) %>% rename(pred_lwr = lwr, pred_upr = upr)
-    )
-  
-  r_sq_b14 <- summary(fit_bulk_14c)$r.squared
-  rmse_b14 <- sqrt(mean(residuals(fit_bulk_14c)^2))
-  
-  p_bulk_14c <- ggplot(pred_bulk_14c, aes(x = fitted_val, y = d14C_2026_Bulk)) +
-    geom_ribbon(aes(ymin = pred_lwr, ymax = pred_upr), fill = "skyblue", alpha = 0.3) +
-    geom_ribbon(aes(ymin = conf_lwr, ymax = conf_upr), fill = "blue", alpha = 0.2) +
-    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray40", linewidth = 0.8) +
-    geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 1) +
-    geom_point(aes(color = Treatment), size = 3, alpha = 0.9) +
-    scale_color_viridis_d(option = "plasma") + 
+  if (nrow(plot_dat) < 3) {
+    message("Fewer than three usable observations for ", response, "; skipping plot.")
+    return(invisible(NULL))
+  }
+  r2 <- summary(fit)$r.squared
+  rmse <- sqrt(mean((plot_dat$observed - plot_dat$predicted)^2))
+  p <- ggplot(plot_dat, aes(x = predicted, y = observed)) +
+    geom_errorbar(aes(ymin = pred_lwr, ymax = pred_upr),
+                  width = 0, alpha = 0.22, na.rm = TRUE) +
+    geom_errorbar(aes(ymin = conf_lwr, ymax = conf_upr),
+                  width = 0, alpha = 0.5, na.rm = TRUE) +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray40") +
+    geom_point(size = 3, alpha = 0.85) +
     labs(
-      title = "Observed vs. Predicted Δ14C (Bulk Soil)",
-      subtitle = sprintf("R² = %.3f | RMSE = %.3f", r_sq_b14, rmse_b14),
-      x = "Predicted Δ14C (‰)",
-      y = "Observed Δ14C (‰)",
-      color = "Treatment"
+      title = paste("Observed vs. predicted", response_label),
+      subtitle = sprintf("Selected stepwise-AIC model | n = %d | R² = %.3f | RMSE = %.3f",
+                         nrow(plot_dat), r2, rmse),
+      x = paste("Predicted", response_label),
+      y = paste("Observed", response_label)
     ) +
     theme_bw(base_size = 12) +
-    theme(plot.title = element_text(face = "bold", size = 14), legend.position = "right")
-  
-  ggsave(
-    filename = file.path(mlr_14c_out_dir, "observed_vs_predicted_d14C_bulk.png"),
-    plot = p_bulk_14c, width = 7, height = 5, dpi = 300
-  )
-  message("Bulk Δ14C plot successfully saved to stepwise_MLR_14C_Oct2023/")
-} else {
-  warning("Not enough complete observations for Bulk Δ14C plot.")
+    theme(plot.title = element_text(face = "bold", size = 14))
+  ggsave(file.path(output_dir, filename), p, width = 7, height = 5, dpi = 300)
+  message("Saved selected-model observed-vs-predicted plot: ", filename)
+  invisible(p)
 }
 
+# Δ14C plots (Bulk and SOM fractions), using the four selected d14C models.
+for (resp in names(mlr_results_14c)) {
+  frac <- sub("^d14C_2026_", "", resp)
+  plot_selected_model(
+    result = mlr_results_14c[[resp]], response = resp,
+    response_label = paste0("Δ14C ", frac, " (‰)"),
+    output_dir = mlr_14c_out_dir,
+    filename = paste0("observed_vs_predicted_d14C_", tolower(frac), ".png")
+  )
+}
 
-# =============================================================================
-# PART B: SOM FRACTIONS (fPOM, oPOM, MAOM) PLOTS & LOOPS
-# =============================================================================
-
-fractions <- c("fPOM", "oPOM", "MAOM")
-
-# 1. Calculate analytical replicate statistics for Carbon fractions from raw CN data
-cn_fraction_stats <- cn_raw %>%
-  dplyr::rename(sample_name = `Sample name`, result = `Result (%)`) %>%
-  mutate(
-    sample_name = as.character(sample_name),
-    result = readr::parse_number(as.character(result)),
-    Parameter = str_trim(as.character(Parameter))
-  ) %>%
-  filter(Parameter == "Ctotal") %>%
-  extract(
-    sample_name,
-    into = c("sample", "year", "fraction"),
-    regex = "^(\\d+)_((?:20)?\\d{2})_(MAOM|oPOM|fPOM|Bulk)$",
-    remove = FALSE,
-    convert = TRUE
-  ) %>%
-  filter(!is.na(sample), year == 2026, fraction %in% fractions) %>%
-  group_by(sample, fraction) %>%
-  summarise(
-    C_mean = mean(result, na.rm = TRUE),
-    C_sd   = sd(result, na.rm = TRUE),
-    n_reps = n(),
-    .groups = "drop"
-  ) %>%
-  mutate(C_se = C_sd / sqrt(n_reps))
-
-# 2. Loop through each fraction to generate Carbon and Delta 14C plots
-for (frac in fractions) {
-  
-  # ---------------------------------------------------------------------------
-  # B1. CARBON FRACTION PLOT (Saved to step-wise MLR C directory)
-  # ---------------------------------------------------------------------------
-  frac_cn_data <- cn_fraction_stats %>% filter(fraction == frac)
-  
-  model_data_c_frac <- integrated %>%
-    select(sample, Treatment, soil_pH, soil_EC, CEC_Oct2023) %>%
-    left_join(frac_cn_data, by = "sample") %>%
-    drop_na(C_mean, soil_pH, soil_EC, CEC_Oct2023)
-  
-  if (nrow(model_data_c_frac) > 5) {
-    fit_c <- lm(C_mean ~ soil_pH + soil_EC + CEC_Oct2023, data = model_data_c_frac)
-    
-    pred_c <- model_data_c_frac %>%
-      mutate(fitted_val = fitted(fit_c)) %>%
-      bind_cols(
-        as.data.frame(predict(fit_c, interval = "confidence", level = 0.95)) %>% rename(conf_lwr = lwr, conf_upr = upr),
-        as.data.frame(predict(fit_c, interval = "prediction", level = 0.95)) %>% select(lwr, upr) %>% rename(pred_lwr = lwr, pred_upr = upr)
-      )
-    
-    r_sq_c <- summary(fit_c)$r.squared
-    rmse_c <- sqrt(mean(residuals(fit_c)^2))
-    
-    p_c <- ggplot(pred_c, aes(x = fitted_val, y = C_mean)) +
-      geom_ribbon(aes(ymin = pred_lwr, ymax = pred_upr), fill = "skyblue", alpha = 0.3) +
-      geom_ribbon(aes(ymin = conf_lwr, ymax = conf_upr), fill = "blue", alpha = 0.2) +
-      geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray40", linewidth = 0.8) +
-      geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 1) +
-      geom_errorbar(aes(ymin = C_mean - C_se, ymax = C_mean + C_se, color = Treatment), width = 0.05, alpha = 0.6) +
-      geom_point(aes(color = Treatment), size = 3, alpha = 0.9) +
-      scale_color_viridis_d(option = "plasma") +
-      labs(
-        title = sprintf("Observed vs. Predicted Carbon (%s Fraction)", frac),
-        subtitle = sprintf("R² = %.3f | RMSE = %.3f", r_sq_c, rmse_c),
-        x = sprintf("Predicted C %s (%%)", frac),
-        y = sprintf("Observed C %s (%%)", frac),
-        color = "Treatment"
-      ) +
-      theme_bw(base_size = 12) +
-      theme(plot.title = element_text(face = "bold", size = 14), legend.position = "right")
-    
-    ggsave(
-      filename = file.path(mlr_c_out_dir, sprintf("observed_vs_predicted_C_%s.png", tolower(frac))),
-      plot = p_c, width = 7, height = 5, dpi = 300
-    )
-    message(sprintf("Successfully generated and saved Carbon plot for %s in stepwise_MLR_C_Oct2023/", frac))
-  } else {
-    warning(sprintf("Not enough complete observations for Carbon %s plot.", frac))
-  }
-  
-  # ---------------------------------------------------------------------------
-  # B2. DELTA 14C FRACTION PLOT (Saved to step-wise MLR 14C directory)
-  # ---------------------------------------------------------------------------
-  d14c_col <- paste0("d14C_2026_", frac)
-  
-  if (d14c_col %in% names(integrated)) {
-    model_data_14c_frac <- integrated %>%
-      select(sample, Treatment, all_of(d14c_col), soil_pH, soil_EC, CEC_Oct2023) %>%
-      rename(d14C_val = !!sym(d14c_col)) %>%
-      drop_na()
-    
-    if (nrow(model_data_14c_frac) > 5) {
-      fit_14c <- lm(d14C_val ~ soil_pH + soil_EC + CEC_Oct2023, data = model_data_14c_frac)
-      
-      pred_14c <- model_data_14c_frac %>%
-        mutate(fitted_val = fitted(fit_14c)) %>%
-        bind_cols(
-          as.data.frame(predict(fit_14c, interval = "confidence", level = 0.95)) %>% rename(conf_lwr = lwr, conf_upr = upr),
-          as.data.frame(predict(fit_14c, interval = "prediction", level = 0.95)) %>% select(lwr, upr) %>% rename(pred_lwr = lwr, pred_upr = upr)
-        )
-      
-      r_sq_14c <- summary(fit_14c)$r.squared
-      rmse_14c <- sqrt(mean(residuals(fit_14c)^2))
-      
-      p_14c <- ggplot(pred_14c, aes(x = fitted_val, y = d14C_val)) +
-        geom_ribbon(aes(ymin = pred_lwr, ymax = pred_upr), fill = "skyblue", alpha = 0.3) +
-        geom_ribbon(aes(ymin = conf_lwr, ymax = conf_upr), fill = "blue", alpha = 0.2) +
-        geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "gray40", linewidth = 0.8) +
-        geom_smooth(method = "lm", se = FALSE, color = "blue", linewidth = 1) +
-        geom_point(aes(color = Treatment), size = 3, alpha = 0.9) +
-        scale_color_viridis_d(option = "plasma") +
-        labs(
-          title = sprintf("Observed vs. Predicted Δ14C (%s Fraction)", frac),
-          subtitle = sprintf("R² = %.3f | RMSE = %.3f", r_sq_14c, rmse_14c),
-          x = sprintf("Predicted Δ14C %s (‰)", frac),
-          y = sprintf("Observed Δ14C %s (‰)", frac),
-          color = "Treatment"
-        ) +
-        theme_bw(base_size = 12) +
-        theme(plot.title = element_text(face = "bold", size = 14), legend.position = "right")
-      
-      ggsave(
-        filename = file.path(mlr_14c_out_dir, sprintf("observed_vs_predicted_d14C_%s.png", tolower(frac))),
-        plot = p_14c, width = 7, height = 5, dpi = 300
-      )
-      message(sprintf("Successfully generated and saved Δ14C plot for %s in stepwise_MLR_14C_Oct2023/", frac))
-    } else {
-      warning(sprintf("Not enough complete observations for Δ14C %s plot.", frac))
-    }
-  } else {
-    message(sprintf("Column %s not found in integrated dataset; skipping Δ14C plot for %s.", d14c_col, frac))
-  }
+# Carbon concentration plots from the selected carbon MLRs (Bulk and fractions).
+for (resp in names(mlr_results_C)) {
+  frac <- sub("^C_", "", resp)
+  plot_selected_model(
+    result = mlr_results_C[[resp]], response = resp,
+    response_label = paste0("C ", frac, " (%)"),
+    output_dir = mlr_c_out_dir,
+    filename = paste0("observed_vs_predicted_C_", tolower(frac), ".png")
+  )
 }
