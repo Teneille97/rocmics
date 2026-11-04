@@ -1,6 +1,5 @@
 $fulldata
-[1] "Al_Oct2023"                    "Tessier_Hydroxylamine_Si_mg_g" "Ca_Oct2023"                    "pH_Oct2023"                   
-[5] "Mn_Oct2023"                   
+[1] "Fe_ox_over_Si_ox" "Al_ox_over_Si_ox" "Al_ox_over_DCB"   "Ca_Oct2023"       "Si_ox_over_DCB"  
 
 $foldwise
 NULL

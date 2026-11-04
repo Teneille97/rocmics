@@ -162,26 +162,61 @@ if (length(missing_responses)) {
 # 2. Define candidate predictors and explicitly prevent response leakage
 # -----------------------------------------------------------------------------
 
-# Reuse the combined geochemical predictor family considered in the integrated
-# correlation / MLR workflow. Add October 2023 variables only when present.
+# -----------------------------------------------------------------------------
+# 2. Define candidate predictors and explicitly prevent response leakage
+# -----------------------------------------------------------------------------
+
+# Geochemical predictors permitted in the original NO-FTIR models.
+# Aggregate-stability and FTIR variables are excluded separately below.
 
 explicit_geochem_predictors <- c(
-  "Agg stab", "GMD_h2o", "GMD_oxalate", "MWD_h2o", "MWD_oxalate",
-  "D_h2o", "D_oxalate", "Dh2o", "Doxalate",
-  "Fe_ox_over_DCB", "Al_ox_over_DCB", "Mn_ox_over_DCB", "Si_ox_over_DCB",
-  "Tessier_Acetic_Ca_mg_g", "Tessier_Acetic_K_mg_g",
-  "Tessier_Acetic_Na_mg_g", "Tessier_Acetic_Mg_mg_g",
-  "Tessier_Hydroxylamine_Fe_mg_g", "Tessier_Hydroxylamine_Al_mg_g",
-  "Tessier_Hydroxylamine_Mn_mg_g", "Tessier_Hydroxylamine_Si_mg_g",
-  "soil_pH", "soil_EC",
-  "pH_Oct2023", "EC_Oct2023", "H_Oct2023", "Ca_Oct2023",
-  "K_Oct2023", "Mg_Oct2023", "Na_Oct2023", "Al_Oct2023",
-  "Fe_Oct2023", "Mn_Oct2023", "CEC_Oct2023", "Base_saturation_Oct2023"
+  
+  # Oxalate-extractable mineral ratios
+  "Fe_ox_over_DCB",
+  "Al_ox_over_DCB",
+  "Mn_ox_over_DCB",
+  "Si_ox_over_DCB",
+  
+  # Secondary-mineral ratios
+  "Fe_ox_over_Si_ox",
+  "Al_ox_over_Si_ox",
+  
+  # Tessier exchangeable fractions
+  "Tessier_Acetic_Ca_mg_g",
+  "Tessier_Acetic_K_mg_g",
+  "Tessier_Acetic_Na_mg_g",
+  "Tessier_Acetic_Mg_mg_g",
+  
+  # Tessier reducible fractions
+  "Tessier_Hydroxylamine_Fe_mg_g",
+  "Tessier_Hydroxylamine_Al_mg_g",
+  "Tessier_Hydroxylamine_Mn_mg_g",
+  "Tessier_Hydroxylamine_Si_mg_g",
+  
+  # February 2026 soil chemistry
+  "soil_pH",
+  "soil_EC",
+  
+  # October 2023 chemistry and exchangeable cations
+  "pH_Oct2023",
+  "EC_Oct2023",
+  "H_Oct2023",
+  "Ca_Oct2023",
+  "K_Oct2023",
+  "Mg_Oct2023",
+  "Na_Oct2023",
+  "Al_Oct2023",
+  "Fe_Oct2023",
+  "Mn_Oct2023",
+  "CEC_Oct2023",
+  "Base_saturation_Oct2023"
 )
 
-# Include additional numeric geochemical columns in known families, but not
-# response columns or metadata. This catches extra CEC/Tessier/ox columns.
-numeric_cols <- names(dat)[vapply(dat, is.numeric, logical(1))]
+# Dynamically detect additional numeric geochemical variables.
+numeric_cols <- names(dat)[
+  vapply(dat, is.numeric, logical(1))
+]
+
 pattern_predictors <- numeric_cols[
   stringr::str_starts(numeric_cols, "Tessier_") |
     stringr::str_starts(numeric_cols, "CEC") |
@@ -196,30 +231,119 @@ candidate_predictors <- unique(c(
   intersect(pattern_predictors, names(dat))
 ))
 
-# Never use carbon / radiocarbon outcomes as predictors, including other pools.
+# Never use carbon / radiocarbon outcomes as predictors.
 response_like <- names(dat)[
   stringr::str_detect(names(dat), "^C_(Bulk|MAOM|oPOM|fPOM)$") |
     stringr::str_detect(names(dat), "^d14C")
 ]
+
 metadata_cols <- c(
   "sample", "Treatment", "Treatment_model", "Basalt_type_exp",
   "Dose_resp_exp", "Date", "year", "depth", "fraction", "SOM_fraction"
 )
+
 candidate_predictors <- setdiff(
   candidate_predictors,
   c(response_like, metadata_cols)
 )
-# Exclude encoded metadata / treatment-design columns that may share the
-# prefixes used for numeric geochemical variables.
+
+# Exclude treatment-design and encoded metadata variables.
 candidate_predictors <- candidate_predictors[
   !stringr::str_detect(
     candidate_predictors,
-    regex("dataset|dose_resp_exp|basalt_type_exp|treatment|^sample$", ignore_case = TRUE)
+    regex(
+      "dataset|dose_resp_exp|basalt_type_exp|treatment|^sample$",
+      ignore_case = TRUE
+    )
   )
 ]
-candidate_predictors <- candidate_predictors[
-  vapply(candidate_predictors, function(v) is.numeric(dat[[v]]), logical(1))
+
+# ---------------------------------------------------------------------------
+# EXPLICITLY EXCLUDE ALL AGGREGATE-STABILITY AND FTIR VARIABLES
+# ---------------------------------------------------------------------------
+
+# This excludes old and new aggregate-stability indices, including:
+#   GMD_h2o, GMD_oxalate
+#   MWD_h2o, MWD_oxalate
+#   D_h2o, D_oxalate, Dh2o, Doxalate
+#   GMD_oxalate_over_h2o
+#   MWD_oxalate_over_h2o
+#   D_oxalate_over_h2o
+#   Any additional GMD, MWD or aggregate-stability variables.
+
+aggstab_pattern <- stringr::regex(
+  "^(Agg[._ ]?stab|GMD|MWD|D_h2o$|D_oxalate$|Dh2o$|Doxalate$)",
+  ignore_case = TRUE
+)
+
+# Exclude all FTIR variables, including FTIR_delta_* and any other
+# FTIR-derived peak, area, ratio or percentage-change variables.
+ftir_pattern <- stringr::regex(
+  "FTIR",
+  ignore_case = TRUE
+)
+
+excluded_aggstab <- candidate_predictors[
+  stringr::str_detect(candidate_predictors, aggstab_pattern)
 ]
+
+excluded_ftir <- candidate_predictors[
+  stringr::str_detect(candidate_predictors, ftir_pattern)
+]
+
+candidate_predictors <- candidate_predictors[
+  !stringr::str_detect(candidate_predictors, aggstab_pattern) &
+    !stringr::str_detect(candidate_predictors, ftir_pattern)
+]
+
+# Retain numeric predictors only.
+candidate_predictors <- candidate_predictors[
+  vapply(candidate_predictors, function(v) {
+    is.numeric(dat[[v]])
+  }, logical(1))
+]
+
+if (length(candidate_predictors) == 0L) {
+  stop("No numeric candidate geochemical predictors remain.")
+}
+
+# ---------------------------------------------------------------------------
+# Save predictor inclusion/exclusion audit
+# ---------------------------------------------------------------------------
+
+readr::write_csv(
+  tibble(
+    excluded_aggregate_stability = excluded_aggstab
+  ),
+  file.path(table_dir, "excluded_aggregate_stability_predictors.csv")
+)
+
+readr::write_csv(
+  tibble(
+    excluded_ftir = excluded_ftir
+  ),
+  file.path(table_dir, "excluded_ftir_predictors.csv")
+)
+
+readr::write_csv(
+  tibble(
+    candidate_predictor = candidate_predictors
+  ),
+  file.path(table_dir, "candidate_predictors_noftir_noaggstab.csv")
+)
+
+message("\nAggregate-stability predictors excluded: ",
+        length(excluded_aggstab))
+print(excluded_aggstab)
+
+message("\nFTIR predictors excluded: ",
+        length(excluded_ftir))
+print(excluded_ftir)
+
+message("\nRemaining geochemical predictors: ",
+        length(candidate_predictors))
+print(candidate_predictors)
+
 
 if (length(candidate_predictors) == 0L) {
   stop("No numeric candidate geochemical predictors were found. ",

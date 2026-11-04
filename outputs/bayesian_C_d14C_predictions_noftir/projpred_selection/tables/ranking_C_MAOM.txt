@@ -1,5 +1,5 @@
 $fulldata
-[1] "GMD_oxalate"             "CEC_K"                   "soil_pH"                 "CEC_Na"                  "Base_saturation_Oct2023"
+[1] "Fe_ox_over_Si_ox" "Mn_ox_over_DCB"   "Fe_ox_over_DCB"   "CEC_Na"           "Al_ox_over_DCB"  
 
 $foldwise
 NULL

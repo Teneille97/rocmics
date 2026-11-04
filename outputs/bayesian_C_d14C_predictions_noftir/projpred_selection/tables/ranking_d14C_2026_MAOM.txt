@@ -1,6 +1,5 @@
 $fulldata
-[1] "Tessier_Hydroxylamine_Si_mg_g" "GMD_oxalate"                   "soil_pH"                       "CEC_Fe"                       
-[5] "Tessier_H2O2_Ca_mg_g"         
+[1] "Fe_ox_over_Si_ox" "Al_ox_over_DCB"   "Mn_ox_over_DCB"   "CEC_Na"           "CEC_K"           
 
 $foldwise
 NULL

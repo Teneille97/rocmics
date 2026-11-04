@@ -1,5 +1,5 @@
 $fulldata
-[1] "Tessier_Acetic_Na_mg_g" "Fe_ox_over_DCB"         "Mg_Oct2023"             "GMD_h2o"                "Tessier_H2O2_Mg_mg_g"  
+[1] "Si_ox_over_DCB"   "Mn_ox_over_DCB"   "Al_ox_over_DCB"   "Fe_ox_over_Si_ox" "Mg_Oct2023"      
 
 $foldwise
 NULL

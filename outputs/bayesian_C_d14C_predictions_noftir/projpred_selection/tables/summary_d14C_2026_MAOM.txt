@@ -2,8 +2,8 @@
 Family: gaussian 
 Link function: identity 
 
-Formula: y_std ~ GMD_h2o + GMD_oxalate + Fe_ox_over_DCB + Al_ox_over_DCB + 
-    Mn_ox_over_DCB + Si_ox_over_DCB + Tessier_Acetic_Ca_mg_g + 
+Formula: y_std ~ Fe_ox_over_DCB + Al_ox_over_DCB + Mn_ox_over_DCB + Si_ox_over_DCB + 
+    Fe_ox_over_Si_ox + Al_ox_over_Si_ox + Tessier_Acetic_Ca_mg_g + 
     Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + Tessier_Hydroxylamine_Fe_mg_g + 
     Tessier_Hydroxylamine_Al_mg_g + Tessier_Hydroxylamine_Mn_mg_g + 
     Tessier_Hydroxylamine_Si_mg_g + soil_pH + soil_EC + pH_Oct2023 + 
@@ -22,14 +22,14 @@ Number of projected draws in the performance evaluation: 20 (from clustered proj
 Argument `refit_prj`: TRUE
 
 Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
- size              ranking_fulldata cv_proportions_diag  elpd elpd.se elpd.diff elpd.diff.se
-    0                   (Intercept)                  NA -21.1    2.09       -29         2.08
-    1 Tessier_Hydroxylamine_Si_mg_g                  NA -16.7    1.63       -25         1.64
-    2                   GMD_oxalate                  NA -11.2    1.08       -19         1.09
-    3                       soil_pH                  NA  -8.4    1.26       -16         1.27
-    4                        CEC_Fe                  NA  -6.3    0.76       -14         0.78
-    5          Tessier_H2O2_Ca_mg_g                  NA  -4.4    0.69       -12         0.71
+ size ranking_fulldata cv_proportions_diag elpd elpd.se elpd.diff elpd.diff.se
+    0      (Intercept)                  NA  -23     1.2      -4.4          1.8
+    1 Fe_ox_over_Si_ox                  NA  -23     1.2      -4.3          1.8
+    2   Al_ox_over_DCB                  NA  -22     1.1      -3.3          1.7
+    3   Mn_ox_over_DCB                  NA  -22     1.1      -3.6          1.6
+    4           CEC_Na                  NA  -22     1.1      -3.2          1.3
+    5            CEC_K                  NA  -21     1.0      -2.0          1.2
 
 Reference model performance evaluation summary with `deltas = FALSE`:
    elpd elpd.se 
-  7.914   0.039 
+  -18.9     1.6 

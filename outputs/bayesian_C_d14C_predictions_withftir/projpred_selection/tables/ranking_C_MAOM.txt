@@ -1,0 +1,9 @@
+$fulldata
+[1] "D_h2o"                  "D_oxalate_over_h2o"     "FTIR_delta_aromatic"    "Al_Oct2023"            
+[5] "Tessier_Acetic_Mg_mg_g"
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"

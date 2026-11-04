@@ -2,8 +2,8 @@
 Family: gaussian 
 Link function: identity 
 
-Formula: y_std ~ GMD_h2o + GMD_oxalate + Fe_ox_over_DCB + Al_ox_over_DCB + 
-    Mn_ox_over_DCB + Si_ox_over_DCB + Tessier_Acetic_Ca_mg_g + 
+Formula: y_std ~ Fe_ox_over_DCB + Al_ox_over_DCB + Mn_ox_over_DCB + Si_ox_over_DCB + 
+    Fe_ox_over_Si_ox + Al_ox_over_Si_ox + Tessier_Acetic_Ca_mg_g + 
     Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + Tessier_Hydroxylamine_Fe_mg_g + 
     Tessier_Hydroxylamine_Al_mg_g + Tessier_Hydroxylamine_Mn_mg_g + 
     Tessier_Hydroxylamine_Si_mg_g + soil_pH + soil_EC + pH_Oct2023 + 
@@ -22,14 +22,14 @@ Number of projected draws in the performance evaluation: 20 (from clustered proj
 Argument `refit_prj`: TRUE
 
 Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
- size        ranking_fulldata cv_proportions_diag  elpd elpd.se elpd.diff elpd.diff.se
-    0             (Intercept)                  NA -21.2    2.00     -27.4         1.99
-    1             GMD_oxalate                  NA -11.1    0.93     -17.3         0.93
-    2                   CEC_K                  NA  -9.1    0.55     -15.2         0.54
-    3                 soil_pH                  NA  -5.8    0.50     -12.0         0.48
-    4                  CEC_Na                  NA  -4.2    0.44     -10.4         0.43
-    5 Base_saturation_Oct2023                  NA  -3.8    0.36      -9.9         0.36
+ size ranking_fulldata cv_proportions_diag elpd elpd.se elpd.diff elpd.diff.se
+    0      (Intercept)                  NA  -23    1.20      -4.9         1.64
+    1 Fe_ox_over_Si_ox                  NA  -24    1.46      -5.2         1.45
+    2   Mn_ox_over_DCB                  NA  -23    1.18      -4.4         1.30
+    3   Fe_ox_over_DCB                  NA  -21    0.89      -2.4         0.96
+    4           CEC_Na                  NA  -21    0.95      -2.1         0.93
+    5   Al_ox_over_DCB                  NA  -21    0.94      -2.3         0.81
 
 Reference model performance evaluation summary with `deltas = FALSE`:
    elpd elpd.se 
-   6.14    0.03 
+  -18.4     1.6 

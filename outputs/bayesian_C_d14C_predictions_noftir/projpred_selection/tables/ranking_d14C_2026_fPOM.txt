@@ -1,6 +1,6 @@
 $fulldata
-[1] "Mn_Oct2023"                    "Tessier_Hydroxylamine_Si_mg_g" "Tessier_Hydroxylamine_Fe_mg_g" "Fe_ox_over_DCB"               
-[5] "Tessier_Acetic_Na_mg_g"       
+[1] "Fe_ox_over_Si_ox"              "soil_EC"                       "Tessier_Hydroxylamine_Mn_mg_g"
+[4] "Al_Oct2023"                    "Tessier_Acetic_Na_mg_g"       
 
 $foldwise
 NULL

@@ -1,5 +1,6 @@
 $fulldata
-[1] "Al_Oct2023"     "Fe_ox_over_DCB" "soil_EC"        "GMD_oxalate"    "CEC_Fe"        
+[1] "Al_Oct2023"             "Al_ox_over_Si_ox"       "Al_ox_over_DCB"         "Tessier_Acetic_Ca_mg_g"
+[5] "CEC_Na"                
 
 $foldwise
 NULL

@@ -1,0 +1,8 @@
+$fulldata
+[1] "Al_Oct2023"     "Fe_ox_over_DCB" "soil_EC"        "D_h2o"          "CEC_Al"        
+
+$foldwise
+NULL
+
+attr(,"class")
+[1] "ranking"

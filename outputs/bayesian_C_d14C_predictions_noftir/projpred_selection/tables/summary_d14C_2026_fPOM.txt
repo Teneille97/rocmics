@@ -2,8 +2,8 @@
 Family: gaussian 
 Link function: identity 
 
-Formula: y_std ~ GMD_h2o + GMD_oxalate + Fe_ox_over_DCB + Al_ox_over_DCB + 
-    Mn_ox_over_DCB + Si_ox_over_DCB + Tessier_Acetic_Ca_mg_g + 
+Formula: y_std ~ Fe_ox_over_DCB + Al_ox_over_DCB + Mn_ox_over_DCB + Si_ox_over_DCB + 
+    Fe_ox_over_Si_ox + Al_ox_over_Si_ox + Tessier_Acetic_Ca_mg_g + 
     Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + Tessier_Hydroxylamine_Fe_mg_g + 
     Tessier_Hydroxylamine_Al_mg_g + Tessier_Hydroxylamine_Mn_mg_g + 
     Tessier_Hydroxylamine_Si_mg_g + soil_pH + soil_EC + pH_Oct2023 + 
@@ -22,14 +22,14 @@ Number of projected draws in the performance evaluation: 20 (from clustered proj
 Argument `refit_prj`: TRUE
 
 Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
- size              ranking_fulldata cv_proportions_diag  elpd elpd.se elpd.diff elpd.diff.se
-    0                   (Intercept)                  NA -21.2     1.6       -39          1.6
-    1                    Mn_Oct2023                  NA -19.0     1.7       -37          1.7
-    2 Tessier_Hydroxylamine_Si_mg_g                  NA -17.5     1.7       -36          1.7
-    3 Tessier_Hydroxylamine_Fe_mg_g                  NA -14.2     1.3       -32          1.3
-    4                Fe_ox_over_DCB                  NA -12.1     1.2       -30          1.2
-    5        Tessier_Acetic_Na_mg_g                  NA  -9.6     1.2       -28          1.2
+ size              ranking_fulldata cv_proportions_diag elpd elpd.se elpd.diff elpd.diff.se
+    0                   (Intercept)                  NA  -24    0.69      -5.8         1.75
+    1              Fe_ox_over_Si_ox                  NA  -24    0.84      -5.8         1.63
+    2                       soil_EC                  NA  -23    0.97      -4.6         1.29
+    3 Tessier_Hydroxylamine_Mn_mg_g                  NA  -22    0.86      -3.6         1.25
+    4                    Al_Oct2023                  NA  -21    0.99      -2.7         1.06
+    5        Tessier_Acetic_Na_mg_g                  NA  -20    1.08      -1.6         0.87
 
 Reference model performance evaluation summary with `deltas = FALSE`:
    elpd elpd.se 
-   18.1     0.1 
+  -18.6     1.6 

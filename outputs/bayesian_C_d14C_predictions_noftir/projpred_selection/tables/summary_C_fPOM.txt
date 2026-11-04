@@ -2,8 +2,8 @@
 Family: gaussian 
 Link function: identity 
 
-Formula: y_std ~ GMD_h2o + GMD_oxalate + Fe_ox_over_DCB + Al_ox_over_DCB + 
-    Mn_ox_over_DCB + Si_ox_over_DCB + Tessier_Acetic_Ca_mg_g + 
+Formula: y_std ~ Fe_ox_over_DCB + Al_ox_over_DCB + Mn_ox_over_DCB + Si_ox_over_DCB + 
+    Fe_ox_over_Si_ox + Al_ox_over_Si_ox + Tessier_Acetic_Ca_mg_g + 
     Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + Tessier_Hydroxylamine_Fe_mg_g + 
     Tessier_Hydroxylamine_Al_mg_g + Tessier_Hydroxylamine_Mn_mg_g + 
     Tessier_Hydroxylamine_Si_mg_g + soil_pH + soil_EC + pH_Oct2023 + 
@@ -22,14 +22,14 @@ Number of projected draws in the performance evaluation: 20 (from clustered proj
 Argument `refit_prj`: TRUE
 
 Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
- size     ranking_fulldata cv_proportions_diag  elpd elpd.se elpd.diff elpd.diff.se
-    0          (Intercept)                  NA -21.3    1.51       -27         1.51
-    1           pH_Oct2023                  NA -16.3    1.23       -22         1.23
-    2       Mn_ox_over_DCB                  NA -13.8    1.13       -20         1.14
-    3           Mn_Oct2023                  NA -13.2    1.04       -19         1.05
-    4 Tessier_H2O2_Fe_mg_g                  NA -12.4    1.01       -18         1.02
-    5 Tessier_H2O2_Al_mg_g                  NA  -8.4    0.66       -14         0.64
+ size ranking_fulldata cv_proportions_diag elpd elpd.se elpd.diff elpd.diff.se
+    0      (Intercept)                  NA  -24    0.73      -5.7         1.55
+    1       Al_Oct2023                  NA  -22    0.87      -3.8         1.36
+    2 Fe_ox_over_Si_ox                  NA  -22    0.87      -3.0         1.29
+    3            CEC_K                  NA  -21    0.97      -2.7         1.09
+    4   Al_ox_over_DCB                  NA  -21    0.97      -2.6         0.94
+    5           CEC_Na                  NA  -21    0.96      -2.4         0.97
 
 Reference model performance evaluation summary with `deltas = FALSE`:
    elpd elpd.se 
-  5.787   0.037 
+  -18.6     1.5 

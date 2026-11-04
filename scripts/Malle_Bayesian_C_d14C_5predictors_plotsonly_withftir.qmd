@@ -1,0 +1,163 @@
+---
+title: "Malle ERW — Bayesian C and d14C pool predictions (plot-only)"
+subtitle: "Saved five-predictor submodels: observed-versus-predicted plots and coefficient tables"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    code-fold: true
+    theme: cosmo
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Construction of Bayesian C and d¹⁴C models
+
+The Bayesian C and d¹⁴C models were constructed using the integrated geochemical dataset (integrated_geochemistry_for_bayesian.csv) to fit eight separate regularised multiple-regression models for bulk soil, MAOM, oPOM and fPOM carbon concentrations and their corresponding 2026 Δ¹⁴C values. Candidate geochemical predictors were filtered for sufficient data availability (≥70% observed values), median-imputed, standardised, and screened to reduce severe multicollinearity (|r| > 0.95). Both predictors and responses were standardised for model fitting. Each model was specified as a Gaussian regression in Stan, with normally distributed slope priors (Normal(0, 0.5)), a Normal(0, 1) intercept prior and an exponential prior on the residual standard deviation. Models were fitted using four-chain MCMC via CmdStanR. Projection predictive variable selection (projpred) was then used to identify reduced predictor sets, which were independently refitted as three-, four- and five-predictor Bayesian models. Posterior coefficient summaries, fitted predictions, uncertainty intervals, convergence diagnostics and posterior predictive checks were generated for model evaluation.
+
+## Interpretation of model diagnostics and coefficient summaries
+
+The Bayesian models quantify associations between soil geochemical properties and carbon (C) and radiocarbon (d¹⁴C) responses across treatments. Posterior coefficient summaries (mean, median, standard deviation, and 95% credible intervals) are used to evaluate the direction, magnitude, and uncertainty of predictor associations and to assess proposed carbon stabilisation mechanisms. Because predictors are standardised, coefficients represent the expected change in the response, in its original units, associated with a one-standard-deviation increase in a predictor, conditional on the other predictors. Credible intervals that exclude zero and high posterior probabilities of a positive (`Pr_positive`) or negative (`Pr_negative`) coefficient indicate stronger evidence for an association in the corresponding direction, whereas intervals spanning zero indicate greater uncertainty in the direction of the effect. These associations should be interpreted as conditional relationships rather than causal effects. Model reliability is assessed using convergence diagnostics (Rhat and effective sample sizes), divergences, treedepth, trace plots, and posterior predictive checks. Treatment-level differences should be evaluated relative to posterior uncertainty, and sensitivity to prior specification or individual treatments may be examined using alternative priors or leave-one-treatment-out analyses. Finally, the plausibility of SoilR-derived persistence distributions should be assessed, including whether the 0–500-year age grid adequately captures their tails.
+
+```{r}
+library(tidyverse)
+library(here)
+library(knitr)
+
+out_dir <- here::here("outputs", "bayesian_C_d14C_predictions_withftir")
+table_dir <- file.path(out_dir, "tables")
+plot_dir <- file.path(out_dir, "plots")
+
+responses <- c(
+  "C_Bulk", "C_MAOM", "C_oPOM", "C_fPOM",
+  "d14C_2026_Bulk", "d14C_2026_MAOM",
+  "d14C_2026_oPOM", "d14C_2026_fPOM"
+)
+
+safe_name <- function(x) {
+  x %>% str_replace_all("[^A-Za-z0-9]+", "_") %>%
+    str_replace_all("^_|_$", "")
+}
+
+five_predictor_prediction_file <- function(response) {
+  file.path(table_dir, paste0("predictions_", safe_name(response),
+                              "__projpred_5predictors.csv"))
+}
+
+five_predictor_coefficient_file <- function(response) {
+  file.path(table_dir, paste0("coefficients_", safe_name(response),
+                              "__projpred_5predictors.csv"))
+}
+
+missing_predictions <- responses[!file.exists(map_chr(responses, five_predictor_prediction_file))]
+missing_coefficients <- responses[!file.exists(map_chr(responses, five_predictor_coefficient_file))]
+
+if (length(missing_predictions)) {
+  warning("Prediction CSVs not found for: ", paste(missing_predictions, collapse = ", "))
+}
+if (length(missing_coefficients)) {
+  warning("Coefficient CSVs not found for: ", paste(missing_coefficients, collapse = ", "))
+}
+
+available_responses <- responses[
+  file.exists(map_chr(responses, five_predictor_prediction_file))
+]
+
+if (length(available_responses) == 0L) {
+  stop("No five-predictor prediction CSVs found in: ", table_dir,
+       ". Expected files like predictions_C_Bulk__projpred_5predictors.csv")
+}
+available_coefficient_responses <- responses[
+  file.exists(map_chr(responses, five_predictor_coefficient_file))
+]
+```
+
+## Five-predictor model observed-versus-predicted plots
+
+The plotted CSVs contain the saved observed values, posterior predicted means,
+95% fitted-mean credible intervals, and 95% posterior predictive intervals.
+These are in-sample fitted predictions, not external validation.
+
+```{r}
+#| fig-width: 9
+#| fig-height: 7
+#| out-width: 85%
+#| dpi: 160
+
+plot_observed_predicted_saved <- function(pred, response) {
+  required <- c("observed", "predicted_mean", "fitted_lower_95",
+                "fitted_upper_95", "predictive_lower_95",
+                "predictive_upper_95", "Treatment_model")
+  absent <- setdiff(required, names(pred))
+  if (length(absent)) {
+    stop("Missing required prediction columns for ", response, ": ",
+         paste(absent, collapse = ", "))
+  }
+
+  pred <- pred %>% arrange(observed) %>% mutate(row_order = row_number())
+
+  ggplot(pred, aes(x = observed, y = predicted_mean)) +
+    geom_ribbon(aes(ymin = fitted_lower_95, ymax = fitted_upper_95),
+                fill = "grey70", alpha = 0.55) +
+    geom_errorbar(aes(ymin = predictive_lower_95, ymax = predictive_upper_95),
+                  width = 0, alpha = 0.35, colour = "grey40") +
+    geom_point(aes(shape = Treatment_model), size = 2.8, alpha = 0.9) +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed",
+                linewidth = 0.7, colour = "black") +
+    coord_equal() +
+    labs(
+      title = paste("Observed vs Bayesian predicted:", response),
+      subtitle = paste("Projpred-selected 5-predictor refit |",
+                       "shaded = 95% fitted-mean credible interval;",
+                       "whiskers = 95% posterior predictive interval"),
+      x = paste("Observed", response),
+      y = paste("Predicted", response),
+      shape = "Treatment"
+    ) +
+    theme_bw(base_size = 12) +
+    theme(plot.title = element_text(face = "bold"),
+          legend.position = "bottom",
+          panel.grid.minor = element_blank())
+}
+
+for (response in available_responses) {
+  pred <- readr::read_csv(five_predictor_prediction_file(response),
+                          show_col_types = FALSE)
+  print(plot_observed_predicted_saved(pred, response))
+}
+```
+
+## Coefficient summaries — five-predictor models
+
+Each table is loaded directly from the corresponding saved file, for example
+`coefficients_C_Bulk__projpred_5predictors.csv`. Estimates and intervals retain
+the column definitions from the model-fitting script. The original-response
+columns express a coefficient per one standard deviation increase in predictor.
+
+```{r}
+#| results: asis
+
+if (length(available_coefficient_responses) == 0L) {
+  cat("**No five-predictor coefficient summary CSVs were found in:** `",
+      table_dir, "`", sep = "")
+} else {
+for (response in available_coefficient_responses) {
+  coef_tbl <- readr::read_csv(five_predictor_coefficient_file(response),
+                              show_col_types = FALSE)
+
+  cat("\n\n### ", response, "\n\n", sep = "")
+  cat(knitr::kable(
+    coef_tbl,
+    format = "html",
+    digits = 3,
+    caption = paste("Saved coefficient summary —", response,
+                    "(projpred-selected five-predictor refit)"),
+    table.attr = 'class="table table-striped table-hover"'
+  ))
+  cat("\n\n")
+}
+}
+```
