@@ -1,0 +1,571 @@
+---
+title: "Malle ERW Bayesian Treatment Comparison Plots"
+subtitle: "Regenerated from saved Bayesian model fits"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+This report regenerates the forest, violin, and Hühnerberg dose-response plots
+using the saved CmdStan model fits and the integrated dataset. 
+
+## 1. Load packages, data, and saved model fits
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+library(readr)
+library(posterior)
+library(here)
+library(stringr)
+
+integrated_file <- here::here(
+  "outputs",
+  "integrated_geochemistry_for_bayesian.csv"
+)
+
+model_dir <- here::here(
+  "outputs",
+  "Bayesian_treatment_comparisons",
+  "models"
+)
+
+plot_dir <- here::here(
+  "outputs",
+  "Bayesian_treatment_comparisons",
+  "plots"
+)
+
+dir.create(plot_dir, recursive = TRUE, showWarnings = FALSE)
+
+if (!file.exists(integrated_file)) {
+  stop("Integrated data file not found: ", integrated_file)
+}
+
+if (!dir.exists(model_dir)) {
+  stop("Saved model directory not found: ", model_dir)
+}
+
+integrated <- read_csv(
+  integrated_file,
+  na = c("", "NA", "#VALUE!"),
+  show_col_types = FALSE
+)
+
+treatment_levels <- c("Control", "Lime", "HB 50", "EG 50", "BD 50")
+
+treatment_data <- integrated %>%
+  filter(
+    Treatment == "Control" |
+      grepl("^Lime", Treatment) |
+      Treatment %in% c(
+        "Huhnerberg_50",
+        "Eifelgold_50",
+        "Bolsdorfer_50"
+      )
+  ) %>%
+  mutate(
+    Treatment_PCA = case_when(
+      Treatment == "Control" ~ "Control",
+      grepl("^Lime", Treatment) ~ "Lime",
+      Treatment == "Huhnerberg_50" ~ "HB 50",
+      Treatment == "Eifelgold_50" ~ "EG 50",
+      Treatment == "Bolsdorfer_50" ~ "BD 50",
+      TRUE ~ NA_character_
+    ),
+    Treatment_PCA = factor(
+      Treatment_PCA,
+      levels = treatment_levels
+    )
+  ) %>%
+  filter(!is.na(Treatment_PCA))
+
+parameter_categories <- list(
+  "Soil_Chemistry" = c("soil_pH", "soil_EC"),
+
+  "CEC_Cations" = c(
+    "CEC_CEC", "CEC_Base_saturation", "CEC_H",
+    "CEC_Ca", "CEC_K", "CEC_Mg", "CEC_Na",
+    "CEC_Al", "CEC_Fe", "CEC_Mn"
+  ),
+
+  "Oxalate_Pools_Ratios" = c(
+    "Fe_ox_over_DCB", "Al_ox_over_DCB",
+    "Mn_ox_over_DCB", "Si_ox_over_DCB",
+    "Fe_ox_over_Si_ox", "Al_ox_over_Si_ox"
+  ),
+
+  "Tessier_Carbonate" = c(
+    "Tessier_Acetic_Ca_mg_g",
+    "Tessier_Acetic_K_mg_g",
+    "Tessier_Acetic_Na_mg_g",
+    "Tessier_Acetic_Mg_mg_g"
+  ),
+
+  "Tessier_Exchangeable" = c(
+    "Tessier_NH4OAc_Ca_mg_g",
+    "Tessier_NH4OAc_K_mg_g",
+    "Tessier_NH4OAc_Na_mg_g",
+    "Tessier_NH4OAc_Mg_mg_g"
+  ),
+
+  "Tessier_Oxidizable" = c(
+    "Tessier_H2O2_Fe_mg_g",
+    "Tessier_H2O2_Al_mg_g",
+    "Tessier_H2O2_Mn_mg_g",
+    "Tessier_H2O2_Si_mg_g"
+  ),
+
+  "Tessier_Reducible" = c(
+    "Tessier_Hydroxylamine_Fe_mg_g",
+    "Tessier_Hydroxylamine_Al_mg_g",
+    "Tessier_Hydroxylamine_Mn_mg_g",
+    "Tessier_Hydroxylamine_Si_mg_g"
+  ),
+
+  "Aggregate_Stability" = c(
+    "GMD_h2o", "D_h2o", "MWD_h2o",
+    "GMD_oxalate_over_h2o",
+    "D_oxalate_over_h2o",
+    "MWD_oxalate_over_h2o"
+  ),
+
+  "FTIR_Spectral" = c(
+    "FTIR_delta_aromatic",
+    "FTIR_delta_Carbonate_bend",
+    "FTIR_delta_carbonate_stretch",
+    "FTIR_delta_carbonyl",
+    "FTIR_delta_Aliphatic_total",
+    "FTIR_delta_COO_total",
+    "FTIR_delta_polysaccharide",
+    "FTIR_delta_poorly_crystalline",
+    "FTIR_delta_Silicate",
+    "FTIR_delta_total_area"
+  ),
+
+  "Carbon_Stocks" = c(
+    "C_Bulk", "C_MAOM", "C_oPOM", "C_fPOM"
+  ),
+
+  "Radiocarbon_Signatures" = c(
+    "d14C_2026_Bulk",
+    "d14C_2026_MAOM",
+    "d14C_2026_oPOM",
+    "d14C_2026_fPOM"
+  )
+)
+
+available_parameters <- intersect(
+  unname(unlist(parameter_categories)),
+  names(treatment_data)
+)
+
+# Locate and load the saved CmdStan fit for each response variable.
+model_files <- list.files(
+  model_dir,
+  pattern = "_Bayesian_treatment_model\\.rds$",
+  full.names = TRUE
+)
+
+model_files <- model_files[
+  file.exists(model_files)
+]
+
+model_fits <- setNames(
+  lapply(model_files, readRDS),
+  str_remove(
+    basename(model_files),
+    "_Bayesian_treatment_model\\.rds$"
+  )
+)
+
+cat("Saved model fits loaded:", length(model_fits), "\n")
+cat("Responses available in integrated dataset:", length(available_parameters), "\n")
+```
+
+## 2. Reconstruct posterior treatment contrasts from saved fits
+
+The original model standardized each response using its mean and standard
+deviation across the observations included in that response's model. This
+section reconstructs the posterior treatment means and primary treatment-minus-
+Control contrasts from each stored fit's `mu` draws.
+
+```{r}
+primary_pairs <- tibble(
+  Treatment_1 = c("Lime", "HB 50", "EG 50", "BD 50"),
+  Treatment_2 = "Control"
+) %>%
+  mutate(
+    Comparison = paste(Treatment_1, "minus", Treatment_2)
+  )
+
+posterior_primary_contrasts <- list()
+
+for (response in available_parameters) {
+
+  if (!response %in% names(model_fits)) {
+    message("No saved model fit for response: ", response)
+    next
+  }
+
+  response_data <- treatment_data %>%
+    select(Treatment_PCA, all_of(response)) %>%
+    rename(Value = all_of(response)) %>%
+    drop_na(Value, Treatment_PCA) %>%
+    mutate(
+      Treatment_PCA = factor(
+        Treatment_PCA,
+        levels = treatment_levels
+      )
+    )
+
+  # Must match the data rows used to fit the original response model.
+  if (n_distinct(response_data$Treatment_PCA) != 5) {
+    message("Skipping ", response, ": not all 5 treatment groups are present.")
+    next
+  }
+
+  response_sd <- sd(response_data$Value)
+
+  if (!is.finite(response_sd) || response_sd == 0) {
+    message("Skipping ", response, ": response SD is zero or invalid.")
+    next
+  }
+
+  fit <- model_fits[[response]]
+
+  mu_draws <- posterior::as_draws_matrix(
+    fit$draws(variables = "mu")
+  )
+
+  # CmdStan mu index order follows treatment_levels.
+  mu_matrix <- do.call(
+    cbind,
+    lapply(seq_along(treatment_levels), function(k) {
+      mu_draws[, paste0("mu[", k, "]")]
+    })
+  )
+
+  colnames(mu_matrix) <- treatment_levels
+
+  response_contrasts <- map_dfr(
+    seq_len(nrow(primary_pairs)),
+    function(i) {
+
+      t1 <- primary_pairs$Treatment_1[i]
+      t2 <- primary_pairs$Treatment_2[i]
+
+      difference_z <- mu_matrix[, t1] - mu_matrix[, t2]
+
+      tibble(
+        Response = response,
+        Treatment_1 = t1,
+        Treatment_2 = t2,
+        Comparison = paste(t1, "minus", t2),
+        Difference_standardized = mean(difference_z),
+        Lower_95_standardized = unname(
+          quantile(difference_z, 0.025)
+        ),
+        Upper_95_standardized = unname(
+          quantile(difference_z, 0.975)
+        ),
+        Difference_original = mean(difference_z) * response_sd,
+        Lower_95_original = unname(
+          quantile(difference_z, 0.025) * response_sd
+        ),
+        Upper_95_original = unname(
+          quantile(difference_z, 0.975) * response_sd
+        ),
+        Probability_Treatment1_higher = mean(difference_z > 0),
+        Probability_Treatment1_lower = mean(difference_z < 0)
+      )
+    }
+  )
+
+  posterior_primary_contrasts[[response]] <- response_contrasts
+}
+
+primary_contrasts_all <- bind_rows(
+  posterior_primary_contrasts
+)
+
+if (nrow(primary_contrasts_all) == 0) {
+  stop(
+    "No primary contrasts were reconstructed. ",
+    "Check the saved model filenames and integrated dataset."
+  )
+}
+
+primary_contrasts_all <- primary_contrasts_all %>%
+  mutate(
+    Category = names(parameter_categories)[
+      match(
+        Response,
+        unlist(parameter_categories)
+      )
+    ]
+  )
+
+write_csv(
+  primary_contrasts_all,
+  file.path(
+    plot_dir,
+    "Regenerated_Bayesian_primary_contrasts.csv"
+  )
+)
+```
+
+## 3. Primary forest plots (standardized units)
+
+These use the same plot structure as the original script: treatment contrasts
+versus Control, 95% credible intervals, no significance stars.
+
+```{r}
+for (cat_name in names(parameter_categories)) {
+
+  cat_data <- primary_contrasts_all %>%
+    filter(Category == cat_name)
+
+  if (nrow(cat_data) == 0) next
+
+  p_forest <- ggplot(
+    cat_data,
+    aes(
+      x = Difference_standardized,
+      y = Response,
+      color = Comparison
+    )
+  ) +
+    geom_vline(
+      xintercept = 0,
+      linetype = "dashed",
+      color = "gray50"
+    ) +
+    geom_point(
+      position = position_dodge(width = 0.5),
+      size = 2
+    ) +
+    geom_errorbarh(
+      aes(
+        xmin = Lower_95_standardized,
+        xmax = Upper_95_standardized
+      ),
+      height = 0.2,
+      position = position_dodge(width = 0.5)
+    ) +
+    labs(
+      title = paste(
+        "Primary Treatment Contrasts (vs Control) -",
+        cat_name
+      ),
+      subtitle = "Differences in Standardized Units (95% Credible Intervals)",
+      x = "Standardized Difference minus Control (SD Units)",
+      y = "Parameter"
+    ) +
+    theme_bw() +
+    theme(legend.position = "bottom")
+
+  ggsave(
+    filename = file.path(
+      plot_dir,
+      paste0(
+        "Primary_Forest_Plot_Standardized_",
+        cat_name,
+        ".png"
+      )
+    ),
+    plot = p_forest,
+    width = 9,
+    height = max(4, length(unique(cat_data$Response)) * 0.6),
+    dpi = 300
+  )
+
+  print(p_forest)
+}
+```
+
+## 4. Violin plots grouped by parameter category
+
+```{r}
+raw_data_categorized <- treatment_data %>%
+  pivot_longer(
+    cols = any_of(available_parameters),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  drop_na(Value) %>%
+  mutate(
+    Category = names(parameter_categories)[
+      match(
+        Response,
+        unlist(parameter_categories)
+      )
+    ]
+  )
+
+for (cat_name in names(parameter_categories)) {
+
+  cat_raw <- raw_data_categorized %>%
+    filter(Category == cat_name)
+
+  if (nrow(cat_raw) == 0) next
+
+  p_violin <- ggplot(
+    cat_raw,
+    aes(
+      x = Treatment_PCA,
+      y = Value,
+      fill = Treatment_PCA
+    )
+  ) +
+    geom_violin(
+      alpha = 0.6,
+      trim = FALSE
+    ) +
+    geom_boxplot(
+      width = 0.1,
+      color = "black",
+      alpha = 0.8,
+      outlier.shape = NA
+    ) +
+    facet_wrap(
+      ~ Response,
+      scales = "free_y"
+    ) +
+    labs(
+      title = paste(
+        "Treatment Distribution (Violin Plots) -",
+        cat_name
+      ),
+      x = "Treatment",
+      y = "Measured Value"
+    ) +
+    theme_bw() +
+    theme(
+      legend.position = "none",
+      axis.text.x = element_text(
+        angle = 30,
+        hjust = 1
+      )
+    )
+
+  ggsave(
+    filename = file.path(
+      plot_dir,
+      paste0(
+        "Violin_Plots_",
+        cat_name,
+        ".png"
+      )
+    ),
+    plot = p_violin,
+    width = 10,
+    height = 8,
+    dpi = 300
+  )
+
+  print(p_violin)
+}
+```
+
+## 5. Hühnerberg dose-response plots
+
+```{r}
+hb_dose_data <- integrated %>%
+  filter(
+    Treatment == "Control" |
+      grepl("^Huhnerberg", Treatment) |
+      grepl("^HB_", Treatment) |
+      grepl("^HB[0-9]", Treatment)
+  ) %>%
+  mutate(
+    Dose_t_ha = case_when(
+      Treatment == "Control" ~ 0,
+      TRUE ~ as.numeric(
+        gsub("[^0-9]", "", Treatment)
+      )
+    )
+  ) %>%
+  filter(!is.na(Dose_t_ha)) %>%
+  pivot_longer(
+    cols = any_of(available_parameters),
+    names_to = "Response",
+    values_to = "Value"
+  ) %>%
+  drop_na(Value) %>%
+  mutate(
+    Category = names(parameter_categories)[
+      match(
+        Response,
+        unlist(parameter_categories)
+      )
+    ]
+  )
+
+for (cat_name in names(parameter_categories)) {
+
+  cat_hb <- hb_dose_data %>%
+    filter(Category == cat_name)
+
+  if (nrow(cat_hb) == 0) next
+
+  p_dose_hb <- ggplot(
+    cat_hb,
+    aes(
+      x = Dose_t_ha,
+      y = Value
+    )
+  ) +
+    geom_line(
+      color = "darkblue",
+      linewidth = 0.8
+    ) +
+    geom_point(
+      color = "darkblue",
+      size = 2.5
+    ) +
+    facet_wrap(
+      ~ Response,
+      scales = "free_y"
+    ) +
+    labs(
+      title = paste(
+        "Hühnerberg Dose-Response Trends -",
+        cat_name
+      ),
+      subtitle = "Application Rates (0, 10, 20, 50, 100 t/ha)",
+      x = "Hühnerberg Application Rate (t/ha)",
+      y = "Measured Parameter Value"
+    ) +
+    theme_bw() +
+    scale_x_continuous(
+      breaks = sort(unique(cat_hb$Dose_t_ha))
+    )
+
+  ggsave(
+    filename = file.path(
+      plot_dir,
+      paste0(
+        "Huhnerberg_Dose_Response_",
+        cat_name,
+        ".png"
+      )
+    ),
+    plot = p_dose_hb,
+    width = 10,
+    height = 8,
+    dpi = 300
+  )
+
+  print(p_dose_hb)
+}
+```

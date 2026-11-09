@@ -1936,3 +1936,1326 @@ for (resp in names(mlr_results_C)) {
     filename = paste0("observed_vs_predicted_C_", tolower(frac), ".png")
   )
 }
+
+######## additional PCA carbon only
+
+
+# =============================================================================
+# ADDITIONAL PCA: Carbon stocks and radiocarbon by carbon fraction
+#
+# Uses the wide-format integrated dataset.
+# Does NOT replace or overwrite the original PCA analysis.
+# =============================================================================
+
+
+# ---- Code section 20: Define fraction-specific variables -----------------
+
+carbon_fraction_pca_variable_map <- list(
+  Bulk = c(
+    "C_Bulk",
+    "d14C_2026_Bulk"
+  ),
+  
+  MAOM = c(
+    "C_MAOM",
+    "d14C_2026_MAOM"
+  ),
+  
+  oPOM = c(
+    "C_oPOM",
+    "d14C_2026_oPOM"
+  ),
+  
+  fPOM = c(
+    "C_fPOM",
+    "d14C_2026_fPOM"
+  )
+)
+
+
+# ---- Code section 21: New fraction-specific PCA function -----------------
+
+run_carbon_fraction_pca <- function(
+    data_subset,
+    fraction_name,
+    output_prefix,
+    treatment_col = "Treatment",
+    sample_col = "sample"
+) {
+  
+  # Retrieve the two variables for the selected fraction
+  available_vars <- carbon_fraction_pca_variable_map[[fraction_name]]
+  
+  # Check that both variables are available
+  if (!all(available_vars %in% names(data_subset))) {
+    cat(
+      "PCA skipped for ", fraction_name,
+      ": required carbon/radiocarbon variables unavailable.\n",
+      sep = ""
+    )
+    return(NULL)
+  }
+  
+  if (nrow(data_subset) < 3) {
+    cat(
+      "PCA skipped for ", fraction_name,
+      ": fewer than 3 samples.\n",
+      sep = ""
+    )
+    return(NULL)
+  }
+  
+  # Select carbon stock and radiocarbon data only
+  carbon_fraction_pca_matrix <- data_subset %>%
+    dplyr::select(all_of(available_vars))
+  
+  # Remove non-finite observations
+  carbon_fraction_pca_matrix <- carbon_fraction_pca_matrix %>%
+    mutate(
+      across(
+        everything(),
+        ~ ifelse(is.finite(.x), .x, NA_real_)
+      )
+    )
+  
+  # Complete-case analysis
+  complete_rows <- complete.cases(
+    carbon_fraction_pca_matrix
+  )
+  
+  carbon_fraction_pca_matrix <-
+    carbon_fraction_pca_matrix[
+      complete_rows, , drop = FALSE
+    ]
+  
+  carbon_fraction_pca_data <-
+    data_subset[complete_rows, , drop = FALSE]
+  
+  if (nrow(carbon_fraction_pca_matrix) < 3) {
+    cat(
+      "PCA skipped for ", fraction_name,
+      ": fewer than 3 complete samples.\n",
+      sep = ""
+    )
+    return(NULL)
+  }
+  
+  # Remove constant variables
+  nonconstant_vars <- names(
+    carbon_fraction_pca_matrix
+  )[vapply(
+    carbon_fraction_pca_matrix,
+    function(x) is.finite(sd(x)) && sd(x) > 0,
+    logical(1)
+  )]
+  
+  carbon_fraction_pca_matrix <-
+    carbon_fraction_pca_matrix[
+      , nonconstant_vars, drop = FALSE
+    ]
+  
+  if (ncol(carbon_fraction_pca_matrix) < 2) {
+    cat(
+      "PCA skipped for ", fraction_name,
+      ": fewer than two non-constant variables.\n",
+      sep = ""
+    )
+    return(NULL)
+  }
+  
+  # PCA
+  carbon_fraction_pca_fit <- prcomp(
+    carbon_fraction_pca_matrix,
+    center = TRUE,
+    scale. = TRUE
+  )
+  
+  # Variance explained
+  carbon_fraction_pca_variance <- 100 *
+    carbon_fraction_pca_fit$sdev^2 /
+    sum(carbon_fraction_pca_fit$sdev^2)
+  
+  # PCA scores
+  carbon_fraction_pca_scores <- as_tibble(
+    carbon_fraction_pca_fit$x
+  ) %>%
+    mutate(
+      sample = carbon_fraction_pca_data[[sample_col]],
+      Treatment = as.character(
+        carbon_fraction_pca_data[[treatment_col]]
+      ),
+      sample_label = paste0(
+        "P", sample
+      )
+    )
+  
+  # PCA loadings
+  carbon_fraction_pca_loadings <- as_tibble(
+    carbon_fraction_pca_fit$rotation,
+    rownames = "variable"
+  )
+  
+  # Variance explained table
+  carbon_fraction_pca_variance_table <- tibble(
+    PC = paste0(
+      "PC",
+      seq_along(carbon_fraction_pca_variance)
+    ),
+    variance_explained_pct =
+      carbon_fraction_pca_variance,
+    cumulative_variance_pct =
+      cumsum(carbon_fraction_pca_variance)
+  )
+  
+  # Treatment colour palette
+  carbon_fraction_pca_treatment_levels <- sort(
+    unique(
+      stats::na.omit(
+        carbon_fraction_pca_scores$Treatment
+      )
+    )
+  )
+  
+  carbon_fraction_pca_palette <- stats::setNames(
+    grDevices::hcl.colors(
+      max(
+        1,
+        length(
+          carbon_fraction_pca_treatment_levels
+        )
+      ),
+      palette = "Dynamic"
+    ),
+    carbon_fraction_pca_treatment_levels
+  )
+  
+  # Percentage variance
+  pc1_pct <- round(
+    carbon_fraction_pca_variance[1],
+    1
+  )
+  
+  pc2_pct <- round(
+    carbon_fraction_pca_variance[2],
+    1
+  )
+  
+  # Fraction-specific PCA plot
+  carbon_fraction_pca_plot <- ggplot(
+    carbon_fraction_pca_scores,
+    aes(x = PC1, y = PC2)
+  ) +
+    geom_hline(
+      yintercept = 0,
+      linewidth = 0.35,
+      colour = "grey78"
+    ) +
+    geom_vline(
+      xintercept = 0,
+      linewidth = 0.35,
+      colour = "grey78"
+    ) +
+    stat_ellipse(
+      aes(
+        group = Treatment,
+        colour = Treatment
+      ),
+      type = "t",
+      level = 0.68,
+      linewidth = 0.7,
+      show.legend = FALSE,
+      na.rm = TRUE
+    ) +
+    geom_point(
+      aes(colour = Treatment),
+      size = 3,
+      alpha = 0.9
+    ) +
+    geom_text(
+      aes(label = sample_label),
+      colour = "black",
+      size = 3,
+      vjust = -0.8,
+      check_overlap = TRUE,
+      show.legend = FALSE
+    ) +
+    scale_colour_manual(
+      values = carbon_fraction_pca_palette,
+      na.translate = FALSE
+    ) +
+    labs(
+      title = paste0(
+        "PCA — ", fraction_name,
+        " carbon stock and radiocarbon"
+      ),
+      subtitle = paste0(
+        "Carbon stock + Δ14C only; n = ",
+        nrow(carbon_fraction_pca_scores)
+      ),
+      x = paste0(
+        "PC1 (", pc1_pct, "% variance)"
+      ),
+      y = paste0(
+        "PC2 (", pc2_pct, "% variance)"
+      ),
+      colour = "Treatment"
+    ) +
+    theme_bw(base_size = 11) +
+    theme(
+      legend.position = "bottom"
+    )
+  
+  # Save plot
+  ggsave(
+    file.path(
+      pca_out_dir,
+      paste0(
+        output_prefix,
+        "_",
+        fraction_name,
+        "_scores.png"
+      )
+    ),
+    carbon_fraction_pca_plot,
+    width = 9,
+    height = 7,
+    dpi = 300,
+    bg = "white"
+  )
+  
+  print(carbon_fraction_pca_plot)
+  
+  # Save PCA scores
+  readr::write_csv(
+    carbon_fraction_pca_scores,
+    file.path(
+      pca_out_dir,
+      paste0(
+        output_prefix,
+        "_",
+        fraction_name,
+        "_scores.csv"
+      )
+    )
+  )
+  
+  # Save PCA loadings
+  readr::write_csv(
+    carbon_fraction_pca_loadings,
+    file.path(
+      pca_out_dir,
+      paste0(
+        output_prefix,
+        "_",
+        fraction_name,
+        "_loadings.csv"
+      )
+    )
+  )
+  
+  # Save variance explained
+  readr::write_csv(
+    carbon_fraction_pca_variance_table,
+    file.path(
+      pca_out_dir,
+      paste0(
+        output_prefix,
+        "_",
+        fraction_name,
+        "_variance_explained.csv"
+      )
+    )
+  )
+  
+  invisible(
+    list(
+      scores = carbon_fraction_pca_scores,
+      loadings = carbon_fraction_pca_loadings,
+      variance = carbon_fraction_pca_variance_table,
+      fit = carbon_fraction_pca_fit,
+      plot = carbon_fraction_pca_plot
+    )
+  )
+}
+
+
+# ---- Code section 22: Run four separate PCAs -----------------------------
+
+carbon_fraction_pca_results <- list()
+
+# PCA 1: Bulk soil
+carbon_fraction_pca_results[["Bulk"]] <-
+  run_carbon_fraction_pca(
+    data_subset = integrated,
+    fraction_name = "Bulk",
+    output_prefix = "carbon_fraction_PCA"
+  )
+
+# PCA 2: MAOM
+carbon_fraction_pca_results[["MAOM"]] <-
+  run_carbon_fraction_pca(
+    data_subset = integrated,
+    fraction_name = "MAOM",
+    output_prefix = "carbon_fraction_PCA"
+  )
+
+# PCA 3: oPOM
+carbon_fraction_pca_results[["oPOM"]] <-
+  run_carbon_fraction_pca(
+    data_subset = integrated,
+    fraction_name = "oPOM",
+    output_prefix = "carbon_fraction_PCA"
+  )
+
+# PCA 4: fPOM
+carbon_fraction_pca_results[["fPOM"]] <-
+  run_carbon_fraction_pca(
+    data_subset = integrated,
+    fraction_name = "fPOM",
+    output_prefix = "carbon_fraction_PCA"
+  )
+
+
+# =============================================================================
+# ADDITIONAL PCA: Combined carbon stocks and radiocarbon
+#
+# Purpose:
+#   Perform PCA on integrated carbon and radiocarbon data, excluding
+#   Huhnerberg dose-response treatments.
+#
+# Included treatments:
+#   Control
+#   Lime
+#   Huhnerberg_50
+#   Eifelgold_50
+#   Bolsdorfer_50
+#
+# Variables:
+#   C_Bulk, C_MAOM, C_oPOM, C_fPOM
+#   d14C_2026_Bulk, d14C_2026_MAOM,
+#   d14C_2026_oPOM, d14C_2026_fPOM
+#
+# Outputs:
+#   PCA scores
+#   PCA loadings
+#   Explained variance
+#   PCA biplot
+#   Scree plot
+#
+# Does not overwrite existing PCA analyses.
+# =============================================================================
+
+
+# ---- Code section 23: Combined carbon/radiocarbon PCA ----------------------
+
+# =============================================================================
+# 23.1 Define PCA variables and treatment selection
+# =============================================================================
+
+# Variables included in the PCA
+combined_carbon_pca_variables <- c(
+  "C_Bulk",
+  "C_MAOM",
+  "C_oPOM",
+  "C_fPOM",
+  "d14C_2026_Bulk",
+  "d14C_2026_MAOM",
+  "d14C_2026_oPOM",
+  "d14C_2026_fPOM"
+)
+
+
+# Check that all PCA variables are available
+combined_carbon_pca_missing_variables <- setdiff(
+  combined_carbon_pca_variables,
+  names(integrated)
+)
+
+if (length(combined_carbon_pca_missing_variables) > 0) {
+  
+  stop(
+    "Missing PCA variables in integrated: ",
+    paste(
+      combined_carbon_pca_missing_variables,
+      collapse = ", "
+    )
+  )
+  
+}
+
+
+# Inspect treatment names
+print(
+  sort(unique(integrated$Treatment))
+)
+
+
+# Retain only the requested treatment groups
+combined_carbon_pca_data <- integrated %>%
+  filter(
+    Treatment == "Control" |
+      grepl("^Lime", Treatment) |
+      Treatment %in% c(
+        "Huhnerberg_50",
+        "Eifelgold_50",
+        "Bolsdorfer_50"
+      )
+  ) %>%
+  mutate(
+    
+    # Standardize treatment labels for plotting
+    Treatment_PCA = case_when(
+      
+      Treatment == "Control" ~ "Control",
+      
+      grepl("^Lime", Treatment) ~ "Lime",
+      
+      Treatment == "Huhnerberg_50" ~ "HB 50",
+      
+      Treatment == "Eifelgold_50" ~ "EG 50",
+      
+      Treatment == "Bolsdorfer_50" ~ "BD 50",
+      
+      TRUE ~ NA_character_
+      
+    )
+    
+  ) %>%
+  filter(
+    !is.na(Treatment_PCA)
+  )
+
+
+# Define plotting order
+combined_carbon_pca_data$Treatment_PCA <- factor(
+  combined_carbon_pca_data$Treatment_PCA,
+  levels = c(
+    "Control",
+    "Lime",
+    "HB 50",
+    "EG 50",
+    "BD 50"
+  )
+)
+
+
+# Check selected treatments
+print(
+  table(
+    combined_carbon_pca_data$Treatment_PCA
+  )
+)
+
+
+# Confirm that dose-response Huhnerberg treatments are excluded
+stopifnot(
+  !any(
+    grepl(
+      "^Huhnerberg_(2|4|8|12|20|30)$",
+      combined_carbon_pca_data$Treatment
+    )
+  )
+)
+
+
+# =============================================================================
+# 23.2 Prepare complete-case PCA dataset
+# =============================================================================
+
+combined_carbon_pca_complete <- combined_carbon_pca_data %>%
+  
+  select(
+    sample,
+    Treatment,
+    Treatment_PCA,
+    all_of(combined_carbon_pca_variables)
+  ) %>%
+  
+  drop_na(
+    all_of(combined_carbon_pca_variables)
+  )
+
+
+# Report the number of samples retained
+cat(
+  "\nNumber of samples selected:",
+  nrow(combined_carbon_pca_data),
+  "\n"
+)
+
+cat(
+  "Number of complete samples retained for PCA:",
+  nrow(combined_carbon_pca_complete),
+  "\n"
+)
+
+cat(
+  "Number of samples excluded due to missing data:",
+  nrow(combined_carbon_pca_data) -
+    nrow(combined_carbon_pca_complete),
+  "\n"
+)
+
+
+# Check sample size
+if (nrow(combined_carbon_pca_complete) < 3) {
+  
+  stop(
+    "Insufficient complete samples to perform PCA."
+  )
+  
+}
+
+
+# Check for zero-variance variables
+combined_carbon_pca_zero_variance <- combined_carbon_pca_variables[
+  vapply(
+    
+    combined_carbon_pca_complete[
+      combined_carbon_pca_variables
+    ],
+    
+    function(x) {
+      
+      sd(x, na.rm = TRUE) == 0
+      
+    },
+    
+    logical(1)
+    
+  )
+]
+
+
+if (length(combined_carbon_pca_zero_variance) > 0) {
+  
+  stop(
+    "Zero-variance PCA variables detected: ",
+    paste(
+      combined_carbon_pca_zero_variance,
+      collapse = ", "
+    )
+  )
+  
+}
+
+
+# =============================================================================
+# 23.3 Run PCA
+# =============================================================================
+
+combined_carbon_pca_fit <- prcomp(
+  
+  combined_carbon_pca_complete %>%
+    select(
+      all_of(combined_carbon_pca_variables)
+    ),
+  
+  center = TRUE,
+  
+  scale. = TRUE
+  
+)
+
+
+# =============================================================================
+# 23.4 Extract PCA scores
+# =============================================================================
+
+combined_carbon_pca_scores <- as.data.frame(
+  
+  combined_carbon_pca_fit$x
+  
+) %>%
+  
+  bind_cols(
+    
+    combined_carbon_pca_complete %>%
+      select(
+        sample,
+        Treatment,
+        Treatment_PCA
+      )
+    
+  ) %>%
+  
+  mutate(
+    
+    sample_label = paste0(
+      "P",
+      sample
+    )
+    
+  )
+
+
+# =============================================================================
+# 23.5 Extract PCA loadings
+# =============================================================================
+
+combined_carbon_pca_loadings <- as.data.frame(
+  
+  combined_carbon_pca_fit$rotation
+  
+) %>%
+  
+  tibble::rownames_to_column(
+    "Variable"
+  )
+
+
+# =============================================================================
+# 23.6 Calculate explained variance
+# =============================================================================
+
+combined_carbon_pca_eigenvalues <-
+  combined_carbon_pca_fit$sdev^2
+
+
+combined_carbon_pca_variance <- tibble(
+  
+  PC = paste0(
+    
+    "PC",
+    
+    seq_along(
+      combined_carbon_pca_eigenvalues
+    )
+    
+  ),
+  
+  Eigenvalue = combined_carbon_pca_eigenvalues,
+  
+  Variance_explained =
+    
+    combined_carbon_pca_eigenvalues /
+    
+    sum(
+      combined_carbon_pca_eigenvalues
+    ),
+  
+  Cumulative_variance = cumsum(
+    
+    combined_carbon_pca_eigenvalues /
+      
+      sum(
+        combined_carbon_pca_eigenvalues
+      )
+    
+  ),
+  
+  variance_explained_pct =
+    
+    100 * Variance_explained,
+  
+  cumulative_variance_pct =
+    
+    100 * Cumulative_variance
+  
+)
+
+
+# Print explained variance
+print(
+  combined_carbon_pca_variance
+)
+
+
+# Print PC1 and PC2 explained variance
+cat(
+  
+  "\nPC1 explained variance:",
+  
+  round(
+    combined_carbon_pca_variance$variance_explained_pct[1],
+    2
+  ),
+  
+  "%\n"
+  
+)
+
+
+cat(
+  
+  "PC2 explained variance:",
+  
+  round(
+    combined_carbon_pca_variance$variance_explained_pct[2],
+    2
+  ),
+  
+  "%\n"
+  
+)
+
+
+cat(
+  
+  "Combined PC1 + PC2 explained variance:",
+  
+  round(
+    sum(
+      combined_carbon_pca_variance$variance_explained_pct[1:2]
+    ),
+    2
+  ),
+  
+  "%\n"
+  
+)
+
+
+# =============================================================================
+# 23.7 Export PCA scores, loadings and variance
+# =============================================================================
+
+readr::write_csv(
+  
+  combined_carbon_pca_scores,
+  
+  file.path(
+    
+    pca_out_dir,
+    
+    "combined_carbon_radiocarbon_PCA_scores.csv"
+    
+  )
+  
+)
+
+
+readr::write_csv(
+  
+  combined_carbon_pca_loadings,
+  
+  file.path(
+    
+    pca_out_dir,
+    
+    "combined_carbon_radiocarbon_PCA_loadings.csv"
+    
+  )
+  
+)
+
+
+readr::write_csv(
+  
+  combined_carbon_pca_variance,
+  
+  file.path(
+    
+    pca_out_dir,
+    
+    "combined_carbon_radiocarbon_PCA_variance_explained.csv"
+    
+  )
+  
+)
+
+
+# =============================================================================
+# 23.8 Define treatment colour palette
+# =============================================================================
+
+combined_carbon_pca_treatment_levels <- levels(
+  
+  combined_carbon_pca_scores$Treatment_PCA
+  
+)
+
+
+combined_carbon_pca_palette <- stats::setNames(
+  
+  grDevices::hcl.colors(
+    
+    length(
+      combined_carbon_pca_treatment_levels
+    ),
+    
+    palette = "Dynamic"
+    
+  ),
+  
+  combined_carbon_pca_treatment_levels
+  
+)
+
+
+# =============================================================================
+# 23.9 Scale loading vectors for PCA biplot
+# =============================================================================
+
+# Range of PCA scores on PC1 and PC2
+combined_carbon_pca_score_range <- max(
+  
+  abs(
+    
+    c(
+      
+      combined_carbon_pca_scores$PC1,
+      
+      combined_carbon_pca_scores$PC2
+      
+    )
+    
+  ),
+  
+  na.rm = TRUE
+  
+)
+
+
+# Range of loading vectors
+combined_carbon_pca_loading_range <- max(
+  
+  abs(
+    
+    c(
+      
+      combined_carbon_pca_fit$rotation[, 1],
+      
+      combined_carbon_pca_fit$rotation[, 2]
+      
+    )
+    
+  ),
+  
+  na.rm = TRUE
+  
+)
+
+
+# Scaling factor for loading arrows
+combined_carbon_pca_arrow_scale <- if (
+  
+  is.finite(
+    combined_carbon_pca_loading_range
+  ) &&
+  
+  combined_carbon_pca_loading_range > 0
+  
+) {
+  
+  0.72 *
+    
+    combined_carbon_pca_score_range /
+    
+    combined_carbon_pca_loading_range
+  
+} else {
+  
+  1
+  
+}
+
+
+# Prepare arrow coordinates
+combined_carbon_pca_arrow_data <-
+  
+  combined_carbon_pca_loadings %>%
+  
+  transmute(
+    
+    Variable,
+    
+    PC1 = PC1 *
+      
+      combined_carbon_pca_arrow_scale,
+    
+    PC2 = PC2 *
+      
+      combined_carbon_pca_arrow_scale
+    
+  )
+
+
+# =============================================================================
+# 23.10 Create PCA biplot
+# =============================================================================
+
+combined_carbon_pca_pc1_pct <- round(
+  
+  combined_carbon_pca_variance$
+    variance_explained_pct[1],
+  
+  1
+  
+)
+
+
+combined_carbon_pca_pc2_pct <- round(
+  
+  combined_carbon_pca_variance$
+    variance_explained_pct[2],
+  
+  1
+  
+)
+
+
+p_combined_carbon_pca_biplot <- ggplot(
+  
+  combined_carbon_pca_scores,
+  
+  aes(
+    
+    x = PC1,
+    
+    y = PC2
+    
+  )
+  
+) +
+  
+  # Reference lines
+  geom_hline(
+    
+    yintercept = 0,
+    
+    linewidth = 0.35,
+    
+    colour = "grey78"
+    
+  ) +
+  
+  geom_vline(
+    
+    xintercept = 0,
+    
+    linewidth = 0.35,
+    
+    colour = "grey78"
+    
+  ) +
+  
+  # PCA sample points
+  geom_point(
+    
+    aes(
+      
+      colour = Treatment_PCA
+      
+    ),
+    
+    size = 3,
+    
+    alpha = 0.9
+    
+  ) +
+  
+  # Sample labels
+  geom_text(
+    
+    aes(
+      
+      label = sample_label
+      
+    ),
+    
+    colour = "black",
+    
+    size = 3,
+    
+    vjust = -0.8,
+    
+    check_overlap = TRUE,
+    
+    show.legend = FALSE
+    
+  ) +
+  
+  # Loading arrows
+  geom_segment(
+    
+    data = combined_carbon_pca_arrow_data,
+    
+    aes(
+      
+      x = 0,
+      
+      y = 0,
+      
+      xend = PC1,
+      
+      yend = PC2
+      
+    ),
+    
+    inherit.aes = FALSE,
+    
+    arrow = grid::arrow(
+      
+      length = grid::unit(
+        
+        0.18,
+        
+        "cm"
+        
+      )
+      
+    ),
+    
+    colour = "grey20",
+    
+    linewidth = 0.6
+    
+  ) +
+  
+  # Loading labels
+  geom_text(
+    
+    data = combined_carbon_pca_arrow_data,
+    
+    aes(
+      
+      x = PC1,
+      
+      y = PC2,
+      
+      label = Variable
+      
+    ),
+    
+    inherit.aes = FALSE,
+    
+    colour = "grey10",
+    
+    size = 3,
+    
+    check_overlap = TRUE,
+    
+    vjust = -0.45
+    
+  ) +
+  
+  # Treatment colours
+  scale_colour_manual(
+    
+    values = combined_carbon_pca_palette,
+    
+    drop = FALSE,
+    
+    na.translate = FALSE
+    
+  ) +
+  
+  # Labels
+  labs(
+    
+    title = "PCA — combined carbon stocks and radiocarbon",
+    
+    subtitle = paste0(
+      
+      "Control, Lime, HB 50, EG 50 and BD 50; n = ",
+      
+      nrow(
+        combined_carbon_pca_scores
+      )
+      
+    ),
+    
+    x = paste0(
+      
+      "PC1 (",
+      
+      combined_carbon_pca_pc1_pct,
+      
+      "% variance)"
+      
+    ),
+    
+    y = paste0(
+      
+      "PC2 (",
+      
+      combined_carbon_pca_pc2_pct,
+      
+      "% variance)"
+      
+    ),
+    
+    colour = "Treatment"
+    
+  ) +
+  
+  theme_bw(
+    
+    base_size = 11
+    
+  ) +
+  
+  theme(
+    
+    legend.position = "bottom",
+    
+    legend.box = "vertical"
+    
+  )
+
+
+# =============================================================================
+# 23.11 Save PCA biplot
+# =============================================================================
+
+ggsave(
+  
+  filename = file.path(
+    
+    pca_out_dir,
+    
+    "combined_carbon_radiocarbon_PCA_biplot.png"
+    
+  ),
+  
+  plot = p_combined_carbon_pca_biplot,
+  
+  width = 12,
+  
+  height = 9,
+  
+  dpi = 300,
+  
+  bg = "white"
+  
+)
+
+
+# Print biplot
+print(
+  
+  p_combined_carbon_pca_biplot
+  
+)
+
+
+# =============================================================================
+# 23.12 Create scree plot
+# =============================================================================
+
+combined_carbon_pca_scree_data <-
+  
+  combined_carbon_pca_variance %>%
+  
+  slice_head(
+    
+    n = min(
+      
+      10,
+      
+      nrow(
+        combined_carbon_pca_variance
+      )
+      
+    )
+    
+  )
+
+
+p_combined_carbon_pca_scree <- ggplot(
+  
+  combined_carbon_pca_scree_data,
+  
+  aes(
+    
+    x = factor(
+      
+      PC,
+      
+      levels = PC
+      
+    ),
+    
+    y = variance_explained_pct
+    
+  )
+  
+) +
+  
+  # Individual PC variance
+  geom_col(
+    
+    fill = "grey45"
+    
+  ) +
+  
+  # Cumulative variance
+  geom_point(
+    
+    aes(
+      
+      y = cumulative_variance_pct
+      
+    ),
+    
+    size = 2
+    
+  ) +
+  
+  geom_line(
+    
+    aes(
+      
+      y = cumulative_variance_pct,
+      
+      group = 1
+      
+    ),
+    
+    linewidth = 0.6
+    
+  ) +
+  
+  labs(
+    
+    title = "Combined carbon stocks and radiocarbon PCA",
+    
+    subtitle = "Variance explained by principal components",
+    
+    x = "Principal component",
+    
+    y = "Variance explained (%) / cumulative variance (%)"
+    
+  ) +
+  
+  theme_bw(
+    
+    base_size = 11
+    
+  )
+
+
+# =============================================================================
+# 23.13 Save scree plot
+# =============================================================================
+
+ggsave(
+  
+  filename = file.path(
+    
+    pca_out_dir,
+    
+    "combined_carbon_radiocarbon_PCA_scree.png"
+    
+  ),
+  
+  plot = p_combined_carbon_pca_scree,
+  
+  width = 9,
+  
+  height = 6,
+  
+  dpi = 300,
+  
+  bg = "white"
+  
+)
+
+
+# Print scree plot
+print(
+  
+  p_combined_carbon_pca_scree
+  
+)
