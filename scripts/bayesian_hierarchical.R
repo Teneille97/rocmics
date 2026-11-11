@@ -823,9 +823,9 @@ required_primary_columns <- c(
   "Response",
   "Treatment_1",
   "Treatment_2",
-  "Difference_standardized",
-  "Lower_95_standardized",
-  "Upper_95_standardized"
+  "Difference_original",
+  "Lower_95_original",
+  "Upper_95_original"
 )
 
 required_pairwise_columns <- required_primary_columns
@@ -923,22 +923,21 @@ raw_data_plot <- bayesian_treatment_data %>%
 
 
 # =============================================================================
-# 8. HELPER: SAVE GROUPED FOREST PLOTS
+# HELPER: DISPLAY GROUPED FOREST PLOTS IN ORIGINAL UNITS
 # =============================================================================
 
 make_grouped_forest_plot <- function(
     data,
     responses,
     group_name,
-    comparison_type = "Primary",
-    output_dir = bayesian_treatment_plots_dir) {
+    comparison_type = "Primary") {
   
   plot_data <- data %>%
     filter(Response %in% responses) %>%
     filter(
-      is.finite(Difference_standardized),
-      is.finite(Lower_95_standardized),
-      is.finite(Upper_95_standardized)
+      is.finite(Difference_original),
+      is.finite(Lower_95_original),
+      is.finite(Upper_95_original)
     ) %>%
     mutate(
       Response = factor(
@@ -951,7 +950,7 @@ make_grouped_forest_plot <- function(
     message(
       "Skipping forest plot: ",
       group_name,
-      " (no contrast data)"
+      " (no original-scale contrast data)"
     )
     return(NULL)
   }
@@ -984,11 +983,12 @@ make_grouped_forest_plot <- function(
   p <- ggplot(
     plot_data,
     aes(
-      x = Difference_standardized,
+      x = Difference_original,
       y = Comparison
     )
   ) +
     
+    # Zero reference line.
     geom_vline(
       xintercept = 0,
       linetype = "dashed",
@@ -996,24 +996,27 @@ make_grouped_forest_plot <- function(
       linewidth = 0.5
     ) +
     
+    # 95% credible intervals.
     geom_errorbar(
       aes(
-        xmin = Lower_95_standardized,
-        xmax = Upper_95_standardized
+        xmin = Lower_95_original,
+        xmax = Upper_95_original
       ),
       orientation = "y",
       width = 0.18,
       linewidth = 0.6
     ) +
     
+    # Posterior mean differences.
     geom_point(
       size = 2.2
     ) +
     
+    # Independent horizontal scale for each response.
     facet_wrap(
       ~ Response,
       ncol = 2,
-      scales = "free_y"
+      scales = "free_x"
     ) +
     
     labs(
@@ -1023,10 +1026,10 @@ make_grouped_forest_plot <- function(
         gsub("_", " ", group_name)
       ),
       subtitle = paste(
-        "Posterior treatment differences in standardized units;",
+        "Posterior treatment differences in original measurement units;",
         "points show posterior means and lines show 95% credible intervals"
       ),
-      x = "Treatment difference (standardized units)",
+      x = "Treatment difference (original measurement units)",
       y = NULL
     ) +
     
@@ -1059,26 +1062,7 @@ make_grouped_forest_plot <- function(
     ceiling(n_responses / 2) * 2.8
   )
   
-  filename <- file.path(
-    output_dir,
-    paste0(
-      comparison_type,
-      "_Forest_",
-      group_name,
-      ".png"
-    )
-  )
-  
-  ggsave(
-    filename = filename,
-    plot = p,
-    width = 13,
-    height = plot_height,
-    dpi = 300,
-    bg = "white"
-  )
-  
-  message("Saved: ", filename)
+  print(p)
   
   return(p)
 }
@@ -1215,48 +1199,33 @@ make_grouped_violin_plot <- function(
 
 
 # =============================================================================
-# 10. GENERATE PRIMARY FOREST PLOTS
+# 10. GENERATE PRIMARY AND PAIRWISE FOREST PLOTS
 # =============================================================================
 
-cat("\n\nGenerating primary treatment-versus-Control forest plots...\n")
-
-primary_forest_plots <- list()
+# Primary treatment versus Control forest plots.
 
 for (group_name in names(plot_groups_available)) {
   
-  responses <- plot_groups_available[[group_name]]
-  
-  primary_forest_plots[[group_name]] <-
-    make_grouped_forest_plot(
-      data = primary_contrasts,
-      responses = responses,
-      group_name = group_name,
-      comparison_type = "Primary"
-    )
+  make_grouped_forest_plot(
+    data = primary_contrasts,
+    responses = plot_groups_available[[group_name]],
+    group_name = group_name,
+    comparison_type = "Primary"
+  )
 }
 
 
-# =============================================================================
-# 11. GENERATE ALL-PAIRWISE FOREST PLOTS
-# =============================================================================
-
-cat("\n\nGenerating all-pairwise forest plots...\n")
-
-pairwise_forest_plots <- list()
+# All-pairwise treatment forest plots.
 
 for (group_name in names(plot_groups_available)) {
   
-  responses <- plot_groups_available[[group_name]]
-  
-  pairwise_forest_plots[[group_name]] <-
-    make_grouped_forest_plot(
-      data = pairwise_contrasts,
-      responses = responses,
-      group_name = group_name,
-      comparison_type = "All_Pairwise"
-    )
+  make_grouped_forest_plot(
+    data = pairwise_contrasts,
+    responses = plot_groups_available[[group_name]],
+    group_name = group_name,
+    comparison_type = "All_Pairwise"
+  )
 }
-
 
 # =============================================================================
 # 12. GENERATE GROUPED VIOLIN PLOTS
