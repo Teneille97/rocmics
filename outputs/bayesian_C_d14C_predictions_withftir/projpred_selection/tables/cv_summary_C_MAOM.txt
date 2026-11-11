@@ -1,0 +1,46 @@
+
+Family: gaussian 
+Link function: identity 
+
+Formula: y_std ~ GMD_h2o + D_h2o + MWD_h2o + GMD_oxalate_over_h2o + D_oxalate_over_h2o + 
+    MWD_oxalate_over_h2o + Fe_ox_over_DCB + Al_ox_over_DCB + 
+    Mn_ox_over_DCB + Si_ox_over_DCB + Fe_ox_over_Si_ox + Al_ox_over_Si_ox + 
+    Tessier_Acetic_Ca_mg_g + Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + 
+    Tessier_Hydroxylamine_Fe_mg_g + Tessier_Hydroxylamine_Al_mg_g + 
+    Tessier_Hydroxylamine_Mn_mg_g + Tessier_Hydroxylamine_Si_mg_g + 
+    soil_pH + soil_EC + pH_Oct2023 + EC_Oct2023 + Ca_Oct2023 + 
+    K_Oct2023 + Mg_Oct2023 + Na_Oct2023 + Al_Oct2023 + Fe_Oct2023 + 
+    Mn_Oct2023 + CEC_Oct2023 + Base_saturation_Oct2023 + Tessier_H2O2_Fe_mg_g + 
+    Tessier_H2O2_Al_mg_g + Tessier_H2O2_Si_mg_g + Tessier_H2O2_Ca_mg_g + 
+    Tessier_H2O2_K_mg_g + Tessier_H2O2_Mg_mg_g + CEC_H + CEC_Ca + 
+    CEC_K + CEC_Mg + CEC_Na + CEC_Al + CEC_Fe + CEC_Mn + CEC_CEC + 
+    CEC_Base_saturation + FTIR_delta_aromatic + FTIR_delta_Carbonate_bend + 
+    FTIR_delta_carbonate_stretch + FTIR_delta_Aliphatic_total + 
+    FTIR_delta_COO_total + FTIR_delta_polysaccharide + FTIR_delta_Silicate + 
+    FTIR_delta_total_area
+Observations: 15
+Projection method: traditional
+CV method: PSIS-LOO CV with search included (i.e., fold-wise searches)
+Search method: forward
+Maximum submodel size for the search: 10
+Number of projected draws in the search: 20 (from clustered projection)
+Number of projected draws in the performance evaluation: 20 (from clustered projection)
+Argument `refit_prj`: TRUE
+
+Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
+ size              ranking_fulldata cv_proportions_diag elpd elpd.se elpd.diff elpd.diff.se
+    0                   (Intercept)                  NA  -22    1.59     -7.13         1.54
+    1                         D_h2o                1.00  -15    0.65      0.81         0.64
+    2            D_oxalate_over_h2o                0.47  -14    0.55      1.57         0.56
+    3           FTIR_delta_aromatic                0.13  -14    0.69      1.55         0.63
+    4                    Al_Oct2023                0.13  -13    0.62      1.88         0.57
+    5        Tessier_Acetic_Mg_mg_g                0.00  -13    0.47      2.49         0.39
+    6         FTIR_delta_total_area                0.00  -13    0.55      2.53         0.44
+    7                         CEC_K                0.00  -13    0.51      2.62         0.41
+    8 Tessier_Hydroxylamine_Mn_mg_g                0.00  -13    0.52      2.60         0.41
+    9          GMD_oxalate_over_h2o                0.00  -13    0.52      2.62         0.41
+   10           Tessier_H2O2_K_mg_g                0.00  -13    0.55      2.61         0.42
+
+Reference model performance evaluation summary with `deltas = FALSE`:
+   elpd elpd.se 
+ -15.31    0.34 

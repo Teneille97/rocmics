@@ -1,0 +1,46 @@
+
+Family: gaussian 
+Link function: identity 
+
+Formula: y_std ~ GMD_h2o + D_h2o + MWD_h2o + GMD_oxalate_over_h2o + D_oxalate_over_h2o + 
+    MWD_oxalate_over_h2o + Fe_ox_over_DCB + Al_ox_over_DCB + 
+    Mn_ox_over_DCB + Si_ox_over_DCB + Fe_ox_over_Si_ox + Al_ox_over_Si_ox + 
+    Tessier_Acetic_Ca_mg_g + Tessier_Acetic_Na_mg_g + Tessier_Acetic_Mg_mg_g + 
+    Tessier_Hydroxylamine_Fe_mg_g + Tessier_Hydroxylamine_Al_mg_g + 
+    Tessier_Hydroxylamine_Mn_mg_g + Tessier_Hydroxylamine_Si_mg_g + 
+    soil_pH + soil_EC + pH_Oct2023 + EC_Oct2023 + Ca_Oct2023 + 
+    K_Oct2023 + Mg_Oct2023 + Na_Oct2023 + Al_Oct2023 + Fe_Oct2023 + 
+    Mn_Oct2023 + CEC_Oct2023 + Base_saturation_Oct2023 + Tessier_H2O2_Fe_mg_g + 
+    Tessier_H2O2_Al_mg_g + Tessier_H2O2_Si_mg_g + Tessier_H2O2_Ca_mg_g + 
+    Tessier_H2O2_K_mg_g + Tessier_H2O2_Mg_mg_g + CEC_H + CEC_Ca + 
+    CEC_K + CEC_Mg + CEC_Na + CEC_Al + CEC_Fe + CEC_Mn + CEC_CEC + 
+    CEC_Base_saturation + FTIR_delta_aromatic + FTIR_delta_Carbonate_bend + 
+    FTIR_delta_carbonate_stretch + FTIR_delta_Aliphatic_total + 
+    FTIR_delta_COO_total + FTIR_delta_polysaccharide + FTIR_delta_Silicate + 
+    FTIR_delta_total_area
+Observations: 15
+Projection method: traditional
+CV method: PSIS-LOO CV with search included (i.e., fold-wise searches)
+Search method: forward
+Maximum submodel size for the search: 10
+Number of projected draws in the search: 20 (from clustered projection)
+Number of projected draws in the performance evaluation: 20 (from clustered projection)
+Argument `refit_prj`: TRUE
+
+Submodel performance evaluation summary with `deltas = FALSE` and `cumulate = FALSE`:
+ size              ranking_fulldata cv_proportions_diag elpd elpd.se elpd.diff elpd.diff.se
+    0                   (Intercept)                  NA  -23    1.64     -6.24         1.66
+    1 Tessier_Hydroxylamine_Si_mg_g               0.800  -20    1.37     -3.26         1.36
+    2                         D_h2o               0.733  -15    0.60      0.89         0.66
+    3                    Na_Oct2023               0.267  -16    0.81      0.65         0.87
+    4                    Mn_Oct2023               0.067  -15    0.63      1.07         0.74
+    5              Al_ox_over_Si_ox               0.000  -14    0.57      1.82         0.65
+    6          Tessier_H2O2_Si_mg_g               0.067  -14    0.56      2.35         0.60
+    7 Tessier_Hydroxylamine_Fe_mg_g               0.067  -13    0.55      2.92         0.56
+    8     FTIR_delta_polysaccharide               0.000  -13    0.49      2.91         0.47
+    9                    Al_Oct2023               0.000  -13    0.56      2.85         0.59
+   10                Fe_ox_over_DCB               0.000  -13    0.55      2.80         0.59
+
+Reference model performance evaluation summary with `deltas = FALSE`:
+   elpd elpd.se 
+ -16.27    0.35 

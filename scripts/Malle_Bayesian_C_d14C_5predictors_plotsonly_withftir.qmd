@@ -1,7 +1,7 @@
 
 ---
-title: "Malle ERW — Bayesian C and d14C pool predictions (plot-only)"
-subtitle: "Saved five-predictor submodels: observed-versus-predicted plots, relative predictor importance and coefficient tables"
+title: "Malle ERW — Bayesian C and d14C pool predictions"
+subtitle: "Projpred-selected parsimonious models: observed-versus-predicted plots and relative predictor importance"
 format:
   html:
     toc: true
@@ -15,210 +15,187 @@ execute:
   message: false
 ---
 
-## Construction of Bayesian C and d¹⁴C models
+## Construction and selection of Bayesian C and d14C models
 
-The Bayesian C and d¹⁴C models were constructed using the integrated geochemical dataset (`integrated_geochemistry_for_bayesian.csv`) to fit eight separate regularised multiple-regression models for bulk soil, MAOM, oPOM and fPOM carbon concentrations and their corresponding 2026 Δ¹⁴C values. Candidate geochemical predictors were filtered for sufficient data availability (≥70% observed values), median-imputed, standardised, and screened to reduce severe multicollinearity (|r| > 0.95). Both predictors and responses were standardised for model fitting. Each model was specified as a Gaussian regression in Stan, with normally distributed slope priors (Normal(0, 0.5)), a Normal(0, 1) intercept prior and an exponential prior on the residual standard deviation. Models were fitted using four-chain MCMC via CmdStanR. Projection predictive variable selection (projpred) was then used to identify reduced predictor sets, which were independently refitted as three-, four- and five-predictor Bayesian models.
+Eight separate regularised Bayesian multiple-regression models were developed to investigate relationships between soil geochemical properties and carbon (C) and radiocarbon (d14C) responses in bulk soil, mineral-associated organic matter (MAOM), occluded particulate organic matter (oPOM), and free particulate organic matter (fPOM). The response variables comprised C_Bulk, C_MAOM, C_oPOM, C_fPOM and their corresponding 2026 d14C values.
 
-This plot-only document loads the saved five-predictor model predictions and coefficient summaries. It does not refit any Bayesian models.
+Candidate explanatory variables included soil chemical properties, aggregate stability indices, exchangeable and reducible cation fractions, oxalate-extractable mineral ratios, and Fourier-transform infrared (FTIR) spectral changes. Predictors were retained when at least 70% of observations were available. Remaining missing predictor values were imputed using the respective predictor median. Predictors exhibiting no variation were removed, and severe predictor multicollinearity was reduced by iteratively excluding one variable from predictor pairs with an absolute Pearson correlation coefficient exceeding 0.95. All predictors and response variables were standardised prior to model fitting.
 
-## Interpretation of model diagnostics and coefficient summaries
+The full reference models were specified as Gaussian multiple-regression models in Stan. The intercept was assigned a Normal(0, 1) prior, regression coefficients were assigned regularising Normal(0, 0.5) priors, and the residual standard deviation was assigned an exponential prior with rate 1. Models were fitted using four Markov chain Monte Carlo chains through CmdStanR, with 1,500 warm-up iterations and 2,000 retained sampling iterations per chain. Convergence was assessed using the potential scale reduction factor (R-hat), effective sample sizes, divergent transitions, and posterior predictive checks.
 
-The Bayesian models quantify associations between soil geochemical properties and carbon (C) and radiocarbon (d¹⁴C) responses across treatments. Posterior coefficient summaries (mean, median, standard deviation, and 95% credible intervals) are used to evaluate the direction, magnitude, and uncertainty of predictor associations and to assess proposed carbon stabilisation mechanisms. Because predictors are standardised, coefficients represent the expected change in the response, in its original units, associated with a one-standard-deviation increase in a predictor, conditional on the other predictors. Credible intervals that exclude zero and high posterior probabilities of a positive (`Pr_positive`) or negative (`Pr_negative`) coefficient indicate stronger evidence for an association in the corresponding direction, whereas intervals spanning zero indicate greater uncertainty in the direction of the effect. These associations should be interpreted as conditional relationships rather than causal effects.
+### Projection predictive variable selection and model parsimony
 
-Relative predictor importance is calculated from the absolute posterior mean standardised coefficients. Each predictor's absolute coefficient is expressed as a percentage of the sum of the absolute coefficients of all five predictors in the corresponding model. These percentages describe the relative magnitude of the fitted standardised associations within each model; they do not represent causal contributions or independent variance explained. The direction of each association is retained in the coefficient summary tables.
+Projection predictive variable selection was conducted using the `projpred` package. The full reference model posterior was used as the reference distribution for identifying reduced predictor combinations. A forward-search procedure evaluated increasingly complex submodels, with a maximum of five predictors considered. The predictive performance of candidate submodels was assessed using the projection predictive validation procedure.
 
-## Load saved model predictions and coefficient summaries
+To balance predictive performance and model complexity, the most parsimonious candidate model was selected using the one-standard-error (1-SE) criterion. Specifically, the smallest candidate submodel whose predictive performance was within one standard error of the best-performing candidate was retained. This approach favours a simpler model when the improvement in predictive performance from including additional predictors is not sufficiently substantial to justify the increased model complexity.
+
+The selected predictor combination was subsequently refitted as an independent Bayesian Gaussian regression model using the same standardisation procedures, regularising priors, and MCMC settings as the reference model. Thus, posterior coefficient estimates and fitted predictions presented here originate from the refitted selected model rather than directly from the projection step.
+
+### Interpretation of predictions and predictor importance
+
+Observed-versus-predicted plots display posterior mean fitted values together with 95% credible intervals for the fitted mean and 95% posterior predictive intervals. The shaded regions represent uncertainty in the estimated conditional mean, whereas the error bars represent the wider uncertainty associated with individual posterior predictive observations. Predictions are in-sample fitted predictions and should not be interpreted as independent external validation.
+
+Relative predictor importance was calculated using the absolute posterior mean standardised regression coefficients. For each selected model, the absolute coefficient of each predictor was divided by the sum of the absolute coefficients of all included predictors and multiplied by 100. Consequently, relative importance percentages sum to 100% within each model. These values provide a measure of the relative magnitude of conditional standardised associations and do not represent independent variance explained or causal contributions.
+
+Because the predictors and responses were standardised, regression coefficients describe the expected change in the standardised response associated with a one-standard-deviation increase in a predictor, conditional on the other selected predictors. Coefficient direction and uncertainty should therefore be considered alongside relative importance when interpreting the relationships.
+
+## Load selected best-model predictions and coefficients
+
+This document is plot-only. It loads the prediction and coefficient CSV files saved by the model-fitting script. No Bayesian models are refitted and no new variable-selection procedure is performed here.
 
 ```{r}
 library(tidyverse)
 library(here)
-library(knitr)
 library(patchwork)
 
-out_dir <- here::here("outputs", "bayesian_C_d14C_predictions_withftir")
+# -------------------------------------------------------------------------
+# Output directories
+# -------------------------------------------------------------------------
+
+out_dir <- here::here(
+  "outputs",
+  "bayesian_C_d14C_predictions_withftir"
+)
+
 table_dir <- file.path(out_dir, "tables")
 plot_dir <- file.path(out_dir, "plots")
 
-responses <- c(
-  "C_Bulk", "C_MAOM", "C_oPOM", "C_fPOM",
-  "d14C_2026_Bulk", "d14C_2026_MAOM",
-  "d14C_2026_oPOM", "d14C_2026_fPOM"
+if (!dir.exists(table_dir)) {
+  stop("Table directory does not exist: ", table_dir)
+}
+
+dir.create(
+  plot_dir,
+  recursive = TRUE,
+  showWarnings = FALSE
 )
+
+# -------------------------------------------------------------------------
+# Expected responses
+# -------------------------------------------------------------------------
+
+responses <- c(
+  "C_Bulk",
+  "C_MAOM",
+  "C_oPOM",
+  "C_fPOM",
+  "d14C_2026_Bulk",
+  "d14C_2026_MAOM",
+  "d14C_2026_oPOM",
+  "d14C_2026_fPOM"
+)
+
+# -------------------------------------------------------------------------
+# Filename helpers
+# -------------------------------------------------------------------------
 
 safe_name <- function(x) {
   x %>%
-    str_replace_all("[^A-Za-z0-9]+", "_") %>%
-    str_replace_all("^_|_$", "")
+    stringr::str_replace_all("[^A-Za-z0-9]+", "_") %>%
+    stringr::str_replace_all("^_|_$", "")
 }
 
-five_predictor_prediction_file <- function(response) {
+best_prediction_file <- function(response) {
   file.path(
     table_dir,
     paste0(
       "predictions_",
       safe_name(response),
-      "__projpred_5predictors.csv"
+      "__bestmod.csv"
     )
   )
 }
 
-five_predictor_coefficient_file <- function(response) {
+best_coefficient_file <- function(response) {
   file.path(
     table_dir,
     paste0(
       "coefficients_",
       safe_name(response),
-      "__projpred_5predictors.csv"
+      "__bestmod.csv"
     )
   )
 }
 
-missing_predictions <- responses[
-  !file.exists(map_chr(responses, five_predictor_prediction_file))
-]
+# -------------------------------------------------------------------------
+# Check available best-model outputs
+# -------------------------------------------------------------------------
 
-missing_coefficients <- responses[
-  !file.exists(map_chr(responses, five_predictor_coefficient_file))
-]
+prediction_files <- setNames(
+  map_chr(responses, best_prediction_file),
+  responses
+)
 
-if (length(missing_predictions)) {
-  warning(
-    "Prediction CSVs not found for: ",
-    paste(missing_predictions, collapse = ", ")
-  )
-}
-
-if (length(missing_coefficients)) {
-  warning(
-    "Coefficient CSVs not found for: ",
-    paste(missing_coefficients, collapse = ", ")
-  )
-}
+coefficient_files <- setNames(
+  map_chr(responses, best_coefficient_file),
+  responses
+)
 
 available_responses <- responses[
-  file.exists(map_chr(responses, five_predictor_prediction_file))
-]
-
-available_coefficient_responses <- responses[
-  file.exists(map_chr(responses, five_predictor_coefficient_file))
+  file.exists(prediction_files)
 ]
 
 if (length(available_responses) == 0L) {
   stop(
-    "No five-predictor prediction CSVs found in: ",
-    table_dir,
-    ". Expected files like predictions_C_Bulk__projpred_5predictors.csv"
+    "No best-model prediction CSVs were found.\n",
+    "Expected files such as:\n",
+    "predictions_C_Bulk__bestmod.csv\n",
+    "in: ", table_dir,
+    "\nRun the updated Bayesian model-fitting script first."
   )
 }
 
-if (!dir.exists(plot_dir)) {
-  dir.create(plot_dir, recursive = TRUE)
+missing_predictions <- setdiff(
+  responses,
+  available_responses
+)
+
+if (length(missing_predictions) > 0L) {
+  message(
+    "Best-model predictions unavailable for: ",
+    paste(missing_predictions, collapse = ", ")
+  )
 }
+
+available_coefficient_responses <- responses[
+  file.exists(coefficient_files)
+]
+
+missing_coefficients <- setdiff(
+  available_responses,
+  available_coefficient_responses
+)
+
+if (length(missing_coefficients) > 0L) {
+  stop(
+    "Best-model coefficient CSVs are missing for: ",
+    paste(missing_coefficients, collapse = ", "),
+    "\nBoth prediction and coefficient CSVs are required ",
+    "to generate the combined plots."
+  )
+}
+
+message(
+  "Best models available for ",
+  length(available_responses),
+  " responses."
+)
+
+message(
+  "Plot output directory: ",
+  plot_dir
+)
 ```
 
-## Relative importance calculation
+## Relative predictor importance
 
-The function below identifies the predictor-name column and standardised coefficient column in each saved coefficient CSV.
-
-It prioritises explicitly labelled standardised coefficient columns. If the fitting script saved the standardised model coefficients under `mean`, that column is used as a fallback, provided a separate original-response coefficient column is available or no explicitly labelled standardised column exists.
+The relative importance of each predictor is calculated from the absolute posterior mean standardised regression coefficients of the selected model.
 
 ```{r}
 
-identify_standardised_coefficient_column <- function(coef_tbl) {
-
-  nms <- names(coef_tbl)
-
-  # The saved Estimate column contains the posterior mean
-  # coefficients from the model fitted using standardised
-  # predictors AND standardised responses.
-  if ("Estimate" %in% nms) {
-    return("Estimate")
-  }
-
-  if ("mean_standardized" %in% nms) {
-    return("mean_standardized")
-  }
-
-  if ("mean_standardised" %in% nms) {
-    return("mean_standardised")
-  }
-
-  if ("mean_std" %in% nms) {
-    return("mean_std")
-  }
-
-  if ("beta_std" %in% nms) {
-    return("beta_std")
-  }
-
-  stop(
-    "Could not identify the standardised coefficient column. ",
-    "Available columns: ",
-    paste(nms, collapse = ", ")
-  )
-}
-
-
-# Identify the posterior mean of the standardised coefficient.
-identify_standardised_coefficient_column <- function(coef_tbl) {
-
-  nms <- names(coef_tbl)
-
-  # Explicitly named standardised coefficient columns are preferred.
-  preferred <- c(
-    "mean_standardized",
-    "mean_standardised",
-    "mean_std",
-    "standardized_mean",
-    "standardised_mean",
-    "estimate_standardized",
-    "estimate_standardised",
-    "estimate_std",
-    "beta_standardized",
-    "beta_standardised",
-    "beta_std",
-    "standardized_coefficient",
-    "standardised_coefficient",
-    "mean_standardized_response",
-    "mean_standardised_response"
-  )
-
-  found <- preferred[preferred %in% nms]
-
-  if (length(found) > 0L) {
-    return(found[1])
-  }
-
-  # Also allow alternative naming conventions containing
-  # standardised/std and mean/estimate/coefficient.
-  standardised_candidates <- nms[
-    str_detect(
-      tolower(nms),
-      "(standard|standardised|standardized|std).*(mean|estimate|coef|beta)|(mean|estimate|coef|beta).*(standard|standardised|standardized|std)"
-    )
-  ]
-
-  if (length(standardised_candidates) > 0L) {
-    return(standardised_candidates[1])
-  }
-
-  # Fallback: the ordinary posterior mean is used when the
-  # coefficient CSV also contains separately labelled original-
-  # response coefficients, or when no alternative mean exists.
-  if ("mean" %in% nms) {
-    return("mean")
-  }
-
-  if ("median" %in% nms) {
-    return("median")
-  }
-
-  stop(
-    "Could not identify a standardised coefficient column. Available columns: ",
-    paste(nms, collapse = ", "),
-    ". Please check the coefficient CSV structure."
-  )
-}
+# -------------------------------------------------------------------------
+# Identify predictor and coefficient columns
+# -------------------------------------------------------------------------
 
 identify_predictor_column <- function(coef_tbl) {
 
@@ -227,29 +204,29 @@ identify_predictor_column <- function(coef_tbl) {
     "Predictor",
     "predictor",
     "variable",
-    "Variable",
-    "parameter",
-    "Parameter",
-    "covariate",
-    "Covariate"
+    "Variable"
   )
 
-  found_column <- possible_columns[
+  found <- possible_columns[
     possible_columns %in% names(coef_tbl)
   ]
 
-  if (length(found_column) == 0) {
+  if (length(found) == 0L) {
     stop(
-      "Could not identify the predictor column. Available columns: ",
+      "Could not identify predictor column. Available columns: ",
       paste(names(coef_tbl), collapse = ", ")
     )
   }
 
-  found_column[1]
+  found[1]
 }
 
 
 identify_standardised_coefficient_column <- function(coef_tbl) {
+
+  # The fitting script stores posterior mean coefficients
+  # in Estimate, estimated on standardised predictor and
+  # standardised response scales.
 
   possible_columns <- c(
     "Estimate",
@@ -259,36 +236,44 @@ identify_standardised_coefficient_column <- function(coef_tbl) {
     "beta_std"
   )
 
-  found_column <- possible_columns[
+  found <- possible_columns[
     possible_columns %in% names(coef_tbl)
   ]
 
-  if (length(found_column) == 0) {
+  if (length(found) == 0L) {
     stop(
-      "Could not identify the standardised coefficient column. ",
+      "Could not identify standardised coefficient column. ",
       "Available columns: ",
       paste(names(coef_tbl), collapse = ", ")
     )
   }
 
-  found_column[1]
+  found[1]
 }
 
+
+# -------------------------------------------------------------------------
+# Calculate relative importance
+# -------------------------------------------------------------------------
 
 calculate_relative_importance <- function(coef_tbl, response) {
 
   predictor_col <- identify_predictor_column(coef_tbl)
 
-  coefficient_col <- identify_standardised_coefficient_column(coef_tbl)
+  coefficient_col <- identify_standardised_coefficient_column(
+    coef_tbl
+  )
 
   importance_tbl <- coef_tbl %>%
     transmute(
       Predictor = as.character(.data[[predictor_col]]),
-      Standardised_coefficient = as.numeric(.data[[coefficient_col]])
+      Standardised_coefficient = as.numeric(
+        .data[[coefficient_col]]
+      )
     ) %>%
     filter(
       !is.na(Predictor),
-      !is.na(Standardised_coefficient)
+      is.finite(Standardised_coefficient)
     ) %>%
     filter(
       !str_detect(
@@ -297,13 +282,10 @@ calculate_relative_importance <- function(coef_tbl, response) {
       )
     )
 
-  if (nrow(importance_tbl) != 5L) {
+  if (nrow(importance_tbl) == 0L) {
     stop(
-      "Expected exactly five predictor coefficients for ",
-      response,
-      ", but found ",
-      nrow(importance_tbl),
-      ". Check the coefficient CSV."
+      "No predictor coefficients found for ",
+      response
     )
   }
 
@@ -311,12 +293,13 @@ calculate_relative_importance <- function(coef_tbl, response) {
     abs(importance_tbl$Standardised_coefficient)
   )
 
-  if (!is.finite(total_absolute_coefficient) ||
-      total_absolute_coefficient == 0) {
+  if (
+    !is.finite(total_absolute_coefficient) ||
+    total_absolute_coefficient <= 0
+  ) {
     stop(
-      "Cannot calculate relative importance for ",
-      response,
-      ": total absolute standardised coefficient is zero or invalid."
+      "Invalid total absolute coefficient magnitude for ",
+      response
     )
   }
 
@@ -334,81 +317,27 @@ calculate_relative_importance <- function(coef_tbl, response) {
       )
     )
 }
-# Calculate relative importance from the five standardised coefficients.
-
-calculate_relative_importance <- function(coef_tbl, response) {
-
-  predictor_col <- identify_predictor_column(coef_tbl)
-  coefficient_col <- identify_standardised_coefficient_column(coef_tbl)
-
-  importance_tbl <- coef_tbl %>%
-    transmute(
-      Predictor = as.character(.data[[predictor_col]]),
-      Standardised_coefficient = as.numeric(.data[[coefficient_col]])
-    ) %>%
-    filter(
-      !is.na(Predictor),
-      !is.na(Standardised_coefficient)
-    ) %>%
-    filter(
-      !str_detect(
-        tolower(Predictor),
-        "intercept|^alpha$|^sigma$|residual|^lp__$"
-      )
-    )
-
-  if (nrow(importance_tbl) != 5L) {
-    stop(
-      "Expected exactly five predictor coefficients for ",
-      response,
-      ", but found ",
-      nrow(importance_tbl),
-      ". Check the coefficient CSV."
-    )
-  }
-
-  total_absolute_coefficient <- sum(
-    abs(importance_tbl$Standardised_coefficient)
-  )
-
-  if (!is.finite(total_absolute_coefficient) ||
-      total_absolute_coefficient == 0) {
-    stop(
-      "Cannot calculate relative importance for ",
-      response,
-      ": total absolute standardised coefficient is zero or invalid."
-    )
-  }
-
-  importance_tbl %>%
-    mutate(
-      Relative_importance = (
-        abs(Standardised_coefficient) /
-          total_absolute_coefficient
-      ) * 100
-    ) %>%
-    arrange(Relative_importance) %>%
-    mutate(
-      Predictor = factor(
-        Predictor,
-        levels = Predictor
-      )
-    )
-}
 
 ```
 
-## Five-predictor model observed-versus-predicted plots
+## Observed-versus-predicted plots of selected best models
 
-The plotted CSVs contain the saved observed values, posterior predicted means, 95% fitted-mean credible intervals, and 95% posterior predictive intervals. These are in-sample fitted predictions, not external validation.
+The upper panel displays observed versus posterior mean predicted values, including the 95% credible ribbon and 95% posterior predictive intervals. The lower panel displays the relative importance of the predictors retained in the selected model.
 
 ```{r}
 #| fig-width: 10
-#| fig-height: 9
-#| out-width: 90%
+#| fig-height: 10
+#| out-width: 95%
 #| dpi: 160
 
-plot_observed_predicted_saved <- function(pred, response) {
+# -------------------------------------------------------------------------
+# Upper panel: observed versus predicted
+# -------------------------------------------------------------------------
+
+plot_observed_predicted_bestmod <- function(
+    pred,
+    response
+) {
 
   required <- c(
     "observed",
@@ -420,11 +349,14 @@ plot_observed_predicted_saved <- function(pred, response) {
     "Treatment_model"
   )
 
-  absent <- setdiff(required, names(pred))
+  absent <- setdiff(
+    required,
+    names(pred)
+  )
 
-  if (length(absent)) {
+  if (length(absent) > 0L) {
     stop(
-      "Missing required prediction columns for ",
+      "Missing prediction columns for ",
       response,
       ": ",
       paste(absent, collapse = ", ")
@@ -432,13 +364,43 @@ plot_observed_predicted_saved <- function(pred, response) {
   }
 
   pred <- pred %>%
+    filter(
+      is.finite(observed),
+      is.finite(predicted_mean)
+    ) %>%
     arrange(observed) %>%
-    mutate(row_order = row_number())
+    mutate(
+      Treatment_model = factor(Treatment_model)
+    )
+
+  if (nrow(pred) == 0L) {
+    stop("No valid prediction observations for ", response)
+  }
+
+  model_size <- if ("n_predictors" %in% names(pred)) {
+    unique(pred$n_predictors)[1]
+  } else {
+    NA_integer_
+  }
+
+  model_subtitle <- if (is.finite(model_size)) {
+    paste0(
+      "Projpred-selected best model (",
+      model_size,
+      " predictors)"
+    )
+  } else {
+    "Projpred-selected best model"
+  }
 
   ggplot(
     pred,
-    aes(x = observed, y = predicted_mean)
+    aes(
+      x = observed,
+      y = predicted_mean
+    )
   ) +
+
     geom_ribbon(
       aes(
         ymin = fitted_lower_95,
@@ -447,6 +409,7 @@ plot_observed_predicted_saved <- function(pred, response) {
       fill = "grey70",
       alpha = 0.55
     ) +
+
     geom_errorbar(
       aes(
         ymin = predictive_lower_95,
@@ -456,11 +419,13 @@ plot_observed_predicted_saved <- function(pred, response) {
       alpha = 0.35,
       colour = "grey40"
     ) +
+
     geom_point(
       aes(shape = Treatment_model),
       size = 2.8,
       alpha = 0.9
     ) +
+
     geom_abline(
       intercept = 0,
       slope = 1,
@@ -468,19 +433,26 @@ plot_observed_predicted_saved <- function(pred, response) {
       linewidth = 0.7,
       colour = "black"
     ) +
+
     coord_equal() +
+
     labs(
-      title = paste("Observed vs Bayesian predicted:", response),
-      subtitle = paste(
-        "Projpred-selected five-predictor refit |",
-        "shaded = 95% fitted-mean credible interval;",
+      title = paste(
+        "Observed vs Bayesian predicted:",
+        response
+      ),
+      subtitle = paste0(
+        model_subtitle,
+        " | Shaded band = 95% credible interval for fitted mean; ",
         "whiskers = 95% posterior predictive interval"
       ),
       x = paste("Observed", response),
       y = paste("Predicted", response),
       shape = "Treatment"
     ) +
+
     theme_bw(base_size = 12) +
+
     theme(
       plot.title = element_text(face = "bold"),
       legend.position = "bottom",
@@ -489,8 +461,16 @@ plot_observed_predicted_saved <- function(pred, response) {
 }
 
 
-# Mini horizontal bar plot of relative predictor importance.
-plot_relative_importance <- function(importance_tbl, response) {
+# -------------------------------------------------------------------------
+# Lower panel: relative predictor importance
+# -------------------------------------------------------------------------
+
+plot_relative_importance_bestmod <- function(
+    importance_tbl,
+    response
+) {
+
+  n_predictors <- nrow(importance_tbl)
 
   ggplot(
     importance_tbl,
@@ -499,49 +479,60 @@ plot_relative_importance <- function(importance_tbl, response) {
       y = Predictor
     )
   ) +
+
     geom_col(
       fill = "#2878B5",
-      width = 0.65,
+      width = 0.72,
       alpha = 0.9
     ) +
+
     geom_text(
       aes(
-        label = sprintf("%.1f%%", Relative_importance)
+        label = sprintf(
+          "%.1f%%",
+          Relative_importance
+        )
       ),
       hjust = -0.15,
       size = 3.2
     ) +
+
     scale_x_continuous(
       limits = c(
         0,
-        max(importance_tbl$Relative_importance) * 1.25
+        max(importance_tbl$Relative_importance) * 1.20
       ),
-      expand = expansion(mult = c(0, 0.02))
+      expand = expansion(
+        mult = c(0, 0.02)
+      )
     ) +
+
     labs(
-      title = "Relative importance of the five predictors",
-      subtitle = paste(
-        "Absolute standardised posterior mean coefficients;",
-        "normalised to sum to 100%"
+      title = "Relative importance of selected predictors",
+      subtitle = paste0(
+        "Absolute standardised posterior mean coefficients; ",
+        n_predictors,
+        " predictors normalised to sum to 100%"
       ),
       x = "Relative importance (%)",
       y = NULL
     ) +
+
     theme_bw(base_size = 10) +
+
     theme(
       plot.title = element_text(
         face = "bold",
-        size = 10
+        size = 11
       ),
       plot.subtitle = element_text(size = 8.5),
       axis.text.y = element_text(size = 8.5),
       axis.text.x = element_text(size = 8),
-      axis.title.x = element_text(size = 9),
       panel.grid.major.y = element_blank(),
       panel.grid.minor = element_blank(),
       plot.margin = margin(
-        t = 2,
-        r = 12,
+        t = 5,
+        r = 25,
         b = 5,
         l = 5
       )
@@ -549,116 +540,167 @@ plot_relative_importance <- function(importance_tbl, response) {
 }
 
 
-# Load saved prediction and coefficient CSVs, combine plots,
-# display them in the HTML document, and save them as PNG files.
+# -------------------------------------------------------------------------
+# Generate all selected best-model plots
+# -------------------------------------------------------------------------
+
+best_model_plot_list <- list()
+
 for (response in available_responses) {
 
+  message(
+    "\nGenerating best-model plot for: ",
+    response
+  )
+
+  # Load predictions
   pred <- readr::read_csv(
-    five_predictor_prediction_file(response),
+    best_prediction_file(response),
     show_col_types = FALSE
   )
 
-  observed_plot <- plot_observed_predicted_saved(
+  # Load coefficients
+  coef_tbl <- readr::read_csv(
+    best_coefficient_file(response),
+    show_col_types = FALSE
+  )
+
+  # Calculate relative importance
+  importance_tbl <- calculate_relative_importance(
+    coef_tbl,
+    response
+  )
+
+  # Generate upper panel
+  observed_plot <- plot_observed_predicted_bestmod(
     pred,
     response
   )
 
-  if (response %in% available_coefficient_responses) {
+  # Generate lower panel
+  importance_plot <- plot_relative_importance_bestmod(
+    importance_tbl,
+    response
+  )
 
-    coef_tbl <- readr::read_csv(
-      five_predictor_coefficient_file(response),
-      show_col_types = FALSE
-    )
+  # Combine panels
+  combined_plot <- observed_plot /
+    importance_plot +
 
-    importance_tbl <- calculate_relative_importance(
-      coef_tbl,
-      response
-    )
-
-    importance_plot <- plot_relative_importance(
-      importance_tbl,
-      response
-    )
-
-    combined_plot <- observed_plot /
-      importance_plot +
-      plot_layout(
-        heights = c(3.2, 1.5)
+    plot_layout(
+      heights = c(
+        3,
+        max(1.1, 0.20 * nrow(importance_tbl))
       )
+    ) +
 
-  } else {
-
-    warning(
-      "No coefficient CSV found for ",
-      response,
-      ". Showing observed-versus-predicted plot only."
+    plot_annotation(
+      caption = paste0(
+        "Relative importance is calculated from absolute posterior ",
+        "mean standardised coefficients. Percentages sum to 100% ",
+        "within each selected model and do not represent variance ",
+        "explained or causal contributions."
+      ),
+      theme = theme(
+        plot.caption = element_text(
+          size = 8,
+          colour = "grey35",
+          hjust = 0
+        )
+      )
     )
 
-    combined_plot <- observed_plot
-  }
-
+  # Display in rendered HTML
   print(combined_plot)
 
+  # Save plot
+  output_file <- file.path(
+    plot_dir,
+    paste0(
+      "Observed_vs_Predicted_with_Relative_Importance_",
+      safe_name(response),
+      "_bestmod.png"
+    )
+  )
+
+  output_height <- max(
+    8,
+    6.2 + 0.20 * nrow(importance_tbl)
+  )
+
   ggsave(
-    filename = file.path(
+    filename = output_file,
+    plot = combined_plot,
+    width = 10,
+    height = output_height,
+    dpi = 320,
+    limitsize = FALSE,
+    bg = "white"
+  )
+
+  best_model_plot_list[[response]] <- combined_plot
+
+  message(
+    "Saved: ",
+    output_file
+  )
+}
+
+```
+
+## Best-model plot summary
+
+```{r}
+plot_summary <- tibble(
+  response = available_responses,
+  prediction_file = map_chr(
+    available_responses,
+    best_prediction_file
+  ),
+  coefficient_file = map_chr(
+    available_responses,
+    best_coefficient_file
+  ),
+  plot_file = map_chr(
+    available_responses,
+    ~ file.path(
       plot_dir,
       paste0(
         "Observed_vs_Predicted_with_Relative_Importance_",
-        safe_name(response),
-        ".png"
-      )
-    ),
-    plot = combined_plot,
-    width = 10,
-    height = 9,
-    dpi = 300,
-    bg = "white"
-  )
-}
-```
-
-## Coefficient summaries — five-predictor models
-
-Each table is loaded directly from its corresponding saved coefficient CSV. The original-response coefficient columns and credible intervals are retained as supplied by the model-fitting script.
-
-```{r}
-#| results: asis
-
-if (length(available_coefficient_responses) == 0L) {
-
-  cat(
-    "**No five-predictor coefficient summary CSVs were found in:** `",
-    table_dir,
-    "`",
-    sep = ""
-  )
-
-} else {
-
-  for (response in available_coefficient_responses) {
-
-    coef_tbl <- readr::read_csv(
-      five_predictor_coefficient_file(response),
-      show_col_types = FALSE
-    )
-
-    cat("\n\n### ", response, "\n\n", sep = "")
-
-    cat(
-      knitr::kable(
-        coef_tbl,
-        format = "html",
-        digits = 3,
-        caption = paste(
-          "Saved coefficient summary —",
-          response,
-          "(projpred-selected five-predictor refit)"
-        ),
-        table.attr = 'class="table table-striped table-hover"'
+        safe_name(.x),
+        "_bestmod.png"
       )
     )
+  )
+)
 
-    cat("\n\n")
-  }
-}
+knitr::kable(
+  plot_summary,
+  caption = "Generated observed-versus-predicted plots for the selected best models",
+  format = "html"
+)
+
 ```
+
+## Interpretation and limitations
+
+The selected models provide a parsimonious representation of the relationships between soil geochemical properties and carbon and radiocarbon responses. Predictor importance should be interpreted in conjunction with coefficient direction, posterior uncertainty, and the underlying soil processes.
+
+The one-standard-error selection criterion favours reduced model complexity when additional predictors provide limited improvements in predictive performance. Nevertheless, the selected models represent conditional statistical associations and do not independently establish causal mechanisms.
+
+The observed-versus-predicted plots are based on the observations used to fit the selected models. Accordingly, their agreement with observed values should not be interpreted as an unbiased estimate of out-of-sample predictive accuracy. The projection predictive validation results should be used when discussing predictive performance and model selection.
+
+```
+
+## Important before rendering
+
+There are two things to ensure in the model-fitting script:
+
+- It must actually apply the 1-SE parsimony rule when choosing the best model, rather than simply choosing the three-predictor model or automatically using five predictors.
+- It must save the selected model's predictions and coefficients using the `__bestmod.csv` naming convention above.
+
+The QMD deliberately does not perform model selection again: it only visualises the saved, selected models. This keeps model fitting and figure generation separate and reproducible.
+
+**One methodological caution:** the Methods paragraph's 1-SE description should only be retained if that is the criterion implemented in your updated fitting script. The original script you supplied did not yet implement it.
+
+I can also align the fitting script and this QMD line by line so that the selection criterion, saved CSVs, model sizes and plotted results are guaranteed to match. <MemoryCite />

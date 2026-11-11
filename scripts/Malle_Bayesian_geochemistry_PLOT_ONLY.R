@@ -1,60 +1,46 @@
+
 # =============================================================================
-# MALLE ERW: Bayesian treatment comparisons of integrated dataset
+# MALLE ERW: BAYESIAN GEOCHEMISTRY TREATMENT COMPARISONS
+# PLOT-ONLY SCRIPT
 #
-# Purpose:
-#   Compare Control, Lime, HB 50, EG 50 and BD 50 using Bayesian regression.
-#   Generate Hühnerberg dose-response line plots across application rates.
+# PURPOSE:
+#   Load saved Bayesian geochemistry treatment comparisons and generate:
 #
-# Included response categories:
-#   A. Soil chemistry
-#   B. CEC and exchangeable cations
-#   C. Oxalate/DCB-extractable pools and ratios
-#   D. Tessier carbonate fractions (Acetic acid)
-#   E. Tessier exchangeable fractions (NH4OAc)
-#   F. Tessier oxidizable fractions (H2O2)
-#   G. Tessier reducible fractions (Hydroxylamine)
-#   H. Aggregate stability indices
-#   I. FTIR spectral changes
-#   J. Carbon stocks
-#   K. Radiocarbon signatures
+#   1. Primary treatment-vs-Control forest plots
+#   2. All-pairwise treatment forest plots
+#   3. Raw-data treatment violin plots
+#   4. Hühnerberg dose-response plots
+#   5. Posterior treatment density distributions (if posterior draws saved)
+#   6. Posterior treatment-contrast density distributions (if contrast draws saved)
 #
-# Comparisons:
-#   1. All pairwise treatment comparisons (grouped by parameter type)
-#   2. Primary treatment-vs-Control comparisons (Lime, HB 50, EG 50, BD 50 minus Control)
+# IMPORTANT:
+#   This script does NOT fit models, compile Stan or generate posterior draws.
 #
-# Model:
-#   Standardized response ~ 0 + Treatment_PCA
-#   Student-t likelihood, df = 4
-#   Regularizing priors
+#   Posterior density plots are generated only from actual saved posterior
+#   draws. Summary statistics are not used to reconstruct distributions.
 #
-# Outputs:
-#   Posterior treatment means
-#   All pairwise treatment contrasts (grouped by parameter type)
-#   Primary Control-vs contrasts with CSV significance flag (* if 95% CI excludes 0 & prob > 0.75)
-#   Standardized forest plots (no stars)
-#   Hühnerberg dose-response line plots across application rates
+# TREATMENTS:
+#   Control, Lime, HB 50, EG 50, BD 50
+#
 # =============================================================================
 
 
-# ---- Code section 24: Bayesian treatment comparisons ------------------------
-
 # =============================================================================
-# 24.1 Packages
+# 1. PACKAGES
 # =============================================================================
 
-library(dplyr)
-library(tidyr)
-library(purrr)
-library(ggplot2)
-library(readr)
-library(tibble)
-library(here)
+suppressPackageStartupMessages({
+  
+  library(tidyverse)
+  library(here)
+  
+})
 
 
 # =============================================================================
-# 24.2 Output directories
+# 2. PATHS
 # =============================================================================
-csv_dir <- here::here("csv_files")
+
 outputs_dir <- here::here("outputs")
 
 bayesian_treatment_out_dir <- file.path(
@@ -62,32 +48,9 @@ bayesian_treatment_out_dir <- file.path(
   "Bayesian_treatment_comparisons"
 )
 
-bayesian_treatment_models_dir <- file.path(
-  bayesian_treatment_out_dir,
-  "models"
-)
-
 bayesian_treatment_plots_dir <- file.path(
   bayesian_treatment_out_dir,
   "plots"
-)
-
-bayesian_treatment_diagnostics_dir <- file.path(
-  bayesian_treatment_out_dir,
-  "diagnostics"
-)
-
-
-dir.create(
-  bayesian_treatment_out_dir,
-  recursive = TRUE,
-  showWarnings = FALSE
-)
-
-dir.create(
-  bayesian_treatment_models_dir,
-  recursive = TRUE,
-  showWarnings = FALSE
 )
 
 dir.create(
@@ -96,35 +59,23 @@ dir.create(
   showWarnings = FALSE
 )
 
-dir.create(
-  bayesian_treatment_diagnostics_dir,
-  recursive = TRUE,
-  showWarnings = FALSE
-)
-
 
 # =============================================================================
-# 24.0 Load integrated Malle ERW dataset
+# 3. LOAD INTEGRATED DATASET
 # =============================================================================
 
 integrated <- read_csv(
-  here::here(
-    "outputs",
+  file.path(
+    outputs_dir,
     "integrated_geochemistry_for_bayesian.csv"
   ),
   na = c("", "NA", "#VALUE!"),
   show_col_types = FALSE
 )
 
-# Check dataset
-glimpse(integrated)
-
-# Check treatment labels
-print(unique(integrated$Treatment))
-
 
 # =============================================================================
-# 24.3 Define treatment selection
+# 4. TREATMENT SELECTION
 # =============================================================================
 
 bayesian_treatment_levels <- c(
@@ -137,6 +88,7 @@ bayesian_treatment_levels <- c(
 
 
 bayesian_treatment_data <- integrated %>%
+  
   filter(
     Treatment == "Control" |
       grepl("^Lime", Treatment) |
@@ -146,235 +98,41 @@ bayesian_treatment_data <- integrated %>%
         "Bolsdorfer_50"
       )
   ) %>%
+  
   mutate(
+    
     Treatment_PCA = case_when(
+      
       Treatment == "Control" ~ "Control",
+      
       grepl("^Lime", Treatment) ~ "Lime",
+      
       Treatment == "Huhnerberg_50" ~ "HB 50",
+      
       Treatment == "Eifelgold_50" ~ "EG 50",
+      
       Treatment == "Bolsdorfer_50" ~ "BD 50",
+      
       TRUE ~ NA_character_
+      
     )
+    
   ) %>%
+  
   filter(!is.na(Treatment_PCA)) %>%
+  
   mutate(
+    
     Treatment_PCA = factor(
       Treatment_PCA,
       levels = bayesian_treatment_levels
     )
+    
   )
 
 
-# Check treatment replicate numbers
-bayesian_treatment_replicates <- bayesian_treatment_data %>%
-  count(Treatment_PCA, name = "n")
-
-print(bayesian_treatment_replicates)
-
-write_csv(
-  bayesian_treatment_replicates,
-  file.path(bayesian_treatment_out_dir, "treatment_replicate_counts.csv")
-)
-
-
 # =============================================================================
-# 24.4 Define response variables and categorized parameter lists
-# =============================================================================
-
-parameter_categories <- list(
-  "Soil_Chemistry" = c(
-    "soil_pH",
-    "soil_EC"
-  ),
-  "CEC_Cations" = c(
-    "CEC_CEC",
-    "CEC_Base_saturation",
-    "CEC_H",
-    "CEC_Ca",
-    "CEC_K",
-    "CEC_Mg",
-    "CEC_Na",
-    "CEC_Al",
-    "CEC_Fe",
-    "CEC_Mn"
-  ),
-  "Oxalate_Pools_Ratios" = c(
-    "Fe_ox_over_DCB",
-    "Al_ox_over_DCB",
-    "Mn_ox_over_DCB",
-    "Si_ox_over_DCB",
-    "Fe_ox_over_Si_ox",
-    "Al_ox_over_Si_ox"
-  ),
-  "Tessier_Carbonate" = c(
-    "Tessier_Acetic_Ca_mg_g",
-    "Tessier_Acetic_K_mg_g",
-    "Tessier_Acetic_Na_mg_g",
-    "Tessier_Acetic_Mg_mg_g"
-  ),
-  "Tessier_Exchangeable" = c(
-    "Tessier_NH4OAc_Ca_mg_g",
-    "Tessier_NH4OAc_K_mg_g",
-    "Tessier_NH4OAc_Na_mg_g",
-    "Tessier_NH4OAc_Mg_mg_g"
-  ),
-  "Tessier_Oxidizable" = c(
-    "Tessier_H2O2_Fe_mg_g",
-    "Tessier_H2O2_Al_mg_g",
-    "Tessier_H2O2_Mn_mg_g",
-    "Tessier_H2O2_Si_mg_g"
-  ),
-  "Tessier_Reducible" = c(
-    "Tessier_Hydroxylamine_Fe_mg_g",
-    "Tessier_Hydroxylamine_Al_mg_g",
-    "Tessier_Hydroxylamine_Mn_mg_g",
-    "Tessier_Hydroxylamine_Si_mg_g"
-  ),
-  "Aggregate_Stability" = c(
-    "GMD_h2o",
-    "D_h2o",
-    "MWD_h2o",
-    "GMD_oxalate_over_h2o",
-    "D_oxalate_over_h2o",
-    "MWD_oxalate_over_h2o"
-  ),
-  "FTIR_Spectral" = c(
-    "FTIR_delta_aromatic",
-    "FTIR_delta_Carbonate_bend",
-    "FTIR_delta_carbonate_stretch",
-    "FTIR_delta_carbonyl",
-    "FTIR_delta_Aliphatic_total",
-    "FTIR_delta_COO_total",
-    "FTIR_delta_polysaccharide",
-    "FTIR_delta_poorly_crystalline",
-    "FTIR_delta_Silicate",
-    "FTIR_delta_total_area"
-  ),
-  "Carbon_Stocks" = c(
-    "C_Bulk",
-    "C_MAOM",
-    "C_oPOM",
-    "C_fPOM"
-  ),
-  "Radiocarbon_Signatures" = c(
-    "d14C_2026_Bulk",
-    "d14C_2026_MAOM",
-    "d14C_2026_oPOM",
-    "d14C_2026_fPOM"
-  )
-)
-
-bayesian_treatment_parameters <- unname(unlist(parameter_categories))
-
-# Retain only variables present in integrated dataset
-bayesian_treatment_parameters_available <- intersect(
-  bayesian_treatment_parameters,
-  names(bayesian_treatment_data)
-)
-
-bayesian_treatment_parameters_missing <- setdiff(
-  bayesian_treatment_parameters,
-  names(bayesian_treatment_data)
-)
-
-if (length(bayesian_treatment_parameters_missing) > 0) {
-  warning(
-    "Variables not found in integrated: ",
-    paste(bayesian_treatment_parameters_missing, collapse = ", ")
-  )
-}
-
-cat("\nNumber of response variables available:", length(bayesian_treatment_parameters_available), "\n")
-
-
-# =============================================================================
-# 24.5 Define pairwise and primary comparisons (Strictly Versus Control)
-# =============================================================================
-
-# All 10 pairwise comparisons
-bayesian_treatment_all_pairs <- combn(
-  bayesian_treatment_levels,
-  2,
-  simplify = FALSE
-) %>%
-  map_dfr(
-    function(x) {
-      tibble(
-        Treatment_1 = x[1],
-        Treatment_2 = x[2]
-      )
-    }
-  ) %>%
-  mutate(
-    Comparison = paste(Treatment_1, "minus", Treatment_2)
-  )
-
-# Primary comparisons: Each treatment minus Control (Lime, HB 50, EG 50, BD 50 minus Control)
-bayesian_treatment_primary_pairs <- tibble(
-  Treatment_1 = c("Lime", "HB 50", "EG 50", "BD 50"),
-  Treatment_2 = c("Control", "Control", "Control", "Control")
-) %>%
-  mutate(
-    Comparison = paste(Treatment_1, "minus", Treatment_2)
-  )
-
-print(bayesian_treatment_all_pairs)
-print(bayesian_treatment_primary_pairs)
-
-
-# =============================================================================
-
-# =============================================================================
-# PLOT-ONLY MODE: LOAD SAVED POSTERIOR SUMMARIES
-# =============================================================================
-# This script deliberately does NOT compile Stan or fit/sample any models.
-# Required inputs are the saved CSV summaries from the full modelling script
-# and the integrated dataset used for the raw-data violin/dose plots.
-
-primary_csv <- file.path(
-  bayesian_treatment_out_dir,
-  "Bayesian_primary_basalt_vs_Control_Lime.csv"
-)
-pairwise_csv <- file.path(
-  bayesian_treatment_out_dir,
-  "Bayesian_all_pairwise_treatment_contrasts.csv"
-)
-means_csv <- file.path(
-  bayesian_treatment_out_dir,
-  "Bayesian_treatment_posterior_means.csv"
-)
-
-required_saved_files <- c(primary_csv, pairwise_csv, means_csv)
-missing_saved_files <- required_saved_files[!file.exists(required_saved_files)]
-if (length(missing_saved_files) > 0) {
-  stop(
-    "Missing saved Bayesian output file(s):\n",
-    paste(missing_saved_files, collapse = "\n"),
-    "\n\nRun the full Bayesian modelling script once to create these files."
-  )
-}
-
-primary_contrasts <- readr::read_csv(primary_csv, show_col_types = FALSE)
-pairwise_contrasts <- readr::read_csv(pairwise_csv, show_col_types = FALSE)
-bayesian_treatment_means_all <- readr::read_csv(means_csv, show_col_types = FALSE)
-
-cat("\nLoaded saved posterior summaries. No models will be fitted.\n")
-
-
-# =============================================================================
-# 5. DEFINE PLOT GROUPS
-# =============================================================================
-#
-# Each group produces:
-#   - one primary forest plot
-#   - one all-pairwise forest plot
-#   - one violin plot
-#   - one dose-response plot, where dose-response data are available
-#
-# Carbon stocks and radiocarbon signatures are combined so that each SOM
-# fraction can be compared across C stocks and d14C.
-#
-# The four Tessier extractants are kept separate.
+# 5. RESPONSE GROUPS
 # =============================================================================
 
 plot_groups <- list(
@@ -466,67 +224,29 @@ plot_groups <- list(
     "d14C_2026_oPOM",
     "d14C_2026_fPOM"
   )
+  
 )
 
-
-# Retain only response variables actually present in the integrated dataset.
 
 plot_groups_available <- lapply(
   plot_groups,
-  function(x) {
-    intersect(x, names(bayesian_treatment_data))
-  }
+  function(x) intersect(x, names(bayesian_treatment_data))
 )
-
-# Remove empty groups.
 
 plot_groups_available <- plot_groups_available[
   lengths(plot_groups_available) > 0
 ]
 
 
-# Report missing variables.
-
-all_requested_responses <- unique(
-  unlist(plot_groups, use.names = FALSE)
-)
-
-all_available_responses <- unique(
+plot_responses <- unique(
   unlist(plot_groups_available, use.names = FALSE)
 )
 
-missing_responses <- setdiff(
-  all_requested_responses,
-  names(bayesian_treatment_data)
-)
-
-if (length(missing_responses) > 0) {
-  cat("\nWARNING: The following requested responses are absent:\n")
-  print(missing_responses)
-}
-
-
-cat("\nAvailable plot groups:\n")
-
-for (g in names(plot_groups_available)) {
-  cat(
-    "\n",
-    g,
-    ": ",
-    length(plot_groups_available[[g]]),
-    " responses\n",
-    sep = ""
-  )
-  print(plot_groups_available[[g]])
-}
-
-
 
 # =============================================================================
-# PLOT LABELS, UNITS AND TREATMENT COLOURS
+# 6. COLOURS AND DISPLAY LABELS
 # =============================================================================
 
-# Control is neutral grey; the four amendments use the requested colours.
 treatment_colours <- c(
   "Control" = "#777777",
   "Lime" = "#78A641",
@@ -535,6 +255,7 @@ treatment_colours <- c(
   "BD 50" = "#2878B5"
 )
 
+
 treatment_display <- c(
   "Control" = "Control",
   "Lime" = "Lime",
@@ -542,6 +263,7 @@ treatment_display <- c(
   "EG 50" = "Eifelgold",
   "BD 50" = "Bolsdorfer"
 )
+
 
 group_display <- c(
   Soil_Chemistry = "Soil chemistry",
@@ -556,18 +278,19 @@ group_display <- c(
   Carbon_and_Radiocarbon = "Carbon and radiocarbon"
 )
 
-# Units are shown in each facet heading because several panels in a grouped
-# figure have different units. This avoids assigning one misleading unit to
-# the entire shared axis.
+
 response_display <- c(
+  
   soil_pH = "Soil pH (no units)",
   soil_EC = "Soil EC (µS cm⁻¹)",
+  
   GMD_h2o = "GMD-H₂O (mm)",
   D_h2o = "D-H₂O (no units)",
   MWD_h2o = "MWD-H₂O (mm)",
   GMD_oxalate_over_h2o = "GMD-Oxalate / GMD-H₂O (no units)",
   D_oxalate_over_h2o = "D-Oxalate / D-H₂O (no units)",
   MWD_oxalate_over_h2o = "MWD-Oxalate / MWD-H₂O (no units)",
+  
   CEC_CEC = "CEC (cmolc kg⁻¹)",
   CEC_Base_saturation = "Base saturation (%)",
   CEC_H = "Exchangeable H (cmolc kg⁻¹)",
@@ -578,28 +301,34 @@ response_display <- c(
   CEC_Al = "Exchangeable Al (cmolc kg⁻¹)",
   CEC_Fe = "Exchangeable Fe (cmolc kg⁻¹)",
   CEC_Mn = "Exchangeable Mn (cmolc kg⁻¹)",
+  
   Fe_ox_over_DCB = "Fe-ox / Fe-DCB (no units)",
   Al_ox_over_DCB = "Al-ox / Al-DCB (no units)",
   Mn_ox_over_DCB = "Mn-ox / Mn-DCB (no units)",
   Si_ox_over_DCB = "Si-ox / Si-DCB (no units)",
   Fe_ox_over_Si_ox = "Fe-ox / Si-ox (no units)",
   Al_ox_over_Si_ox = "Al-ox / Si-ox (no units)",
+  
   Tessier_Acetic_Ca_mg_g = "Ca-Acetic (mg g⁻¹)",
   Tessier_Acetic_K_mg_g = "K-Acetic (mg g⁻¹)",
   Tessier_Acetic_Na_mg_g = "Na-Acetic (mg g⁻¹)",
   Tessier_Acetic_Mg_mg_g = "Mg-Acetic (mg g⁻¹)",
+  
   Tessier_NH4OAc_Ca_mg_g = "Ca-NH₄OAc (mg g⁻¹)",
   Tessier_NH4OAc_K_mg_g = "K-NH₄OAc (mg g⁻¹)",
   Tessier_NH4OAc_Na_mg_g = "Na-NH₄OAc (mg g⁻¹)",
   Tessier_NH4OAc_Mg_mg_g = "Mg-NH₄OAc (mg g⁻¹)",
+  
   Tessier_H2O2_Fe_mg_g = "Fe-H₂O₂ (mg g⁻¹)",
   Tessier_H2O2_Al_mg_g = "Al-H₂O₂ (mg g⁻¹)",
   Tessier_H2O2_Mn_mg_g = "Mn-H₂O₂ (mg g⁻¹)",
   Tessier_H2O2_Si_mg_g = "Si-H₂O₂ (mg g⁻¹)",
+  
   Tessier_Hydroxylamine_Fe_mg_g = "Fe-Hydroxylamine (mg g⁻¹)",
   Tessier_Hydroxylamine_Al_mg_g = "Al-Hydroxylamine (mg g⁻¹)",
   Tessier_Hydroxylamine_Mn_mg_g = "Mn-Hydroxylamine (mg g⁻¹)",
   Tessier_Hydroxylamine_Si_mg_g = "Si-Hydroxylamine (mg g⁻¹)",
+  
   FTIR_delta_aromatic = "Aromatic (no units)",
   FTIR_delta_Carbonate_bend = "Carbonate bend (no units)",
   FTIR_delta_carbonate_stretch = "Carbonate stretch (no units)",
@@ -610,42 +339,120 @@ response_display <- c(
   FTIR_delta_poorly_crystalline = "Amorphous (no units)",
   FTIR_delta_Silicate = "Silicate (no units)",
   FTIR_delta_total_area = "Total (no units)",
+  
   C_Bulk = "Bulk carbon (%)",
   C_MAOM = "MAOM carbon (%)",
   C_oPOM = "oPOM carbon (%)",
   C_fPOM = "fPOM carbon (%)",
+  
   d14C_2026_Bulk = "Bulk Δ¹⁴C (‰)",
   d14C_2026_MAOM = "MAOM Δ¹⁴C (‰)",
   d14C_2026_oPOM = "oPOM Δ¹⁴C (‰)",
   d14C_2026_fPOM = "fPOM Δ¹⁴C (‰)"
+  
 )
 
+
 display_response <- function(x) {
+  
   out <- unname(response_display[x])
+  
   missing <- is.na(out)
+  
   out[missing] <- gsub("_", " ", x[missing])
+  
   out
+  
 }
+
 
 display_group <- function(x) {
+  
   out <- unname(group_display[x])
+  
   ifelse(is.na(out), gsub("_", " ", x), out)
+  
 }
 
+
 display_comparison <- function(x) {
+  
   x <- gsub("HB 50", "Hühnerberg", x, fixed = TRUE)
   x <- gsub("EG 50", "Eifelgold", x, fixed = TRUE)
   x <- gsub("BD 50", "Bolsdorfer", x, fixed = TRUE)
   x <- gsub("minus", "−", x, fixed = TRUE)
+  
   x
+  
 }
 
 
 # =============================================================================
-# 6. CHECK AND PREPARE POSTERIOR CONTRAST TABLES
+# 7. LOAD SAVED POSTERIOR SUMMARIES
 # =============================================================================
 
-required_primary_columns <- c(
+primary_csv <- file.path(
+  bayesian_treatment_out_dir,
+  "Bayesian_primary_basalt_vs_Control_Lime.csv"
+)
+
+pairwise_csv <- file.path(
+  bayesian_treatment_out_dir,
+  "Bayesian_all_pairwise_treatment_contrasts.csv"
+)
+
+means_csv <- file.path(
+  bayesian_treatment_out_dir,
+  "Bayesian_treatment_posterior_means.csv"
+)
+
+
+required_saved_files <- c(
+  primary_csv,
+  pairwise_csv,
+  means_csv
+)
+
+
+missing_saved_files <- required_saved_files[
+  !file.exists(required_saved_files)
+]
+
+
+if (length(missing_saved_files) > 0) {
+  
+  stop(
+    "Missing saved Bayesian output file(s):\n",
+    paste(missing_saved_files, collapse = "\n")
+  )
+  
+}
+
+
+primary_contrasts <- read_csv(
+  primary_csv,
+  show_col_types = FALSE
+)
+
+pairwise_contrasts <- read_csv(
+  pairwise_csv,
+  show_col_types = FALSE
+)
+
+bayesian_treatment_means_all <- read_csv(
+  means_csv,
+  show_col_types = FALSE
+)
+
+
+cat("\nLoaded saved Bayesian summaries.\n")
+
+
+# =============================================================================
+# 8. PREPARE CONTRAST TABLES
+# =============================================================================
+
+required_columns <- c(
   "Response",
   "Treatment_1",
   "Treatment_2",
@@ -654,117 +461,92 @@ required_primary_columns <- c(
   "Upper_95_original"
 )
 
-required_pairwise_columns <- required_primary_columns
 
-
-missing_primary_columns <- setdiff(
-  required_primary_columns,
-  names(primary_contrasts)
-)
-
-missing_pairwise_columns <- setdiff(
-  required_pairwise_columns,
-  names(pairwise_contrasts)
-)
-
-if (length(missing_primary_columns) > 0) {
-  stop(
-    "Missing columns in primary contrast CSV: ",
-    paste(missing_primary_columns, collapse = ", ")
-  )
+for (column in required_columns) {
+  
+  if (!column %in% names(primary_contrasts)) {
+    
+    stop("Missing primary contrast column: ", column)
+    
+  }
+  
+  if (!column %in% names(pairwise_contrasts)) {
+    
+    stop("Missing pairwise contrast column: ", column)
+    
+  }
+  
 }
 
-if (length(missing_pairwise_columns) > 0) {
-  stop(
-    "Missing columns in pairwise contrast CSV: ",
-    paste(missing_pairwise_columns, collapse = ", ")
-  )
-}
-
-
-# Primary comparisons must all be treatment minus Control.
 
 primary_contrasts <- primary_contrasts %>%
+  
   filter(
     Treatment_2 == "Control",
     Treatment_1 %in% c("Lime", "HB 50", "EG 50", "BD 50")
   ) %>%
+  
   mutate(
-    Treatment_1 = factor(
-      Treatment_1,
-      levels = c("Lime", "HB 50", "EG 50", "BD 50")
-    ),
-    Comparison = paste(as.character(Treatment_1), "minus Control")
+    Comparison = paste(Treatment_1, "minus Control")
   )
 
 
-# Keep the original comparison labels for the all-pairwise results.
-
 pairwise_contrasts <- pairwise_contrasts %>%
+  
   mutate(
+    
     Comparison = if ("Comparison" %in% names(.)) {
       Comparison
     } else {
       paste(Treatment_1, "minus", Treatment_2)
     }
+    
   )
 
 
 # =============================================================================
-# 7. CONVERT RAW DATA TO LONG FORMAT FOR VIOLIN PLOTS
+# 9. RAW DATA LONG FORMAT
 # =============================================================================
 
-# IMPORTANT:
-#   Build a plain character vector of existing response columns.
-#   This avoids the pivot_longer()/any_of() error.
-
-plot_responses <- unique(
-  unlist(plot_groups_available, use.names = FALSE)
-)
-
-plot_responses <- intersect(
-  plot_responses,
-  names(bayesian_treatment_data)
-)
-
-if (length(plot_responses) == 0) {
-  stop("No plot response variables were found in bayesian_treatment_data.")
-}
-
-
 raw_data_plot <- bayesian_treatment_data %>%
+  
   pivot_longer(
     cols = all_of(plot_responses),
     names_to = "Response",
     values_to = "Value"
   ) %>%
-  drop_na(Value) %>%
+  
+  filter(is.finite(Value)) %>%
+  
   mutate(
+    Response = as.character(Response),
     Treatment_PCA = factor(
       Treatment_PCA,
       levels = bayesian_treatment_levels
-    ),
-    Response = as.character(Response)
+    )
   )
 
 
 # =============================================================================
-# HELPER: DISPLAY GROUPED FOREST PLOTS IN ORIGINAL UNITS
+# 10. GROUPED FOREST PLOTS
 # =============================================================================
 
 make_grouped_forest_plot <- function(
     data,
     responses,
     group_name,
-    comparison_type = "Primary") {
+    comparison_type = "Primary"
+) {
   
   plot_data <- data %>%
-    filter(Response %in% responses) %>%
+    
     filter(
+      Response %in% responses,
       is.finite(Difference_original),
       is.finite(Lower_95_original),
       is.finite(Upper_95_original)
     ) %>%
+    
     mutate(
       Response = factor(
         Response,
@@ -773,16 +555,9 @@ make_grouped_forest_plot <- function(
       )
     )
   
-  if (nrow(plot_data) == 0) {
-    message(
-      "Skipping forest plot: ",
-      group_name,
-      " (no original-scale contrast data)"
-    )
-    return(NULL)
-  }
   
-  # Order comparisons consistently.
+  if (nrow(plot_data) == 0) return(NULL)
+  
   
   if (comparison_type == "Primary") {
     
@@ -799,18 +574,24 @@ make_grouped_forest_plot <- function(
     
   }
   
+  
   plot_data <- plot_data %>%
+    
     mutate(
+      
       Comparison = factor(
-        display_comparison(as.character(Comparison)),
+        display_comparison(Comparison),
         levels = rev(display_comparison(comparison_levels))
       ),
+      
       Treatment_colour_key = if_else(
         as.character(Treatment_1) == "Control",
         as.character(Treatment_2),
         as.character(Treatment_1)
       )
+      
     )
+  
   
   p <- ggplot(
     plot_data,
@@ -821,7 +602,6 @@ make_grouped_forest_plot <- function(
     )
   ) +
     
-    # Zero reference line.
     geom_vline(
       xintercept = 0,
       linetype = "dashed",
@@ -829,7 +609,6 @@ make_grouped_forest_plot <- function(
       linewidth = 0.5
     ) +
     
-    # 95% credible intervals.
     geom_errorbar(
       aes(
         xmin = Lower_95_original,
@@ -840,8 +619,8 @@ make_grouped_forest_plot <- function(
       linewidth = 0.6
     ) +
     
-    # Posterior mean differences.
     geom_point(size = 2.4) +
+    
     scale_colour_manual(
       values = treatment_colours,
       breaks = c("Lime", "HB 50", "EG 50", "BD 50"),
@@ -849,7 +628,6 @@ make_grouped_forest_plot <- function(
       name = "Treatment"
     ) +
     
-    # Independent horizontal scale for each response.
     facet_wrap(
       ~ Response,
       ncol = 2,
@@ -858,15 +636,16 @@ make_grouped_forest_plot <- function(
     
     labs(
       title = paste(
-        ifelse(comparison_type == "Primary",
-               "Primary treatment contrasts:",
-               "All pairwise treatment contrasts:"),
+        ifelse(
+          comparison_type == "Primary",
+          "Primary treatment contrasts:",
+          "All pairwise treatment contrasts:"
+        ),
         display_group(group_name)
       ),
-      subtitle = "Points show posterior mean differences; lines show 95% credible intervals",
+      subtitle = "Posterior mean differences and 95% credible intervals",
       x = "Treatment difference (units specified in each panel heading)",
-      y = NULL,
-      colour = "Treatment"
+      y = NULL
     ) +
     
     theme_bw(base_size = 11) +
@@ -876,77 +655,79 @@ make_grouped_forest_plot <- function(
         fill = "grey92",
         colour = "grey40"
       ),
-      strip.text = element_text(
-        face = "bold",
-        size = 9
-      ),
+      strip.text = element_text(face = "bold", size = 9),
       axis.text.y = element_text(size = 8),
-      axis.text.x = element_text(size = 9),
-      plot.title = element_text(
-        face = "bold",
-        size = 13
-      ),
-      plot.subtitle = element_text(size = 9),
+      plot.title = element_text(face = "bold", size = 13),
       panel.grid.minor = element_blank(),
       panel.spacing = grid::unit(1, "lines")
     )
   
-  n_responses <- length(unique(plot_data$Response))
   
-  plot_height <- max(
+  height <- max(
     4.5,
-    ceiling(n_responses / 2) * 2.8
+    ceiling(length(unique(plot_data$Response)) / 2) * 2.8
   )
   
-  plot_height <- max(4.5, ceiling(n_responses / 2) * 2.8)
-  plot_prefix <- if (comparison_type == "Primary") "Primary_Forest_" else "All_Pairwise_Forest_"
+  
+  prefix <- if (comparison_type == "Primary") {
+    "Primary_Forest_"
+  } else {
+    "All_Pairwise_Forest_"
+  }
+  
+  
   filename <- file.path(
     bayesian_treatment_plots_dir,
-    paste0(plot_prefix, group_name, ".png")
+    paste0(prefix, group_name, ".png")
   )
-  ggsave(filename, p, width = 13, height = plot_height, dpi = 300, bg = "white")
-  ggsave(sub("\\.png$", ".pdf", filename), p, width = 13, height = plot_height, bg = "white")
-  message("Saved: ", filename)
-
+  
+  
+  ggsave(filename, p, width = 13, height = height, dpi = 300, bg = "white")
+  
+  ggsave(
+    sub("\\.png$", ".pdf", filename),
+    p,
+    width = 13,
+    height = height,
+    bg = "white"
+  )
+  
+  
   print(p)
   
-  return(p)
+  p
+  
 }
 
 
 # =============================================================================
-# 9. HELPER: SAVE GROUPED VIOLIN PLOTS
+# 11. RAW DATA VIOLIN PLOTS
 # =============================================================================
 
 make_grouped_violin_plot <- function(
     data,
     responses,
-    group_name,
-    output_dir = bayesian_treatment_plots_dir) {
+    group_name
+) {
   
   plot_data <- data %>%
-    filter(Response %in% responses) %>%
-    filter(is.finite(Value)) %>%
+    
+    filter(
+      Response %in% responses,
+      is.finite(Value)
+    ) %>%
+    
     mutate(
       Response = factor(
         Response,
         levels = responses,
         labels = display_response(responses)
-      ),
-      Treatment_PCA = factor(
-        Treatment_PCA,
-        levels = bayesian_treatment_levels
       )
     )
   
-  if (nrow(plot_data) == 0) {
-    message(
-      "Skipping violin plot: ",
-      group_name,
-      " (no raw data)"
-    )
-    return(NULL)
-  }
+  
+  if (nrow(plot_data) == 0) return(NULL)
+  
   
   p <- ggplot(
     plot_data,
@@ -960,8 +741,7 @@ make_grouped_violin_plot <- function(
     geom_violin(
       alpha = 0.65,
       trim = FALSE,
-      scale = "width",
-      na.rm = TRUE
+      scale = "width"
     ) +
     
     geom_boxplot(
@@ -969,8 +749,7 @@ make_grouped_violin_plot <- function(
       colour = "black",
       alpha = 0.8,
       outlier.shape = NA,
-      linewidth = 0.35,
-      na.rm = TRUE
+      linewidth = 0.35
     ) +
     
     facet_wrap(
@@ -987,10 +766,12 @@ make_grouped_violin_plot <- function(
       labels = treatment_display[bayesian_treatment_levels],
       drop = FALSE
     ) +
-
-
-        labs(
-      title = paste("Treatment distributions:", display_group(group_name)),
+    
+    labs(
+      title = paste(
+        "Treatment distributions:",
+        display_group(group_name)
+      ),
       x = NULL,
       y = "Measured value (units specified in each panel heading)"
     ) +
@@ -1003,165 +784,653 @@ make_grouped_violin_plot <- function(
         fill = "grey92",
         colour = "grey40"
       ),
-      strip.text = element_text(
-        face = "bold",
-        size = 9
-      ),
+      strip.text = element_text(face = "bold", size = 9),
       axis.text.x = element_text(
         angle = 35,
         hjust = 1,
         size = 8
       ),
-      axis.text.y = element_text(size = 8),
-      plot.title = element_text(
-        face = "bold",
-        size = 13
-      ),
-      panel.grid.minor = element_blank(),
-      panel.spacing = grid::unit(1, "lines")
+      plot.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
     )
   
-  n_responses <- length(unique(plot_data$Response))
   
-  plot_height <- max(
+  height <- max(
     5,
-    ceiling(n_responses / 2) * 3
+    ceiling(length(responses) / 2) * 3
   )
   
+  
   filename <- file.path(
-    output_dir,
+    bayesian_treatment_plots_dir,
+    paste0("Violin_", group_name, ".png")
+  )
+  
+  
+  ggsave(
+    filename,
+    p,
+    width = 13,
+    height = height,
+    dpi = 300,
+    bg = "white"
+  )
+  
+  
+  print(p)
+  
+  p
+  
+}
+
+
+# =============================================================================
+# 12. POSTERIOR TREATMENT DENSITY DISTRIBUTIONS
+# =============================================================================
+#
+# These require actual posterior treatment draws.
+#
+# The treatment posterior means CSV is NOT a substitute for posterior draws.
+#
+
+
+posterior_draw_candidates <- c(
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "Bayesian_treatment_posterior_draws.csv"
+  ),
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "posterior_treatment_draws.csv"
+  ),
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "Bayesian_posterior_treatment_draws.csv"
+  ),
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "posterior_draws.csv"
+  )
+  
+)
+
+
+posterior_draw_file <- posterior_draw_candidates[
+  file.exists(posterior_draw_candidates)
+][1]
+
+
+make_posterior_treatment_density <- function(
+    data,
+    responses,
+    group_name
+) {
+  
+  plot_data <- data %>%
+    
+    filter(
+      Response %in% responses,
+      is.finite(Value)
+    ) %>%
+    
+    mutate(
+      Response = factor(
+        Response,
+        levels = responses,
+        labels = display_response(responses)
+      ),
+      Treatment = factor(
+        Treatment,
+        levels = bayesian_treatment_levels
+      )
+    )
+  
+  
+  if (nrow(plot_data) == 0) return(NULL)
+  
+  
+  p <- ggplot(
+    plot_data,
+    aes(
+      x = Value,
+      fill = Treatment,
+      colour = Treatment
+    )
+  ) +
+    
+    geom_density(
+      alpha = 0.30,
+      linewidth = 0.65,
+      na.rm = TRUE
+    ) +
+    
+    facet_wrap(
+      ~ Response,
+      scales = "free",
+      ncol = 2
+    ) +
+    
+    scale_fill_manual(
+      values = treatment_colours,
+      breaks = bayesian_treatment_levels,
+      labels = treatment_display[bayesian_treatment_levels]
+    ) +
+    
+    scale_colour_manual(
+      values = treatment_colours,
+      breaks = bayesian_treatment_levels,
+      labels = treatment_display[bayesian_treatment_levels]
+    ) +
+    
+    labs(
+      title = paste(
+        "Posterior treatment distributions:",
+        display_group(group_name)
+      ),
+      subtitle = "Full Bayesian posterior distributions for each treatment",
+      x = "Posterior treatment value (units specified in each panel heading)",
+      y = "Density",
+      fill = "Treatment",
+      colour = "Treatment"
+    ) +
+    
+    theme_bw(base_size = 11) +
+    
+    theme(
+      strip.background = element_rect(
+        fill = "grey92",
+        colour = "grey40"
+      ),
+      strip.text = element_text(face = "bold"),
+      plot.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+  
+  
+  height <- max(
+    5,
+    ceiling(length(responses) / 2) * 3
+  )
+  
+  
+  filename <- file.path(
+    bayesian_treatment_plots_dir,
     paste0(
-      "Violin_",
+      "Posterior_Treatment_Distributions_",
       group_name,
       ".png"
     )
   )
   
+  
   ggsave(
-    filename = filename,
-    plot = p,
+    filename,
+    p,
     width = 13,
-    height = plot_height,
+    height = height,
     dpi = 300,
     bg = "white"
   )
   
-  message("Saved: ", filename)
   
-  return(p)
+  ggsave(
+    sub("\\.png$", ".pdf", filename),
+    p,
+    width = 13,
+    height = height,
+    bg = "white"
+  )
+  
+  
+  print(p)
+  
+  p
+  
+}
+
+
+posterior_treatment_density_plots <- list()
+
+
+if (
+  length(posterior_draw_file) > 0 &&
+  !is.na(posterior_draw_file)
+) {
+  
+  cat("\nLoading posterior treatment draws:\n")
+  cat(posterior_draw_file, "\n")
+  
+  posterior_treatment_draws <- read_csv(
+    posterior_draw_file,
+    show_col_types = FALSE
+  )
+  
+  
+  required_draw_columns <- c(
+    "Response",
+    "Treatment",
+    "Value"
+  )
+  
+  
+  missing_draw_columns <- setdiff(
+    required_draw_columns,
+    names(posterior_treatment_draws)
+  )
+  
+  
+  if (length(missing_draw_columns) == 0) {
+    
+    for (group_name in names(plot_groups_available)) {
+      
+      posterior_treatment_density_plots[[group_name]] <-
+        
+        make_posterior_treatment_density(
+          data = posterior_treatment_draws,
+          responses = plot_groups_available[[group_name]],
+          group_name = group_name
+        )
+      
+    }
+    
+  } else {
+    
+    warning(
+      "Posterior treatment draws were found, but the expected columns ",
+      "Response, Treatment and Value are missing. ",
+      "Treatment density plots were skipped."
+    )
+    
+  }
+  
+} else {
+  
+  cat(
+    "\nNo saved posterior treatment draws found. ",
+    "Posterior treatment density plots skipped.\n"
+  )
+  
 }
 
 
 # =============================================================================
-# 10. GENERATE PRIMARY AND PAIRWISE FOREST PLOTS
+# 13. POSTERIOR TREATMENT-CONTRAST DENSITY DISTRIBUTIONS
+# =============================================================================
+#
+# These show treatment minus Control.
+#
+# A vertical zero line indicates no treatment difference.
+#
+
+
+contrast_draw_candidates <- c(
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "Bayesian_primary_contrast_draws.csv"
+  ),
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "Bayesian_primary_posterior_contrast_draws.csv"
+  ),
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "primary_contrast_draws.csv"
+  ),
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "posterior_contrast_draws.csv"
+  ),
+  
+  file.path(
+    bayesian_treatment_out_dir,
+    "Bayesian_contrast_draws.csv"
+  )
+  
+)
+
+
+contrast_draw_file <- contrast_draw_candidates[
+  file.exists(contrast_draw_candidates)
+][1]
+
+
+make_contrast_density_plot <- function(
+    data,
+    responses,
+    group_name
+) {
+  
+  plot_data <- data %>%
+    
+    filter(
+      Response %in% responses,
+      is.finite(Difference)
+    ) %>%
+    
+    mutate(
+      Response = factor(
+        Response,
+        levels = responses,
+        labels = display_response(responses)
+      ),
+      Treatment = factor(
+        Treatment,
+        levels = c("Lime", "HB 50", "EG 50", "BD 50")
+      )
+    )
+  
+  
+  if (nrow(plot_data) == 0) return(NULL)
+  
+  
+  p <- ggplot(
+    plot_data,
+    aes(
+      x = Difference,
+      fill = Treatment,
+      colour = Treatment
+    )
+  ) +
+    
+    geom_density(
+      alpha = 0.35,
+      linewidth = 0.65,
+      na.rm = TRUE
+    ) +
+    
+    geom_vline(
+      xintercept = 0,
+      linetype = "dashed",
+      colour = "black",
+      linewidth = 0.5
+    ) +
+    
+    facet_wrap(
+      ~ Response,
+      scales = "free",
+      ncol = 2
+    ) +
+    
+    scale_fill_manual(
+      values = treatment_colours[
+        c("Lime", "HB 50", "EG 50", "BD 50")
+      ],
+      breaks = c("Lime", "HB 50", "EG 50", "BD 50"),
+      labels = treatment_display[
+        c("Lime", "HB 50", "EG 50", "BD 50")
+      ]
+    ) +
+    
+    scale_colour_manual(
+      values = treatment_colours[
+        c("Lime", "HB 50", "EG 50", "BD 50")
+      ],
+      breaks = c("Lime", "HB 50", "EG 50", "BD 50"),
+      labels = treatment_display[
+        c("Lime", "HB 50", "EG 50", "BD 50")
+      ]
+    ) +
+    
+    labs(
+      title = paste(
+        "Posterior treatment differences:",
+        display_group(group_name)
+      ),
+      subtitle = "Treatment minus Control; zero indicates no difference",
+      x = "Posterior treatment difference (units specified in each panel heading)",
+      y = "Density",
+      fill = "Treatment",
+      colour = "Treatment"
+    ) +
+    
+    theme_bw(base_size = 11) +
+    
+    theme(
+      strip.background = element_rect(
+        fill = "grey92",
+        colour = "grey40"
+      ),
+      strip.text = element_text(face = "bold"),
+      plot.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
+    )
+  
+  
+  height <- max(
+    5,
+    ceiling(length(responses) / 2) * 3
+  )
+  
+  
+  filename <- file.path(
+    bayesian_treatment_plots_dir,
+    paste0(
+      "Posterior_Contrast_Distributions_",
+      group_name,
+      ".png"
+    )
+  )
+  
+  
+  ggsave(
+    filename,
+    p,
+    width = 13,
+    height = height,
+    dpi = 300,
+    bg = "white"
+  )
+  
+  
+  ggsave(
+    sub("\\.png$", ".pdf", filename),
+    p,
+    width = 13,
+    height = height,
+    bg = "white"
+  )
+  
+  
+  print(p)
+  
+  p
+  
+}
+
+
+contrast_density_plots <- list()
+
+
+if (
+  length(contrast_draw_file) > 0 &&
+  !is.na(contrast_draw_file)
+) {
+  
+  cat("\nLoading posterior contrast draws:\n")
+  cat(contrast_draw_file, "\n")
+  
+  posterior_contrast_draws <- read_csv(
+    contrast_draw_file,
+    show_col_types = FALSE
+  )
+  
+  
+  required_contrast_columns <- c(
+    "Response",
+    "Treatment",
+    "Difference"
+  )
+  
+  
+  missing_contrast_columns <- setdiff(
+    required_contrast_columns,
+    names(posterior_contrast_draws)
+  )
+  
+  
+  if (length(missing_contrast_columns) == 0) {
+    
+    for (group_name in names(plot_groups_available)) {
+      
+      contrast_density_plots[[group_name]] <-
+        
+        make_contrast_density_plot(
+          data = posterior_contrast_draws,
+          responses = plot_groups_available[[group_name]],
+          group_name = group_name
+        )
+      
+    }
+    
+  } else {
+    
+    warning(
+      "Posterior contrast draws were found, but the expected columns ",
+      "Response, Treatment and Difference are missing. ",
+      "Contrast density plots were skipped."
+    )
+    
+  }
+  
+} else {
+  
+  cat(
+    "\nNo saved posterior contrast draws found. ",
+    "Posterior contrast density plots skipped.\n"
+  )
+  
+}
+
+
+# =============================================================================
+# 14. GENERATE PRIMARY AND PAIRWISE FOREST PLOTS
 # =============================================================================
 
-# Primary treatment versus Control forest plots.
+cat("\nGenerating primary forest plots...\n")
+
+primary_forest_plots <- list()
+
 
 for (group_name in names(plot_groups_available)) {
   
-  make_grouped_forest_plot(
-    data = primary_contrasts,
-    responses = plot_groups_available[[group_name]],
-    group_name = group_name,
-    comparison_type = "Primary"
-  )
+  primary_forest_plots[[group_name]] <-
+    
+    make_grouped_forest_plot(
+      data = primary_contrasts,
+      responses = plot_groups_available[[group_name]],
+      group_name = group_name,
+      comparison_type = "Primary"
+    )
+  
 }
 
 
-# All-pairwise treatment forest plots.
+cat("\nGenerating all-pairwise forest plots...\n")
+
+pairwise_forest_plots <- list()
+
 
 for (group_name in names(plot_groups_available)) {
   
-  make_grouped_forest_plot(
-    data = pairwise_contrasts,
-    responses = plot_groups_available[[group_name]],
-    group_name = group_name,
-    comparison_type = "All_Pairwise"
-  )
+  pairwise_forest_plots[[group_name]] <-
+    
+    make_grouped_forest_plot(
+      data = pairwise_contrasts,
+      responses = plot_groups_available[[group_name]],
+      group_name = group_name,
+      comparison_type = "All_Pairwise"
+    )
+  
 }
 
+
 # =============================================================================
-# 12. GENERATE GROUPED VIOLIN PLOTS
+# 15. GENERATE RAW-DATA VIOLIN PLOTS
 # =============================================================================
 
-cat("\n\nGenerating grouped violin plots...\n")
+cat("\nGenerating raw-data violin plots...\n")
 
 violin_plots <- list()
 
+
 for (group_name in names(plot_groups_available)) {
   
-  responses <- plot_groups_available[[group_name]]
-  
   violin_plots[[group_name]] <-
+    
     make_grouped_violin_plot(
       data = raw_data_plot,
-      responses = responses,
+      responses = plot_groups_available[[group_name]],
       group_name = group_name
     )
+  
 }
 
 
 # =============================================================================
-# 13. HÜHNERBERG DOSE-RESPONSE DATA
-# =============================================================================
-#
-# This section uses the original integrated dataset rather than the
-# five-group dataset, so that the full Hühnerberg dose series is retained.
-#
-# Control is assigned a dose of zero.
-# Dose is extracted from the treatment label.
+# 16. HÜHNERBERG DOSE-RESPONSE DATA
 # =============================================================================
 
-cat("\n\nPreparing Hühnerberg dose-response data...\n")
+cat("\nPreparing Hühnerberg dose-response data...\n")
 
 
 hb_dose_data <- integrated %>%
+  
   filter(
     Treatment == "Control" |
       grepl("^Huhnerberg", Treatment) |
       grepl("^HB_", Treatment) |
       grepl("^HB[0-9]", Treatment)
   ) %>%
+  
   mutate(
+    
     Dose_t_ha = case_when(
+      
       Treatment == "Control" ~ 0,
-      TRUE ~ readr::parse_number(Treatment)
+      
+      TRUE ~ parse_number(Treatment)
+      
     )
+    
   ) %>%
+  
   filter(!is.na(Dose_t_ha)) %>%
+  
   pivot_longer(
-    cols = all_of(
-      intersect(
-        plot_responses,
-        names(.)
-      )
-    ),
+    cols = any_of(plot_responses),
     names_to = "Response",
     values_to = "Value"
   ) %>%
-  drop_na(Value) %>%
-  mutate(
-    Response = as.character(Response)
-  )
+  
+  filter(is.finite(Value))
 
 
 # =============================================================================
-# 14. HELPER: SAVE GROUPED DOSE-RESPONSE PLOTS
+# 17. HÜHNERBERG DOSE-RESPONSE PLOTS
 # =============================================================================
 
 make_grouped_dose_plot <- function(
     data,
     responses,
-    group_name,
-    output_dir = bayesian_treatment_plots_dir) {
+    group_name
+) {
   
   plot_data <- data %>%
-    filter(Response %in% responses) %>%
+    
     filter(
+      Response %in% responses,
       is.finite(Dose_t_ha),
       is.finite(Value)
     ) %>%
+    
     mutate(
       Response = factor(
         Response,
@@ -1170,27 +1439,21 @@ make_grouped_dose_plot <- function(
       )
     )
   
-  if (nrow(plot_data) == 0) {
-    message(
-      "Skipping dose-response plot: ",
-      group_name,
-      " (no observations)"
-    )
-    return(NULL)
-  }
   
-  # Summarise replicate values at each dose.
-  # Points and error bars represent mean +/- SD.
+  if (nrow(plot_data) == 0) return(NULL)
+  
   
   dose_summary <- plot_data %>%
+    
     group_by(Response, Dose_t_ha) %>%
+    
     summarise(
       Mean = mean(Value, na.rm = TRUE),
       SD = sd(Value, na.rm = TRUE),
       n = sum(!is.na(Value)),
-      SE = SD / sqrt(n),
       .groups = "drop"
     )
+  
   
   p <- ggplot(
     dose_summary,
@@ -1231,7 +1494,10 @@ make_grouped_dose_plot <- function(
     ) +
     
     labs(
-      title = paste("Hühnerberg dose response:", display_group(group_name)),
+      title = paste(
+        "Hühnerberg dose response:",
+        display_group(group_name)
+      ),
       subtitle = "Mean ± SD across replicate observations",
       x = "Hühnerberg application rate (t ha⁻¹)",
       y = "Measured value (units specified in each panel heading)"
@@ -1244,28 +1510,20 @@ make_grouped_dose_plot <- function(
         fill = "grey92",
         colour = "grey40"
       ),
-      strip.text = element_text(
-        face = "bold",
-        size = 9
-      ),
-      plot.title = element_text(
-        face = "bold",
-        size = 13
-      ),
-      axis.text = element_text(size = 8),
-      panel.grid.minor = element_blank(),
-      panel.spacing = grid::unit(1, "lines")
+      strip.text = element_text(face = "bold", size = 9),
+      plot.title = element_text(face = "bold"),
+      panel.grid.minor = element_blank()
     )
   
-  n_responses <- length(unique(plot_data$Response))
   
-  plot_height <- max(
+  height <- max(
     5,
-    ceiling(n_responses / 2) * 3
+    ceiling(length(responses) / 2) * 3
   )
   
+  
   filename <- file.path(
-    output_dir,
+    bayesian_treatment_plots_dir,
     paste0(
       "Huhnerberg_Dose_Response_",
       group_name,
@@ -1273,42 +1531,68 @@ make_grouped_dose_plot <- function(
     )
   )
   
+  
   ggsave(
-    filename = filename,
-    plot = p,
+    filename,
+    p,
     width = 13,
-    height = plot_height,
+    height = height,
     dpi = 300,
     bg = "white"
   )
   
-  message("Saved: ", filename)
   
-  return(p)
+  print(p)
+  
+  p
+  
 }
 
 
-# =============================================================================
-# 15. GENERATE GROUPED DOSE-RESPONSE PLOTS
-# =============================================================================
-
-cat("\n\nGenerating grouped Hühnerberg dose-response plots...\n")
+cat("\nGenerating Hühnerberg dose-response plots...\n")
 
 dose_response_plots <- list()
 
+
 for (group_name in names(plot_groups_available)) {
   
-  responses <- plot_groups_available[[group_name]]
-  
   dose_response_plots[[group_name]] <-
+    
     make_grouped_dose_plot(
       data = hb_dose_data,
-      responses = responses,
+      responses = plot_groups_available[[group_name]],
       group_name = group_name
     )
+  
 }
 
 
+# =============================================================================
+# 18. COMPLETION
+# =============================================================================
 
-cat("\nPLOT-ONLY RUN COMPLETE\n")
-cat("Plots saved in: ", bayesian_treatment_plots_dir, "\n", sep = "")
+cat("\n\nGEOCHEMISTRY PLOT-ONLY RUN COMPLETE\n")
+
+cat(
+  "\nPlots saved in:\n",
+  bayesian_treatment_plots_dir,
+  "\n",
+  sep = ""
+)
+
+cat("\nGenerated plot categories:\n")
+
+cat("- Primary treatment forest plots\n")
+cat("- All-pairwise treatment forest plots\n")
+cat("- Raw-data treatment violin plots\n")
+cat("- Hühnerberg dose-response plots\n")
+
+if (length(posterior_treatment_density_plots) > 0) {
+  cat("- Posterior treatment density distributions\n")
+}
+
+if (length(contrast_density_plots) > 0) {
+  cat("- Posterior treatment-contrast density distributions\n")
+}
+
+cat("\nNo Bayesian models were fitted or sampled.\n")

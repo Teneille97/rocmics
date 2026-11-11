@@ -1,27 +1,42 @@
 
 # =============================================================================
-# MALLE ERW: BAYESIAN C AND d14C PLOT-ONLY SCRIPT
+# MALLE ERW: BAYESIAN C AND d14C BEST-MODEL PLOT-ONLY SCRIPT
 #
 # Purpose:
-#   1. Load existing Bayesian prediction CSV files.
-#   2. Load corresponding coefficient CSV files.
+#   1. Load existing prediction CSV files for best-selected models only.
+#   2. Load their corresponding best-model coefficient CSV files.
 #   3. Regenerate observed-versus-predicted plots.
-#   4. Add relative-importance bar plots below each prediction plot.
-#   5. Save plots and relative-importance CSV summaries.
+#   4. Show 95% fitted credible intervals and predictive intervals.
+#   5. Display multiline coefficient equations below prediction plots.
+#   6. Add relative-importance bar plots below coefficient equations.
+#   7. Save individual and combined relative-importance CSV summaries.
+#   8. Save a summary of successfully plotted and skipped models.
 #
 # IMPORTANT:
 #   - Does NOT fit or refit any Bayesian models.
 #   - Does NOT run CmdStanR or projpred.
-#   - Uses the saved prediction and coefficient CSV files.
+#   - Does NOT perform model selection.
+#   - Uses existing saved prediction and coefficient CSV files only.
+#   - Processes ONLY files ending in _bestmod.csv.
+#   - Ignores all candidate model files.
 #   - Overwrites existing plots with the same filenames.
-#   - Original variable names in the CSV files are retained.
 #
-# Relative importance:
+# COEFFICIENT EQUATIONS:
+#   - Uses standardised posterior mean coefficients.
+#   - Displays the five strongest predictors.
+#   - Positive coefficients are indicated by (+).
+#   - Negative coefficients are indicated by (-).
+#   - Includes the intercept where available.
+#   - Automatically wraps equations across multiple lines.
+#   - Appears below the prediction plot without a border.
+#
+# RELATIVE IMPORTANCE:
 #   abs(standardised posterior mean coefficient) /
 #   sum(abs(standardised posterior mean coefficients)) * 100
 #
 #   Intercepts are excluded.
-#   This represents relative coefficient magnitude, NOT variance explained.
+#   This represents relative coefficient magnitude,
+#   NOT variance explained.
 #
 # =============================================================================
 
@@ -64,13 +79,23 @@ input_dir <- file.path(
 
 tables_dir <- file.path(
   input_dir,
+  "best_model",
   "tables"
 )
 
 plots_dir <- file.path(
   input_dir,
+  "best_model",
   "plots"
 )
+
+if (!dir.exists(tables_dir)) {
+  
+  stop(
+    "The best-model tables directory does not exist: ",
+    tables_dir
+  )
+}
 
 dir.create(
   plots_dir,
@@ -78,26 +103,13 @@ dir.create(
   showWarnings = FALSE
 )
 
-dir.create(
-  tables_dir,
-  recursive = TRUE,
-  showWarnings = FALSE
-)
-
-if (!dir.exists(tables_dir)) {
-  stop("The tables directory does not exist: ", tables_dir)
-}
-
 message("Project directory: ", project_dir)
-message("Input tables: ", tables_dir)
-message("Output plots: ", plots_dir)
+message("Best-model input tables: ", tables_dir)
+message("Best-model output plots: ", plots_dir)
 
 
 # =============================================================================
 # 3. VARIABLE DISPLAY LABELS
-#
-# These labels are used only in figures.
-# Original column names remain unchanged in the CSV files.
 # =============================================================================
 
 variable_labels <- c(
@@ -106,14 +118,9 @@ variable_labels <- c(
   # Aggregate stability
   # ---------------------------------------------------------------------------
   
-  "GMD_h2o" =
-    "GMD-H2O (mm)",
-  
-  "D_h2o" =
-    "D-H2O (no units)",
-  
-  "MWD_h2o" =
-    "MWD-H2O (mm)",
+  "GMD_h2o" = "GMD-H2O (mm)",
+  "D_h2o" = "D-H2O (no units)",
+  "MWD_h2o" = "MWD-H2O (mm)",
   
   "GMD_oxalate_over_h2o" =
     "GMD-Oxalate / GMD-H2O (no units)",
@@ -129,75 +136,42 @@ variable_labels <- c(
   # Carbon and radiocarbon
   # ---------------------------------------------------------------------------
   
-  "C_Bulk" =
-    "Bulk Carbon (%)",
+  "C_Bulk" = "Bulk Carbon (%)",
+  "C_MAOM" = "MAOM Carbon (%)",
+  "C_oPOM" = "oPOM Carbon (%)",
+  "C_fPOM" = "fPOM Carbon (%)",
   
-  "C_MAOM" =
-    "MAOM Carbon (%)",
+  "d14C_2026_Bulk" = "Bulk Δ¹⁴C (‰)",
+  "D14C_2026_Bulk" = "Bulk Δ¹⁴C (‰)",
   
-  "C_oPOM" =
-    "oPOM Carbon (%)",
+  "d14C_2026_MAOM" = "MAOM Δ¹⁴C (‰)",
+  "D14C_2026_MAOM" = "MAOM Δ¹⁴C (‰)",
   
-  "C_fPOM" =
-    "fPOM Carbon (%)",
+  "d14C_2026_oPOM" = "oPOM Δ¹⁴C (‰)",
+  "D14C_2026_oPOM" = "oPOM Δ¹⁴C (‰)",
   
-  "d14C_2026_Bulk" =
-    "Bulk Δ¹⁴C (‰)",
-  
-  "D14C_2026_Bulk" =
-    "Bulk Δ¹⁴C (‰)",
-  
-  "d14C_2026_MAOM" =
-    "MAOM Δ¹⁴C (‰)",
-  
-  "D14C_2026_MAOM" =
-    "MAOM Δ¹⁴C (‰)",
-  
-  "d14C_2026_oPOM" =
-    "oPOM Δ¹⁴C (‰)",
-  
-  "D14C_2026_oPOM" =
-    "oPOM Δ¹⁴C (‰)",
-  
-  "d14C_2026_fPOM" =
-    "fPOM Δ¹⁴C (‰)",
-  
-  "D14C_2026_fPOM" =
-    "fPOM Δ¹⁴C (‰)",
+  "d14C_2026_fPOM" = "fPOM Δ¹⁴C (‰)",
+  "D14C_2026_fPOM" = "fPOM Δ¹⁴C (‰)",
   
   
   # ---------------------------------------------------------------------------
   # CEC and exchangeable cations
   # ---------------------------------------------------------------------------
   
-  "CEC_CEC" =
-    "CEC",
-  
-  "CEC_Base_saturation" =
-    "Base saturation (%)",
-  
-  "CEC_H" =
-    "Exchangeable H",
-  
-  "CEC_Ca" =
-    "Exchangeable Ca",
-  
-  "CEC_K" =
-    "Exchangeable K",
-  
-  "CEC_Mg" =
-    "Exchangeable Mg",
-  
-  "CEC_Na" =
-    "Exchangeable Na",
+  "CEC_CEC" = "CEC",
+  "CEC_Base_saturation" = "Base saturation (%)",
+  "CEC_H" = "Exchangeable H",
+  "CEC_Ca" = "Exchangeable Ca",
+  "CEC_K" = "Exchangeable K",
+  "CEC_Mg" = "Exchangeable Mg",
+  "CEC_Na" = "Exchangeable Na",
   
   
   # ---------------------------------------------------------------------------
   # FTIR
   # ---------------------------------------------------------------------------
   
-  "FTIR_delta_aromatic" =
-    "Aromatic (no units)",
+  "FTIR_delta_aromatic" = "Aromatic (no units)",
   
   "FTIR_delta_Carbonate_bend" =
     "Carbonate bend (no units)",
@@ -208,8 +182,7 @@ variable_labels <- c(
   "FTIR_delta_carbonate stretch" =
     "Carbonate stretch (no units)",
   
-  "FTIR_delta_carbonyl" =
-    "Carbonyl (no units)",
+  "FTIR_delta_carbonyl" = "Carbonyl (no units)",
   
   "FTIR_delta_Alphatic_total" =
     "Aliphatic (no units)",
@@ -237,68 +210,45 @@ variable_labels <- c(
   # Oxalate / DCB ratios
   # ---------------------------------------------------------------------------
   
-  "Fe_ox_over_DCB" =
-    "Fe-ox / Fe-DCB (no units)",
+  "Fe_ox_over_DCB" = "Fe-ox / Fe-DCB (no units)",
+  "Al_ox_over_DCB" = "Al-ox / Al-DCB (no units)",
+  "Mn_ox_over_DCB" = "Mn-ox / Mn-DCB (no units)",
+  "Si_ox_over_DCB" = "Si-ox / Si-DCB (no units)",
   
-  "Al_ox_over_DCB" =
-    "Al-ox / Al-DCB (no units)",
-  
-  "Mn_ox_over_DCB" =
-    "Mn-ox / Mn-DCB (no units)",
-  
-  "Si_ox_over_DCB" =
-    "Si-ox / Si-DCB (no units)",
-  
-  "Fe_ox_over_Si_ox" =
-    "Fe-ox / Si-ox (no units)",
-  
-  "Al_ox_over_Si_ox" =
-    "Al-ox / Si-ox (no units)",
+  "Fe_ox_over_Si_ox" = "Fe-ox / Si-ox (no units)",
+  "Al_ox_over_Si_ox" = "Al-ox / Si-ox (no units)",
   
   
   # ---------------------------------------------------------------------------
   # Soil chemistry
   # ---------------------------------------------------------------------------
   
-  "soil_pH" =
-    "Soil pH (no units)",
-  
-  "soil_EC" =
-    "Soil EC (μS cm⁻¹)",
+  "soil_pH" = "Soil pH (no units)",
+  "soil_EC" = "Soil EC (μS cm⁻¹)",
   
   
   # ---------------------------------------------------------------------------
   # Tessier carbonate fraction: acetic acid
   # ---------------------------------------------------------------------------
   
-  "Tessier_Acetic_Ca_mg_g" =
-    "Ca-Acetic",
-  
-  "Tessier_Acetic_Na_mg_g" =
-    "Na-Acetic",
-  
-  "Tessier_Acetic_Mg_mg_g" =
-    "Mg-Acetic",
-  
-  "Tessier_Acetic_K_mg_g" =
-    "K-Acetic",
+  "Tessier_Acetic_Ca_mg_g" = "Ca-Acetic",
+  "Tessier_Acetic_Na_mg_g" = "Na-Acetic",
+  "Tessier_Acetic_Mg_mg_g" = "Mg-Acetic",
+  "Tessier_Acetic_K_mg_g" = "K-Acetic",
   
   
   # ---------------------------------------------------------------------------
   # Tessier oxidizable fraction: H2O2
   # ---------------------------------------------------------------------------
   
-  "Tessier_H2O2_Ca_mg_g" =
-    "Ca-H2O2",
+  "Tessier_H2O2_Ca_mg_g" = "Ca-H2O2",
+  "Tessier_H2O2_Na_mg_g" = "Na-H2O2",
+  "Tessier_H2O2_Mg_mg_g" = "Mg-H2O2",
+  "Tessier_H2O2_K_mg_g" = "K-H2O2",
   
-  "Tessier_H2O2_Na_mg_g" =
-    "Na-H2O2",
-  
-  "Tessier_H2O2_Mg_mg_g" =
-    "Mg-H2O2",
-  
-  "Tessier_H2O2_K_mg_g" =
-    "K-H2O2",
+  "Tessier_ H2O2_Na_mg_g" = "Na-H2O2",
+  "Tessier_ H2O2_Mg_mg_g" = "Mg-H2O2",
+  "Tessier_ H2O2_K_mg_g" = "K-H2O2",
   
   
   # ---------------------------------------------------------------------------
@@ -315,8 +265,18 @@ variable_labels <- c(
     "Mg-Hydroxylamine",
   
   "Tessier_Hydroxylamine_K_mg_g" =
+    "K-Hydroxylamine",
+  
+  "Tessier_ Hydroxylamine _Na_mg_g" =
+    "Na-Hydroxylamine",
+  
+  "Tessier_ Hydroxylamine _Mg_mg_g" =
+    "Mg-Hydroxylamine",
+  
+  "Tessier_ Hydroxylamine _K_mg_g" =
     "K-Hydroxylamine"
 )
+
 
 # =============================================================================
 # 4. VARIABLE LABEL FUNCTIONS
@@ -338,19 +298,19 @@ get_variable_labels <- function(variable_names) {
 }
 
 
-# Works for both individual names and vectors
 get_variable_label <- function(variable_name) {
   
   get_variable_labels(variable_name)
 }
 
+
 # =============================================================================
 # 5. HELPER FUNCTIONS
 # =============================================================================
 
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # 5.1 Identify predictor column
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 identify_predictor_column <- function(coef_data) {
   
@@ -368,6 +328,7 @@ identify_predictor_column <- function(coef_data) {
   )
   
   if (length(found) == 0) {
+    
     stop(
       "Could not identify predictor column in coefficient CSV. ",
       "Expected one of: ",
@@ -379,9 +340,9 @@ identify_predictor_column <- function(coef_data) {
 }
 
 
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # 5.2 Identify coefficient column
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 identify_estimate_column <- function(coef_data) {
   
@@ -398,6 +359,7 @@ identify_estimate_column <- function(coef_data) {
   )
   
   if (length(found) == 0) {
+    
     stop(
       "Could not identify standardised coefficient column. ",
       "Expected 'Estimate'."
@@ -408,9 +370,25 @@ identify_estimate_column <- function(coef_data) {
 }
 
 
-# ---------------------------------------------------------------------------
-# 5.3 Calculate relative importance
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 5.3 Identify intercept rows
+# -----------------------------------------------------------------------------
+
+is_intercept <- function(x) {
+  
+  tolower(trimws(as.character(x))) %in% c(
+    "intercept",
+    "(intercept)",
+    "constant",
+    "alpha",
+    "beta0"
+  )
+}
+
+
+# -----------------------------------------------------------------------------
+# 5.4 Calculate relative importance
+# -----------------------------------------------------------------------------
 
 calculate_relative_importance <- function(coef_data) {
   
@@ -430,18 +408,12 @@ calculate_relative_importance <- function(coef_data) {
       !is.na(Estimate)
     ) %>%
     
-    # Remove intercepts
     filter(
-      !tolower(predictor) %in% c(
-        "intercept",
-        "(intercept)",
-        "constant"
-      )
+      !is_intercept(predictor)
     ) %>%
     
     group_by(predictor) %>%
     
-    # Handle duplicated predictor terms, if present
     summarise(
       Estimate = mean(Estimate, na.rm = TRUE),
       .groups = "drop"
@@ -461,6 +433,7 @@ calculate_relative_importance <- function(coef_data) {
     !is.finite(total_absolute_estimate) ||
     total_absolute_estimate == 0
   ) {
+    
     return(
       tibble(
         predictor = character(),
@@ -484,9 +457,163 @@ calculate_relative_importance <- function(coef_data) {
 }
 
 
-# ---------------------------------------------------------------------------
-# 5.4 Identify response from prediction filename
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 5.5 Extract intercept
+# -----------------------------------------------------------------------------
+
+extract_intercept <- function(coef_data) {
+  
+  predictor_column <- identify_predictor_column(coef_data)
+  
+  estimate_column <- identify_estimate_column(coef_data)
+  
+  intercept_data <- coef_data %>%
+    
+    transmute(
+      predictor = as.character(.data[[predictor_column]]),
+      Estimate = as.numeric(.data[[estimate_column]])
+    ) %>%
+    
+    filter(
+      is_intercept(predictor),
+      is.finite(Estimate)
+    )
+  
+  if (nrow(intercept_data) == 0) {
+    return(0)
+  }
+  
+  mean(intercept_data$Estimate)
+}
+
+
+# -----------------------------------------------------------------------------
+# 5.6 Build multiline coefficient equation
+# -----------------------------------------------------------------------------
+
+build_coefficient_equation <- function(
+    coef_data,
+    max_predictors = 5,
+    predictors_per_line = 3
+) {
+  
+  predictor_column <- identify_predictor_column(coef_data)
+  
+  estimate_column <- identify_estimate_column(coef_data)
+  
+  coefficient_data <- coef_data %>%
+    
+    transmute(
+      predictor = as.character(.data[[predictor_column]]),
+      Estimate = as.numeric(.data[[estimate_column]])
+    ) %>%
+    
+    filter(
+      !is.na(predictor),
+      is.finite(Estimate)
+    )
+  
+  intercept <- extract_intercept(coef_data)
+  
+  predictor_data <- coefficient_data %>%
+    
+    filter(
+      !is_intercept(predictor)
+    ) %>%
+    
+    group_by(predictor) %>%
+    
+    summarise(
+      Estimate = mean(Estimate, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    
+    arrange(
+      desc(abs(Estimate))
+    ) %>%
+    
+    slice_head(
+      n = max_predictors
+    )
+  
+  if (nrow(predictor_data) == 0) {
+    
+    return(
+      paste0(
+        "\u0177 = ",
+        sprintf("%.2f", intercept)
+      )
+    )
+  }
+  
+  equation_terms <- vapply(
+    seq_len(nrow(predictor_data)),
+    function(i) {
+      
+      estimate <- predictor_data$Estimate[i]
+      
+      predictor_label <- get_variable_label(
+        predictor_data$predictor[i]
+      )
+      
+      paste0(
+        ifelse(estimate >= 0, "+", "\u2212"),
+        " ",
+        sprintf("%.2f", abs(estimate)),
+        " \u00D7 ",
+        predictor_label
+      )
+    },
+    character(1)
+  )
+  
+  # Split equation into groups to prevent long lines.
+  
+  term_groups <- split(
+    equation_terms,
+    ceiling(
+      seq_along(equation_terms) / predictors_per_line
+    )
+  )
+  
+  equation_lines <- vapply(
+    seq_along(term_groups),
+    function(i) {
+      
+      paste(
+        term_groups[[i]],
+        collapse = " "
+      )
+    },
+    character(1)
+  )
+  
+  # Add intercept to final line.
+  
+  intercept_term <- paste0(
+    ifelse(intercept >= 0, "+", "\u2212"),
+    " ",
+    sprintf("%.2f", abs(intercept))
+  )
+  
+  equation_lines[length(equation_lines)] <- paste(
+    equation_lines[length(equation_lines)],
+    intercept_term
+  )
+  
+  paste(
+    c(
+      "\u0177 =",
+      equation_lines
+    ),
+    collapse = "\n"
+  )
+}
+
+
+# -----------------------------------------------------------------------------
+# 5.7 Identify response from filename
+# -----------------------------------------------------------------------------
 
 identify_response_from_filename <- function(file_name) {
   
@@ -499,14 +626,7 @@ identify_response_from_filename <- function(file_name) {
   )
   
   response <- sub(
-    "\\.csv$",
-    "",
-    response
-  )
-  
-  # Remove projpred suffix, if present
-  response <- sub(
-    "__projpred_.*$",
+    "_bestmod\\.csv$",
     "",
     response
   )
@@ -515,9 +635,9 @@ identify_response_from_filename <- function(file_name) {
 }
 
 
-# ---------------------------------------------------------------------------
-# 5.5 Read CSV safely
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 5.8 Read CSV safely
+# -----------------------------------------------------------------------------
 
 read_model_csv <- function(file_path) {
   
@@ -542,6 +662,7 @@ theme_bayesian <- function(base_size = 11) {
   theme_bw(base_size = base_size) +
     
     theme(
+      
       plot.title = element_text(
         face = "bold",
         size = base_size + 2,
@@ -593,181 +714,174 @@ theme_bayesian <- function(base_size = 11) {
 
 
 # =============================================================================
-# 7. OBSERVED-VERSUS-PREDICTED PLOT WITH UNCERTAINTY RIBBONS
+# 7. OBSERVED-VERSUS-PREDICTED PLOT
 # =============================================================================
 
-plot_observed_predicted <- function(
+plot_prediction <- function(
     prediction_data,
-    response,
+    response_label,
     model_id
 ) {
   
-  required_columns <- c(
-    "observed",
-    "predicted_mean",
-    "fitted_lower_95",
-    "fitted_upper_95",
-    "predictive_lower_95",
-    "predictive_upper_95"
-  )
-  
-  missing_columns <- setdiff(
-    required_columns,
-    names(prediction_data)
-  )
-  
-  if (length(missing_columns) > 0) {
-    stop(
-      "Missing prediction columns for ",
-      model_id,
-      ": ",
-      paste(missing_columns, collapse = ", ")
-    )
-  }
-  
   prediction_data <- prediction_data %>%
+    
     mutate(
-      observed = as.numeric(observed),
-      predicted_mean = as.numeric(predicted_mean),
-      fitted_lower_95 = as.numeric(fitted_lower_95),
-      fitted_upper_95 = as.numeric(fitted_upper_95),
-      predictive_lower_95 = as.numeric(predictive_lower_95),
-      predictive_upper_95 = as.numeric(predictive_upper_95)
+      across(
+        all_of(c(
+          "observed",
+          "predicted_mean",
+          "fitted_lower_95",
+          "fitted_upper_95",
+          "predictive_lower_95",
+          "predictive_upper_95"
+        )),
+        as.numeric
+      )
     ) %>%
+    
     filter(
       is.finite(observed),
-      is.finite(predicted_mean)
+      is.finite(predicted_mean),
+      is.finite(fitted_lower_95),
+      is.finite(fitted_upper_95),
+      is.finite(predictive_lower_95),
+      is.finite(predictive_upper_95)
     )
   
-  if (nrow(prediction_data) == 0) {
-    stop("No valid prediction observations for ", model_id)
-  }
-  
-  # Treatment column is optional
-  if (!"Treatment_model" %in% names(prediction_data)) {
-    prediction_data$Treatment_model <- "All observations"
-  }
-  
-  prediction_data <- prediction_data %>%
-    mutate(
-      Treatment_model = as.factor(Treatment_model)
-    )
-  
-  # Common axis limits
-  all_values <- c(
-    prediction_data$observed,
-    prediction_data$predicted_mean,
-    prediction_data$fitted_lower_95,
-    prediction_data$fitted_upper_95,
-    prediction_data$predictive_lower_95,
-    prediction_data$predictive_upper_95
-  )
-  
-  all_values <- all_values[
-    is.finite(all_values)
-  ]
-  
-  axis_min <- min(all_values, na.rm = TRUE)
-  axis_max <- max(all_values, na.rm = TRUE)
-  
-  axis_padding <- 0.05 * (axis_max - axis_min)
-  
-  if (!is.finite(axis_padding) || axis_padding == 0) {
-    axis_padding <- 0.1
-  }
-  
-  axis_min <- axis_min - axis_padding
-  axis_max <- axis_max + axis_padding
-  
-  # Plot
-  p <- ggplot(
+  ggplot(
     prediction_data,
     aes(
       x = observed,
-      y = predicted_mean,
-      shape = Treatment_model
+      y = predicted_mean
     )
   ) +
     
-    # Wider, lighter 95% predictive interval
-    geom_errorbar(
+    # 1. 95% predictive interval
+    
+    geom_linerange(
       aes(
         ymin = predictive_lower_95,
         ymax = predictive_upper_95
       ),
-      width = 0,
-      colour = "grey65",
-      linewidth = 0.4,
-      alpha = 0.35
+      colour = "grey55",
+      linewidth = 0.7,
+      alpha = 0.7
     ) +
     
-    # Narrower, darker 95% fitted credible interval
-    geom_errorbar(
+    # 2. 95% fitted credible interval
+    
+    geom_linerange(
       aes(
         ymin = fitted_lower_95,
         ymax = fitted_upper_95
       ),
-      width = 0,
-      colour = "grey25",
-      linewidth = 0.8,
-      alpha = 0.8
+      colour = "steelblue",
+      linewidth = 3,
+      alpha = 0.35
     ) +
     
-    # 1:1 reference line
+    # 3. 1:1 reference line
+    
     geom_abline(
       intercept = 0,
       slope = 1,
       linetype = "dashed",
       colour = "black",
-      linewidth = 0.8
+      linewidth = 0.7
     ) +
     
-    # Predicted values
+    # 4. Predicted values
+    
     geom_point(
-      size = 2.8,
-      alpha = 0.85,
-      stroke = 0.6
+      colour = "black",
+      fill = "steelblue",
+      shape = 21,
+      size = 2.5,
+      alpha = 0.9
     ) +
     
-    scale_x_continuous(
-      limits = c(axis_min, axis_max)
-    ) +
-    
-    scale_y_continuous(
-      limits = c(axis_min, axis_max)
+    labs(
+      title = response_label,
+      
+      subtitle = paste(
+        "Best model:",
+        model_id
+      ),
+      
+      x = "Observed",
+      
+      y = "Predicted"
     ) +
     
     coord_equal() +
     
-    labs(
-      title = get_variable_label(response),
-      
-      subtitle = paste0(
-        "Observed versus predicted values: ",
-        model_id
-      ),
-      
-      x = paste0(
-        "Observed ",
-        get_variable_label(response)
-      ),
-      
-      y = paste0(
-        "Predicted ",
-        get_variable_label(response)
-      ),
-      
-      shape = "Treatment"
-    ) +
-    
-    theme_bayesian()
-  
-  p
+    theme_bayesian(base_size = 11)
 }
 
 
 # =============================================================================
-# 8. RELATIVE-IMPORTANCE BAR PLOT
+# 8. COEFFICIENT EQUATION PANEL
+# =============================================================================
+
+plot_equation <- function(coefficient_equation) {
+  
+  equation_data <- tibble(
+    x = 0,
+    y = 1,
+    equation = coefficient_equation
+  )
+  
+  ggplot(
+    equation_data,
+    aes(
+      x = x,
+      y = y,
+      label = equation
+    )
+  ) +
+    
+    # Equation heading
+    
+    annotate(
+      "text",
+      x = 0,
+      y = 1.45,
+      label = "Standardised posterior mean coefficients",
+      hjust = 0,
+      vjust = 1,
+      fontface = "bold",
+      size = 3.0,
+      colour = "grey25"
+    ) +
+    
+    # Multiline equation without a border or background
+    
+    geom_text(
+      hjust = 0,
+      vjust = 1,
+      size = 3.1,
+      lineheight = 1.2,
+      colour = "grey20"
+    ) +
+    
+    coord_cartesian(
+      xlim = c(0, 1),
+      ylim = c(-0.1, 1.55),
+      clip = "off"
+    ) +
+    
+    theme_void() +
+    
+    theme(
+      plot.margin = margin(
+        5, 15, 5, 15
+      )
+    )
+}
+
+
+# =============================================================================
+# 9. RELATIVE-IMPORTANCE BAR PLOT
 # =============================================================================
 
 plot_relative_importance <- function(
@@ -779,6 +893,7 @@ plot_relative_importance <- function(
     
     return(
       ggplot() +
+        
         annotate(
           "text",
           x = 0.5,
@@ -786,6 +901,7 @@ plot_relative_importance <- function(
           label = "No coefficient data available",
           size = 4
         ) +
+        
         theme_void()
     )
   }
@@ -818,7 +934,10 @@ plot_relative_importance <- function(
     
     geom_text(
       aes(
-        label = sprintf("%.1f%%", relative_importance)
+        label = sprintf(
+          "%.1f%%",
+          relative_importance
+        )
       ),
       hjust = -0.15,
       size = 3.2
@@ -827,9 +946,14 @@ plot_relative_importance <- function(
     scale_x_continuous(
       limits = c(
         0,
-        max(plot_data$relative_importance, na.rm = TRUE) * 1.22
+        max(
+          plot_data$relative_importance,
+          na.rm = TRUE
+        ) * 1.22
       ),
-      expand = expansion(mult = c(0, 0.02))
+      expand = expansion(
+        mult = c(0, 0.02)
+      )
     ) +
     
     labs(
@@ -848,6 +972,7 @@ plot_relative_importance <- function(
     theme_bayesian(base_size = 9) +
     
     theme(
+      
       plot.title = element_text(
         size = 10,
         face = "bold",
@@ -879,16 +1004,20 @@ plot_relative_importance <- function(
 
 
 # =============================================================================
-# 9. COMBINE PREDICTION AND IMPORTANCE PLOTS
+# 10. COMBINE PREDICTION, EQUATION AND IMPORTANCE PLOTS
 # =============================================================================
 
 combine_model_plots <- function(
     prediction_plot,
+    equation_plot,
     importance_plot,
     n_predictors
 ) {
   
-  # Allocate more height to the importance panel when there are more predictors
+  # Dedicated space for multiline coefficient equation.
+  
+  equation_height <- 0.9
+  
   importance_height <- max(
     1.1,
     0.22 * n_predictors
@@ -896,11 +1025,14 @@ combine_model_plots <- function(
   
   prediction_plot /
     
+    equation_plot /
+    
     importance_plot +
     
     patchwork::plot_layout(
       heights = c(
         3,
+        equation_height,
         importance_height
       )
     )
@@ -908,44 +1040,57 @@ combine_model_plots <- function(
 
 
 # =============================================================================
-# 10. FIND SAVED PREDICTION FILES
+# 11. FIND SAVED BEST-MODEL PREDICTION FILES ONLY
 # =============================================================================
 
 prediction_files <- list.files(
-  tables_dir,
-  pattern = "^predictions_.*\\.csv$",
-  full.names = TRUE
+  path = tables_dir,
+  pattern = "^predictions_.*_bestmod\\.csv$",
+  full.names = TRUE,
+  recursive = FALSE
 )
 
-# Exclude combined prediction files
-prediction_files <- prediction_files[
-  !grepl(
-    "all_responses|combined",
-    basename(prediction_files),
-    ignore.case = TRUE
-  )
-]
+prediction_files <- sort(
+  prediction_files
+)
 
 if (length(prediction_files) == 0) {
   
   stop(
-    "No prediction CSV files found in: ",
-    tables_dir
+    paste0(
+      "\nNo saved best-model prediction CSV files were found.\n\n",
+      "Expected filenames such as:\n",
+      "  predictions_C_Bulk_bestmod.csv\n",
+      "  predictions_C_MAOM_bestmod.csv\n\n",
+      "Directory searched:\n",
+      tables_dir,
+      "\n\nCheck that the original Bayesian modelling script ",
+      "successfully generated the best-model prediction files."
+    )
   )
 }
 
 message(
   "\nFound ",
   length(prediction_files),
-  " prediction CSV files."
+  " saved best-model prediction files."
 )
+
+message(
+  "\nBest-model files to be processed:"
+)
+
+for (f in prediction_files) {
+  message("  - ", basename(f))
+}
 
 
 # =============================================================================
-# 11. PROCESS EACH SAVED MODEL
+# 12. PROCESS EACH SAVED BEST MODEL
 # =============================================================================
 
 plot_summary <- list()
+
 all_importance <- list()
 
 for (i in seq_along(prediction_files)) {
@@ -982,7 +1127,7 @@ for (i in seq_along(prediction_files)) {
   )
   
   message(
-    "Processing model ",
+    "Processing best model ",
     i,
     " of ",
     length(prediction_files)
@@ -998,24 +1143,30 @@ for (i in seq_along(prediction_files)) {
     response
   )
   
+  
   # ---------------------------------------------------------------------------
-  # Check corresponding coefficient file
+  # Check matching coefficient file
   # ---------------------------------------------------------------------------
   
   if (!file.exists(coefficient_file)) {
     
     warning(
-      "No matching coefficient file found for ",
+      "Matching coefficient file not found for ",
       model_id,
+      ". Expected: ",
+      basename(coefficient_file),
       ". Skipping this model."
     )
     
     plot_summary[[model_id]] <- tibble(
       model = model_id,
       response = response,
-      status = "Skipped: coefficient file missing",
+      response_label = get_variable_label(response),
+      status = "Skipped: matching best-model coefficient file missing",
       n_observations = NA_integer_,
-      n_predictors = NA_integer_
+      n_predictors = NA_integer_,
+      prediction_file = basename(prediction_file),
+      coefficient_file = basename(coefficient_file)
     )
     
     next
@@ -1023,7 +1174,7 @@ for (i in seq_along(prediction_files)) {
   
   
   # ---------------------------------------------------------------------------
-  # Read prediction and coefficient data
+  # Read existing prediction and coefficient files
   # ---------------------------------------------------------------------------
   
   prediction_data <- tryCatch(
@@ -1031,12 +1182,14 @@ for (i in seq_along(prediction_files)) {
     read_model_csv(prediction_file),
     
     error = function(e) {
+      
       warning(
         "Could not read prediction file for ",
         model_id,
         ": ",
         conditionMessage(e)
       )
+      
       NULL
     }
   )
@@ -1046,12 +1199,14 @@ for (i in seq_along(prediction_files)) {
     read_model_csv(coefficient_file),
     
     error = function(e) {
+      
       warning(
         "Could not read coefficient file for ",
         model_id,
         ": ",
         conditionMessage(e)
       )
+      
       NULL
     }
   )
@@ -1064,9 +1219,58 @@ for (i in seq_along(prediction_files)) {
     plot_summary[[model_id]] <- tibble(
       model = model_id,
       response = response,
+      response_label = get_variable_label(response),
       status = "Skipped: file-reading error",
       n_observations = NA_integer_,
-      n_predictors = NA_integer_
+      n_predictors = NA_integer_,
+      prediction_file = basename(prediction_file),
+      coefficient_file = basename(coefficient_file)
+    )
+    
+    next
+  }
+  
+  
+  # ---------------------------------------------------------------------------
+  # Check required prediction columns
+  # ---------------------------------------------------------------------------
+  
+  required_prediction_columns <- c(
+    "observed",
+    "predicted_mean",
+    "fitted_lower_95",
+    "fitted_upper_95",
+    "predictive_lower_95",
+    "predictive_upper_95"
+  )
+  
+  missing_prediction_columns <- setdiff(
+    required_prediction_columns,
+    names(prediction_data)
+  )
+  
+  if (length(missing_prediction_columns) > 0) {
+    
+    warning(
+      "Prediction file for ",
+      model_id,
+      " is missing required columns: ",
+      paste(
+        missing_prediction_columns,
+        collapse = ", "
+      ),
+      ". Skipping this model."
+    )
+    
+    plot_summary[[model_id]] <- tibble(
+      model = model_id,
+      response = response,
+      response_label = get_variable_label(response),
+      status = "Skipped: required prediction columns missing",
+      n_observations = nrow(prediction_data),
+      n_predictors = NA_integer_,
+      prediction_file = basename(prediction_file),
+      coefficient_file = basename(coefficient_file)
     )
     
     next
@@ -1084,12 +1288,14 @@ for (i in seq_along(prediction_files)) {
     ),
     
     error = function(e) {
+      
       warning(
-        "Could not calculate importance for ",
+        "Could not calculate relative importance for ",
         model_id,
         ": ",
         conditionMessage(e)
       )
+      
       NULL
     }
   )
@@ -1102,9 +1308,12 @@ for (i in seq_along(prediction_files)) {
     plot_summary[[model_id]] <- tibble(
       model = model_id,
       response = response,
+      response_label = get_variable_label(response),
       status = "Skipped: no valid predictor coefficients",
       n_observations = nrow(prediction_data),
-      n_predictors = 0L
+      n_predictors = 0L,
+      prediction_file = basename(prediction_file),
+      coefficient_file = basename(coefficient_file)
     )
     
     next
@@ -1112,14 +1321,46 @@ for (i in seq_along(prediction_files)) {
   
   
   # ---------------------------------------------------------------------------
+  # Build multiline coefficient equation
+  # ---------------------------------------------------------------------------
+  
+  coefficient_equation <- tryCatch(
+    
+    build_coefficient_equation(
+      coef_data = coefficient_data,
+      max_predictors = 5,
+      predictors_per_line = 3
+    ),
+    
+    error = function(e) {
+      
+      warning(
+        "Could not build coefficient equation for ",
+        model_id,
+        ": ",
+        conditionMessage(e)
+      )
+      
+      "Coefficient equation unavailable"
+    }
+  )
+  
+  message(
+    "\nCoefficient equation:\n",
+    coefficient_equation
+  )
+  
+  
+  # ---------------------------------------------------------------------------
   # Add model identification to importance table
   # ---------------------------------------------------------------------------
   
   importance_data <- importance_data %>%
+    
     mutate(
       model = model_id,
       response = response,
-      response_label = get_variable_labels(response),
+      response_label = get_variable_label(response),
       predictor_label = get_variable_labels(predictor)
     ) %>%
     
@@ -1157,29 +1398,41 @@ for (i in seq_along(prediction_files)) {
   
   
   # ---------------------------------------------------------------------------
-  # Generate plots
+  # Generate prediction, equation and importance plots
   # ---------------------------------------------------------------------------
   
   model_plots <- tryCatch({
     
-    prediction_plot <- plot_observed_predicted(
+    prediction_plot <- plot_prediction(
+      
       prediction_data = prediction_data,
-      response = response,
+      
+      response_label = get_variable_label(response),
+      
       model_id = model_id
     )
     
+    equation_plot <- plot_equation(
+      coefficient_equation
+    )
+    
     importance_plot <- plot_relative_importance(
+      
       importance_data = importance_data,
+      
       response = response
     )
     
-    combined_plot <- combine_model_plots(
+    combine_model_plots(
+      
       prediction_plot = prediction_plot,
+      
+      equation_plot = equation_plot,
+      
       importance_plot = importance_plot,
+      
       n_predictors = nrow(importance_data)
     )
-    
-    combined_plot
     
   }, error = function(e) {
     
@@ -1199,9 +1452,12 @@ for (i in seq_along(prediction_files)) {
     plot_summary[[model_id]] <- tibble(
       model = model_id,
       response = response,
+      response_label = get_variable_label(response),
       status = "Skipped: plotting error",
       n_observations = nrow(prediction_data),
-      n_predictors = nrow(importance_data)
+      n_predictors = nrow(importance_data),
+      prediction_file = basename(prediction_file),
+      coefficient_file = basename(coefficient_file)
     )
     
     next
@@ -1227,7 +1483,7 @@ for (i in seq_along(prediction_files)) {
     width = 10,
     height = max(
       7,
-      5 + 0.22 * nrow(importance_data)
+      5.5 + 0.22 * nrow(importance_data)
     ),
     dpi = 400,
     bg = "white"
@@ -1253,7 +1509,7 @@ for (i in seq_along(prediction_files)) {
     width = 10,
     height = max(
       7,
-      5 + 0.22 * nrow(importance_data)
+      5.5 + 0.22 * nrow(importance_data)
     ),
     bg = "white"
   )
@@ -1270,10 +1526,12 @@ for (i in seq_along(prediction_files)) {
     status = "Successfully plotted",
     n_observations = nrow(prediction_data),
     n_predictors = nrow(importance_data),
+    coefficient_equation = coefficient_equation,
+    prediction_file = basename(prediction_file),
+    coefficient_file = basename(coefficient_file),
     png_file = basename(output_png),
     pdf_file = basename(output_pdf)
   )
-  
   
   message(
     "Successfully saved: ",
@@ -1284,7 +1542,7 @@ for (i in seq_along(prediction_files)) {
 
 
 # =============================================================================
-# 12. SAVE COMBINED RELATIVE-IMPORTANCE TABLE
+# 13. SAVE COMBINED RELATIVE-IMPORTANCE TABLE
 # =============================================================================
 
 if (length(all_importance) > 0) {
@@ -1297,12 +1555,12 @@ if (length(all_importance) > 0) {
     all_importance_df,
     file.path(
       tables_dir,
-      "relative_importance_all_models.csv"
+      "relative_importance_best_models_all_responses.csv"
     )
   )
   
   message(
-    "\nSaved combined relative-importance table."
+    "\nSaved combined relative-importance table for best models."
   )
   
 } else {
@@ -1314,24 +1572,38 @@ if (length(all_importance) > 0) {
 
 
 # =============================================================================
-# 13. SAVE PLOT GENERATION SUMMARY
+# 14. SAVE BEST-MODEL PLOT GENERATION SUMMARY
 # =============================================================================
 
-plot_summary_df <- bind_rows(
-  plot_summary
-)
+if (length(plot_summary) > 0) {
+  
+  plot_summary_df <- bind_rows(
+    plot_summary
+  )
+  
+} else {
+  
+  plot_summary_df <- tibble(
+    model = character(),
+    response = character(),
+    response_label = character(),
+    status = character(),
+    n_observations = integer(),
+    n_predictors = integer()
+  )
+}
 
 readr::write_csv(
   plot_summary_df,
   file.path(
     tables_dir,
-    "plot_generation_summary.csv"
+    "best_model_plot_generation_summary.csv"
   )
 )
 
 
 # =============================================================================
-# 14. FINAL SUMMARY
+# 15. FINAL SUMMARY
 # =============================================================================
 
 n_success <- sum(
@@ -1339,14 +1611,20 @@ n_success <- sum(
   na.rm = TRUE
 )
 
-n_skipped <- nrow(plot_summary_df) - n_success
+n_skipped <- sum(
+  grepl(
+    "^Skipped:",
+    plot_summary_df$status
+  ),
+  na.rm = TRUE
+)
 
 message(
   "\n=================================================="
 )
 
 message(
-  "BAYESIAN PLOT GENERATION COMPLETE"
+  "BEST-MODEL PLOT GENERATION COMPLETE"
 )
 
 message(
@@ -1354,7 +1632,7 @@ message(
 )
 
 message(
-  "Prediction files found: ",
+  "Saved best-model prediction files found: ",
   length(prediction_files)
 )
 
@@ -1366,6 +1644,22 @@ message(
 message(
   "Skipped: ",
   n_skipped
+)
+
+message(
+  "\nOnly saved _bestmod.csv model outputs were processed."
+)
+
+message(
+  "No Bayesian models were fitted or refitted."
+)
+
+message(
+  "\nCoefficient equations display the five strongest predictors."
+)
+
+message(
+  "Equations are displayed below prediction plots without borders."
 )
 
 message(
@@ -1385,7 +1679,7 @@ message(
 )
 
 message(
-  "\nPlot generation summary:"
+  "\nBest-model plot generation summary:"
 )
 
 print(plot_summary_df)
