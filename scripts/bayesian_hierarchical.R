@@ -815,6 +815,126 @@ for (g in names(plot_groups_available)) {
 }
 
 
+
+# =============================================================================
+# PLOT LABELS, UNITS AND TREATMENT COLOURS
+# =============================================================================
+
+# Control is neutral grey; the four amendments use the requested colours.
+treatment_colours <- c(
+  "Control" = "#777777",
+  "Lime" = "#78A641",
+  "HB 50" = "#C65A9E",
+  "EG 50" = "#D99A16",
+  "BD 50" = "#2878B5"
+)
+
+treatment_display <- c(
+  "Control" = "Control",
+  "Lime" = "Lime",
+  "HB 50" = "Hühnerberg",
+  "EG 50" = "Eifelgold",
+  "BD 50" = "Bolsdorfer"
+)
+
+group_display <- c(
+  Soil_Chemistry = "Soil chemistry",
+  Aggregate_Stability = "Aggregate stability",
+  CEC_Cations = "CEC and exchangeable cations",
+  Oxalate_DCB_Ratios = "Oxalate and DCB ratios",
+  Tessier_Carbonate = "Tessier carbonate fraction",
+  Tessier_Exchangeable = "Tessier exchangeable fraction",
+  Tessier_Oxidizable = "Tessier oxidizable fraction",
+  Tessier_Reducible = "Tessier reducible fraction",
+  FTIR_Spectral = "FTIR spectral changes",
+  Carbon_and_Radiocarbon = "Carbon and radiocarbon"
+)
+
+# Units are shown in each facet heading because several panels in a grouped
+# figure have different units. This avoids assigning one misleading unit to
+# the entire shared axis.
+response_display <- c(
+  soil_pH = "Soil pH (no units)",
+  soil_EC = "Soil EC (µS cm⁻¹)",
+  GMD_h2o = "GMD-H₂O (mm)",
+  D_h2o = "D-H₂O (no units)",
+  MWD_h2o = "MWD-H₂O (mm)",
+  GMD_oxalate_over_h2o = "GMD-Oxalate / GMD-H₂O (no units)",
+  D_oxalate_over_h2o = "D-Oxalate / D-H₂O (no units)",
+  MWD_oxalate_over_h2o = "MWD-Oxalate / MWD-H₂O (no units)",
+  CEC_CEC = "CEC (cmolc kg⁻¹)",
+  CEC_Base_saturation = "Base saturation (%)",
+  CEC_H = "Exchangeable H (cmolc kg⁻¹)",
+  CEC_Ca = "Exchangeable Ca (cmolc kg⁻¹)",
+  CEC_K = "Exchangeable K (cmolc kg⁻¹)",
+  CEC_Mg = "Exchangeable Mg (cmolc kg⁻¹)",
+  CEC_Na = "Exchangeable Na (cmolc kg⁻¹)",
+  CEC_Al = "Exchangeable Al (cmolc kg⁻¹)",
+  CEC_Fe = "Exchangeable Fe (cmolc kg⁻¹)",
+  CEC_Mn = "Exchangeable Mn (cmolc kg⁻¹)",
+  Fe_ox_over_DCB = "Fe-ox / Fe-DCB (no units)",
+  Al_ox_over_DCB = "Al-ox / Al-DCB (no units)",
+  Mn_ox_over_DCB = "Mn-ox / Mn-DCB (no units)",
+  Si_ox_over_DCB = "Si-ox / Si-DCB (no units)",
+  Fe_ox_over_Si_ox = "Fe-ox / Si-ox (no units)",
+  Al_ox_over_Si_ox = "Al-ox / Si-ox (no units)",
+  Tessier_Acetic_Ca_mg_g = "Ca-Acetic (mg g⁻¹)",
+  Tessier_Acetic_K_mg_g = "K-Acetic (mg g⁻¹)",
+  Tessier_Acetic_Na_mg_g = "Na-Acetic (mg g⁻¹)",
+  Tessier_Acetic_Mg_mg_g = "Mg-Acetic (mg g⁻¹)",
+  Tessier_NH4OAc_Ca_mg_g = "Ca-NH₄OAc (mg g⁻¹)",
+  Tessier_NH4OAc_K_mg_g = "K-NH₄OAc (mg g⁻¹)",
+  Tessier_NH4OAc_Na_mg_g = "Na-NH₄OAc (mg g⁻¹)",
+  Tessier_NH4OAc_Mg_mg_g = "Mg-NH₄OAc (mg g⁻¹)",
+  Tessier_H2O2_Fe_mg_g = "Fe-H₂O₂ (mg g⁻¹)",
+  Tessier_H2O2_Al_mg_g = "Al-H₂O₂ (mg g⁻¹)",
+  Tessier_H2O2_Mn_mg_g = "Mn-H₂O₂ (mg g⁻¹)",
+  Tessier_H2O2_Si_mg_g = "Si-H₂O₂ (mg g⁻¹)",
+  Tessier_Hydroxylamine_Fe_mg_g = "Fe-Hydroxylamine (mg g⁻¹)",
+  Tessier_Hydroxylamine_Al_mg_g = "Al-Hydroxylamine (mg g⁻¹)",
+  Tessier_Hydroxylamine_Mn_mg_g = "Mn-Hydroxylamine (mg g⁻¹)",
+  Tessier_Hydroxylamine_Si_mg_g = "Si-Hydroxylamine (mg g⁻¹)",
+  FTIR_delta_aromatic = "Aromatic (no units)",
+  FTIR_delta_Carbonate_bend = "Carbonate bend (no units)",
+  FTIR_delta_carbonate_stretch = "Carbonate stretch (no units)",
+  FTIR_delta_carbonyl = "Carbonyl (no units)",
+  FTIR_delta_Aliphatic_total = "Aliphatic (no units)",
+  FTIR_delta_COO_total = "Carboxylic (no units)",
+  FTIR_delta_polysaccharide = "Polysaccharide (no units)",
+  FTIR_delta_poorly_crystalline = "Amorphous (no units)",
+  FTIR_delta_Silicate = "Silicate (no units)",
+  FTIR_delta_total_area = "Total (no units)",
+  C_Bulk = "Bulk carbon (%)",
+  C_MAOM = "MAOM carbon (%)",
+  C_oPOM = "oPOM carbon (%)",
+  C_fPOM = "fPOM carbon (%)",
+  d14C_2026_Bulk = "Bulk Δ¹⁴C (‰)",
+  d14C_2026_MAOM = "MAOM Δ¹⁴C (‰)",
+  d14C_2026_oPOM = "oPOM Δ¹⁴C (‰)",
+  d14C_2026_fPOM = "fPOM Δ¹⁴C (‰)"
+)
+
+display_response <- function(x) {
+  out <- unname(response_display[x])
+  missing <- is.na(out)
+  out[missing] <- gsub("_", " ", x[missing])
+  out
+}
+
+display_group <- function(x) {
+  out <- unname(group_display[x])
+  ifelse(is.na(out), gsub("_", " ", x), out)
+}
+
+display_comparison <- function(x) {
+  x <- gsub("HB 50", "Hühnerberg", x, fixed = TRUE)
+  x <- gsub("EG 50", "Eifelgold", x, fixed = TRUE)
+  x <- gsub("BD 50", "Bolsdorfer", x, fixed = TRUE)
+  x <- gsub("minus", "−", x, fixed = TRUE)
+  x
+}
+
+
 # =============================================================================
 # 6. CHECK AND PREPARE POSTERIOR CONTRAST TABLES
 # =============================================================================
@@ -942,7 +1062,8 @@ make_grouped_forest_plot <- function(
     mutate(
       Response = factor(
         Response,
-        levels = responses
+        levels = responses,
+        labels = display_response(responses)
       )
     )
   
@@ -975,8 +1096,13 @@ make_grouped_forest_plot <- function(
   plot_data <- plot_data %>%
     mutate(
       Comparison = factor(
-        Comparison,
-        levels = rev(comparison_levels)
+        display_comparison(as.character(Comparison)),
+        levels = rev(display_comparison(comparison_levels))
+      ),
+      Treatment_colour_key = if_else(
+        as.character(Treatment_1) == "Control",
+        as.character(Treatment_2),
+        as.character(Treatment_1)
       )
     )
   
@@ -984,7 +1110,8 @@ make_grouped_forest_plot <- function(
     plot_data,
     aes(
       x = Difference_original,
-      y = Comparison
+      y = Comparison,
+      colour = Treatment_colour_key
     )
   ) +
     
@@ -1008,8 +1135,12 @@ make_grouped_forest_plot <- function(
     ) +
     
     # Posterior mean differences.
-    geom_point(
-      size = 2.2
+    geom_point(size = 2.4) +
+    scale_colour_manual(
+      values = treatment_colours,
+      breaks = c("Lime", "HB 50", "EG 50", "BD 50"),
+      labels = treatment_display[c("Lime", "HB 50", "EG 50", "BD 50")],
+      name = "Treatment"
     ) +
     
     # Independent horizontal scale for each response.
@@ -1021,16 +1152,15 @@ make_grouped_forest_plot <- function(
     
     labs(
       title = paste(
-        comparison_type,
-        "Treatment Contrasts:",
-        gsub("_", " ", group_name)
+        ifelse(comparison_type == "Primary",
+               "Primary treatment contrasts:",
+               "All pairwise treatment contrasts:"),
+        display_group(group_name)
       ),
-      subtitle = paste(
-        "Posterior treatment differences in original measurement units;",
-        "points show posterior means and lines show 95% credible intervals"
-      ),
-      x = "Treatment difference (original measurement units)",
-      y = NULL
+      subtitle = "Points show posterior mean differences; lines show 95% credible intervals",
+      x = "Treatment difference (units specified in each panel heading)",
+      y = NULL,
+      colour = "Treatment"
     ) +
     
     theme_bw(base_size = 11) +
@@ -1062,6 +1192,16 @@ make_grouped_forest_plot <- function(
     ceiling(n_responses / 2) * 2.8
   )
   
+  plot_height <- max(4.5, ceiling(n_responses / 2) * 2.8)
+  plot_prefix <- if (comparison_type == "Primary") "Primary_Forest_" else "All_Pairwise_Forest_"
+  filename <- file.path(
+    bayesian_treatment_plots_dir,
+    paste0(plot_prefix, group_name, ".png")
+  )
+  ggsave(filename, p, width = 13, height = plot_height, dpi = 300, bg = "white")
+  ggsave(sub("\\.png$", ".pdf", filename), p, width = 13, height = plot_height, bg = "white")
+  message("Saved: ", filename)
+  
   print(p)
   
   return(p)
@@ -1084,7 +1224,8 @@ make_grouped_violin_plot <- function(
     mutate(
       Response = factor(
         Response,
-        levels = responses
+        levels = responses,
+        labels = display_response(responses)
       ),
       Treatment_PCA = factor(
         Treatment_PCA,
@@ -1132,13 +1273,20 @@ make_grouped_violin_plot <- function(
       ncol = 2
     ) +
     
+    scale_x_discrete(labels = treatment_display) +
+    
+    scale_fill_manual(
+      values = treatment_colours,
+      breaks = bayesian_treatment_levels,
+      labels = treatment_display[bayesian_treatment_levels],
+      drop = FALSE
+    ) +
+    
+    
     labs(
-      title = paste(
-        "Treatment Distributions:",
-        gsub("_", " ", group_name)
-      ),
+      title = paste("Treatment distributions:", display_group(group_name)),
       x = NULL,
-      y = "Measured value"
+      y = "Measured value (units specified in each panel heading)"
     ) +
     
     theme_bw(base_size = 11) +
@@ -1307,6 +1455,13 @@ make_grouped_dose_plot <- function(
     filter(
       is.finite(Dose_t_ha),
       is.finite(Value)
+    ) %>%
+    mutate(
+      Response = factor(
+        Response,
+        levels = responses,
+        labels = display_response(responses)
+      )
     )
   
   if (nrow(plot_data) == 0) {
@@ -1370,13 +1525,10 @@ make_grouped_dose_plot <- function(
     ) +
     
     labs(
-      title = paste(
-        "Hühnerberg Dose-Response:",
-        gsub("_", " ", group_name)
-      ),
-      subtitle = "Mean +/- SD across replicate observations",
-      x = "Hühnerberg application rate (t ha-1)",
-      y = "Measured value"
+      title = paste("Hühnerberg dose response:", display_group(group_name)),
+      subtitle = "Mean ± SD across replicate observations",
+      x = "Hühnerberg application rate (t ha⁻¹)",
+      y = "Measured value (units specified in each panel heading)"
     ) +
     
     theme_bw(base_size = 11) +

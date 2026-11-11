@@ -1,4 +1,3 @@
-
 # =============================================================================
 # MALLE ERW: SoilR posterior treatment comparisons
 #
@@ -215,27 +214,7 @@ plot_groups <- list(
 )
 
 
-outcome_labels <- c(
-  
-  kf = "kf: fPOM decomposition rate",
-  
-  ki = "ki: oPOM decomposition rate",
-  
-  ks = "ks: MAOM decomposition rate",
-  
-  alpha_fi = "alpha_fi: fPOM to oPOM transfer",
-  
-  alpha_is = "alpha_is: oPOM to MAOM transfer",
-  
-  fPOM_age = "fPOM mean age (years)",
-  
-  oPOM_age = "oPOM mean age (years)",
-  
-  MAOM_age = "MAOM mean age (years)",
-  
-  system_transit_time = "System mean transit time (years)"
-  
-)
+outcome_labels <- outcome_display_labels
 
 
 # Primary comparisons ONLY
@@ -264,6 +243,52 @@ primary_comparisons <- tibble(
 
 
 print(primary_comparisons)
+
+
+
+# =============================================================================
+# PLOT DISPLAY LABELS, UNITS AND TREATMENT COLOURS
+# =============================================================================
+
+treatment_colours <- c(
+  "Control" = "#777777",
+  "Lime" = "#78A641",
+  "HB 50" = "#C65A9E",
+  "EG 50" = "#D99A16",
+  "BD 50" = "#2878B5"
+)
+
+treatment_display <- c(
+  "Control" = "Control",
+  "Lime" = "Lime",
+  "HB 50" = "Hühnerberg",
+  "EG 50" = "Eifelgold",
+  "BD 50" = "Bolsdorfer"
+)
+
+group_display <- c(
+  Decomposition_Rates = "Decomposition rates",
+  Transfer_Coefficients = "Transfer coefficients",
+  Pool_Mean_Ages = "Pool mean ages",
+  System_Transit_Time = "System mean transit time"
+)
+
+outcome_display_labels <- c(
+  kf = "fPOM decomposition rate, kf (yr⁻¹)",
+  ki = "oPOM decomposition rate, ki (yr⁻¹)",
+  ks = "MAOM decomposition rate, ks (yr⁻¹)",
+  alpha_fi = "fPOM → oPOM transfer coefficient, αfi (no units)",
+  alpha_is = "oPOM → MAOM transfer coefficient, αis (no units)",
+  fPOM_age = "fPOM mean age (years)",
+  oPOM_age = "oPOM mean age (years)",
+  MAOM_age = "MAOM mean age (years)",
+  system_transit_time = "System mean transit time (years)"
+)
+
+display_group <- function(x) {
+  out <- unname(group_display[x])
+  ifelse(is.na(out), gsub("_", " ", x), out)
+}
 
 
 # =============================================================================
@@ -1220,12 +1245,19 @@ make_posterior_violin <- function(
       
     ) +
     
+    scale_x_discrete(labels = treatment_display) +
+    
+    scale_fill_manual(
+      values = treatment_colours,
+      breaks = plot_treatment_order,
+      labels = treatment_display[plot_treatment_order],
+      drop = FALSE
+    ) +
+    
+    
     labs(
       
-      title = paste(
-        "SoilR posterior distributions:",
-        gsub("_", " ", group_name)
-      ),
+      title = paste("SoilR posterior distributions:", display_group(group_name)),
       
       subtitle = paste(
         "Treatment-specific posterior distributions;",
@@ -1234,7 +1266,7 @@ make_posterior_violin <- function(
       
       x = NULL,
       
-      y = "Posterior value"
+      y = "Posterior value (units specified in each panel heading)"
       
     ) +
     
@@ -1380,15 +1412,9 @@ make_primary_forest_plot <- function(
       ),
       
       Treatment = factor(
-        Treatment,
-        levels = rev(
-          c(
-            "Lime",
-            "HB 50",
-            "EG 50",
-            "BD 50"
-          )
-        )
+        as.character(Treatment),
+        levels = rev(c("Lime", "HB 50", "EG 50", "BD 50")),
+        labels = rev(c("Lime - Control", "HB 50 - Control", "EG 50 - Control", "BD 50 - Control"))
       )
       
     )
@@ -1412,7 +1438,8 @@ make_primary_forest_plot <- function(
     
     aes(
       x = Difference_median,
-      y = Treatment
+      y = Treatment,
+      colour = Treatment
     )
     
   ) +
@@ -1450,6 +1477,17 @@ make_primary_forest_plot <- function(
       
     ) +
     
+    scale_colour_manual(
+      values = c(
+        "Lime - Control" = "#78A641",
+        "HB 50 - Control" = "#C65A9E",
+        "EG 50 - Control" = "#D99A16",
+        "BD 50 - Control" = "#2878B5"
+      ),
+      breaks = c("Lime - Control", "HB 50 - Control", "EG 50 - Control", "BD 50 - Control"),
+      name = "Treatment"
+    ) +
+    
     facet_wrap(
       
       ~ Response,
@@ -1462,17 +1500,14 @@ make_primary_forest_plot <- function(
     
     labs(
       
-      title = paste(
-        "SoilR treatment contrasts:",
-        gsub("_", " ", group_name)
-      ),
+      title = paste("SoilR primary treatment contrasts:", display_group(group_name)),
       
       subtitle = paste(
         "Treatment minus Control;",
         "posterior median differences and 95% credible intervals"
       ),
       
-      x = "Treatment minus Control (original units)",
+      x = "Treatment difference (units specified in each panel heading)",
       
       y = NULL,
       
@@ -1723,16 +1758,20 @@ make_contrast_distribution_plot <- function(
       
     ) +
     
+    scale_fill_manual(
+      values = treatment_colours[c("Lime", "HB 50", "EG 50", "BD 50")],
+      breaks = c("Lime", "HB 50", "EG 50", "BD 50"),
+      labels = treatment_display[c("Lime", "HB 50", "EG 50", "BD 50")]
+    ) +
+    
+    
     labs(
       
-      title = paste(
-        "Posterior treatment differences:",
-        gsub("_", " ", group_name)
-      ),
+      title = paste("Posterior treatment differences:", display_group(group_name)),
       
       subtitle = "Each distribution represents treatment minus Control",
       
-      x = "Posterior treatment difference (original units)",
+      x = "Posterior treatment difference (units specified in each panel heading)",
       
       y = "Density",
       
