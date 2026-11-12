@@ -8,7 +8,7 @@
 #   3. Regenerate observed-versus-predicted plots.
 #   4. Show 95% fitted credible intervals and predictive intervals.
 #   5. Display multiline coefficient equations below prediction plots.
-#   6. Add relative-importance bar plots below coefficient equations.
+#   6. Add compact relative-importance bar plots below coefficient equations.
 #   7. Save individual and combined relative-importance CSV summaries.
 #   8. Save a summary of successfully plotted and skipped models.
 #
@@ -21,22 +21,19 @@
 #   - Ignores all candidate model files.
 #   - Overwrites existing plots with the same filenames.
 #
-# COEFFICIENT EQUATIONS:
-#   - Uses standardised posterior mean coefficients.
-#   - Displays the five strongest predictors.
-#   - Positive coefficients are indicated by (+).
-#   - Negative coefficients are indicated by (-).
-#   - Includes the intercept where available.
-#   - Automatically wraps equations across multiple lines.
-#   - Appears below the prediction plot without a border.
+# EQUATION CORRECTIONS:
+#   - Intercept is displayed immediately after y-hat.
+#   - Intercept is not appended at the end of the equation.
+#   - Zero-valued predictor coefficients are omitted.
+#   - All non-zero predictors in the saved best model are displayed.
+#   - No arbitrary five-predictor limit is applied.
+#   - The same non-zero predictors are used for relative importance.
 #
-# RELATIVE IMPORTANCE:
-#   abs(standardised posterior mean coefficient) /
-#   sum(abs(standardised posterior mean coefficients)) * 100
-#
-#   Intercepts are excluded.
-#   This represents relative coefficient magnitude,
-#   NOT variance explained.
+# PLOT LAYOUT:
+#   - Observed-versus-predicted plot remains full width.
+#   - Equation panel remains full width and centred.
+#   - Relative-importance plot is centred and uses 60% of figure width.
+#   - Importance bars are relatively thin.
 #
 # =============================================================================
 
@@ -114,9 +111,7 @@ message("Best-model output plots: ", plots_dir)
 
 variable_labels <- c(
   
-  # ---------------------------------------------------------------------------
   # Aggregate stability
-  # ---------------------------------------------------------------------------
   
   "GMD_h2o" = "GMD-H2O (mm)",
   "D_h2o" = "D-H2O (no units)",
@@ -131,10 +126,7 @@ variable_labels <- c(
   "MWD_oxalate_over_h2o" =
     "MWD-Oxalate / MWD-H2O (no units)",
   
-  
-  # ---------------------------------------------------------------------------
   # Carbon and radiocarbon
-  # ---------------------------------------------------------------------------
   
   "C_Bulk" = "Bulk Carbon (%)",
   "C_MAOM" = "MAOM Carbon (%)",
@@ -153,10 +145,7 @@ variable_labels <- c(
   "d14C_2026_fPOM" = "fPOM Δ¹⁴C (‰)",
   "D14C_2026_fPOM" = "fPOM Δ¹⁴C (‰)",
   
-  
-  # ---------------------------------------------------------------------------
   # CEC and exchangeable cations
-  # ---------------------------------------------------------------------------
   
   "CEC_CEC" = "CEC",
   "CEC_Base_saturation" = "Base saturation (%)",
@@ -166,10 +155,7 @@ variable_labels <- c(
   "CEC_Mg" = "Exchangeable Mg",
   "CEC_Na" = "Exchangeable Na",
   
-  
-  # ---------------------------------------------------------------------------
   # FTIR
-  # ---------------------------------------------------------------------------
   
   "FTIR_delta_aromatic" = "Aromatic (no units)",
   
@@ -205,10 +191,7 @@ variable_labels <- c(
   "FTIR_delta_total_area" =
     "Total (no units)",
   
-  
-  # ---------------------------------------------------------------------------
   # Oxalate / DCB ratios
-  # ---------------------------------------------------------------------------
   
   "Fe_ox_over_DCB" = "Fe-ox / Fe-DCB (no units)",
   "Al_ox_over_DCB" = "Al-ox / Al-DCB (no units)",
@@ -218,28 +201,19 @@ variable_labels <- c(
   "Fe_ox_over_Si_ox" = "Fe-ox / Si-ox (no units)",
   "Al_ox_over_Si_ox" = "Al-ox / Si-ox (no units)",
   
-  
-  # ---------------------------------------------------------------------------
   # Soil chemistry
-  # ---------------------------------------------------------------------------
   
   "soil_pH" = "Soil pH (no units)",
   "soil_EC" = "Soil EC (μS cm⁻¹)",
   
-  
-  # ---------------------------------------------------------------------------
   # Tessier carbonate fraction: acetic acid
-  # ---------------------------------------------------------------------------
   
   "Tessier_Acetic_Ca_mg_g" = "Ca-Acetic",
   "Tessier_Acetic_Na_mg_g" = "Na-Acetic",
   "Tessier_Acetic_Mg_mg_g" = "Mg-Acetic",
   "Tessier_Acetic_K_mg_g" = "K-Acetic",
   
-  
-  # ---------------------------------------------------------------------------
   # Tessier oxidizable fraction: H2O2
-  # ---------------------------------------------------------------------------
   
   "Tessier_H2O2_Ca_mg_g" = "Ca-H2O2",
   "Tessier_H2O2_Na_mg_g" = "Na-H2O2",
@@ -250,10 +224,7 @@ variable_labels <- c(
   "Tessier_ H2O2_Mg_mg_g" = "Mg-H2O2",
   "Tessier_ H2O2_K_mg_g" = "K-H2O2",
   
-  
-  # ---------------------------------------------------------------------------
   # Tessier reducible fraction: hydroxylamine
-  # ---------------------------------------------------------------------------
   
   "Tessier_Hydroxylamine_Ca_mg_g" =
     "Ca-Hydroxylamine",
@@ -362,7 +333,8 @@ identify_estimate_column <- function(coef_data) {
     
     stop(
       "Could not identify standardised coefficient column. ",
-      "Expected 'Estimate'."
+      "Expected one of: ",
+      paste(possible_columns, collapse = ", ")
     )
   }
   
@@ -405,7 +377,7 @@ calculate_relative_importance <- function(coef_data) {
     
     filter(
       !is.na(predictor),
-      !is.na(Estimate)
+      is.finite(Estimate)
     ) %>%
     
     filter(
@@ -417,6 +389,11 @@ calculate_relative_importance <- function(coef_data) {
     summarise(
       Estimate = mean(Estimate, na.rm = TRUE),
       .groups = "drop"
+    ) %>%
+    
+    # Remove zero-valued predictor coefficients.
+    filter(
+      abs(Estimate) > 1e-8
     ) %>%
     
     mutate(
@@ -493,8 +470,8 @@ extract_intercept <- function(coef_data) {
 
 build_coefficient_equation <- function(
     coef_data,
-    max_predictors = 5,
-    predictors_per_line = 3
+    predictors_per_line = 3,
+    zero_tolerance = 1e-8
 ) {
   
   predictor_column <- identify_predictor_column(coef_data)
@@ -513,7 +490,13 @@ build_coefficient_equation <- function(
       is.finite(Estimate)
     )
   
+  # Extract the intercept separately.
+  # It is always retained and displayed immediately after y-hat.
+  
   intercept <- extract_intercept(coef_data)
+  
+  # Extract all selected predictors from the saved best model.
+  # No arbitrary maximum number of predictors is imposed.
   
   predictor_data <- coefficient_data %>%
     
@@ -528,23 +511,37 @@ build_coefficient_equation <- function(
       .groups = "drop"
     ) %>%
     
-    arrange(
-      desc(abs(Estimate))
+    # Remove coefficients that are effectively zero.
+    # This prevents trailing +0 or -0 terms.
+    
+    filter(
+      abs(Estimate) > zero_tolerance
     ) %>%
     
-    slice_head(
-      n = max_predictors
+    arrange(
+      desc(abs(Estimate))
     )
+  
+  # Format the intercept first.
+  
+  intercept_term <- sprintf(
+    "%.2f",
+    intercept
+  )
+  
+  # If there are no non-zero predictors, return the intercept alone.
   
   if (nrow(predictor_data) == 0) {
     
     return(
       paste0(
         "\u0177 = ",
-        sprintf("%.2f", intercept)
+        intercept_term
       )
     )
   }
+  
+  # Format each predictor coefficient with its correct sign.
   
   equation_terms <- vapply(
     seq_len(nrow(predictor_data)),
@@ -567,7 +564,7 @@ build_coefficient_equation <- function(
     character(1)
   )
   
-  # Split equation into groups to prevent long lines.
+  # Split predictors over multiple lines.
   
   term_groups <- split(
     equation_terms,
@@ -577,35 +574,31 @@ build_coefficient_equation <- function(
   )
   
   equation_lines <- vapply(
-    seq_along(term_groups),
-    function(i) {
-      
+    term_groups,
+    function(group) {
       paste(
-        term_groups[[i]],
+        group,
         collapse = " "
       )
     },
     character(1)
   )
   
-  # Add intercept to final line.
+  # IMPORTANT:
+  # The intercept is the first term in the equation.
+  # Predictor terms follow it.
+  # The intercept is never appended at the end.
   
-  intercept_term <- paste0(
-    ifelse(intercept >= 0, "+", "\u2212"),
-    " ",
-    sprintf("%.2f", abs(intercept))
-  )
-  
-  equation_lines[length(equation_lines)] <- paste(
-    equation_lines[length(equation_lines)],
-    intercept_term
+  equation_lines <- c(
+    paste0(
+      "\u0177 = ",
+      intercept_term
+    ),
+    equation_lines
   )
   
   paste(
-    c(
-      "\u0177 =",
-      equation_lines
-    ),
+    equation_lines,
     collapse = "\n"
   )
 }
@@ -756,8 +749,6 @@ plot_prediction <- function(
     )
   ) +
     
-    # 1. 95% predictive interval
-    
     geom_linerange(
       aes(
         ymin = predictive_lower_95,
@@ -767,8 +758,6 @@ plot_prediction <- function(
       linewidth = 0.7,
       alpha = 0.7
     ) +
-    
-    # 2. 95% fitted credible interval
     
     geom_linerange(
       aes(
@@ -780,8 +769,6 @@ plot_prediction <- function(
       alpha = 0.35
     ) +
     
-    # 3. 1:1 reference line
-    
     geom_abline(
       intercept = 0,
       slope = 1,
@@ -789,8 +776,6 @@ plot_prediction <- function(
       colour = "black",
       linewidth = 0.7
     ) +
-    
-    # 4. Predicted values
     
     geom_point(
       colour = "black",
@@ -840,24 +825,20 @@ plot_equation <- function(coefficient_equation) {
     )
   ) +
     
-    # Equation heading
-    
     annotate(
       "text",
       x = 0,
       y = 1.45,
       label = "Standardised posterior mean coefficients",
-      hjust = 0,
+      hjust = 0.5,
       vjust = 1,
       fontface = "bold",
       size = 3.0,
       colour = "grey25"
     ) +
     
-    # Multiline equation without a border or background
-    
     geom_text(
-      hjust = 0,
+      hjust = 0.5,
       vjust = 1,
       size = 3.1,
       lineheight = 1.2,
@@ -865,7 +846,7 @@ plot_equation <- function(coefficient_equation) {
     ) +
     
     coord_cartesian(
-      xlim = c(0, 1),
+      xlim = c(-1, 1),
       ylim = c(-0.1, 1.55),
       clip = "off"
     ) +
@@ -929,7 +910,7 @@ plot_relative_importance <- function(
       fill = "grey45",
       colour = "black",
       linewidth = 0.25,
-      width = 0.7
+      width = 0.40
     ) +
     
     geom_text(
@@ -969,27 +950,31 @@ plot_relative_importance <- function(
       y = NULL
     ) +
     
-    theme_bayesian(base_size = 9) +
+    theme_bayesian(base_size = 10) +
     
     theme(
       
       plot.title = element_text(
-        size = 10,
+        size = 11,
         face = "bold",
         hjust = 0
       ),
       
       plot.subtitle = element_text(
-        size = 8,
+        size = 9,
         hjust = 0
       ),
       
       axis.text.y = element_text(
-        size = 8
+        size = 9
+      ),
+      
+      axis.text.x = element_text(
+        size = 9
       ),
       
       axis.title.x = element_text(
-        size = 9
+        size = 10
       ),
       
       legend.position = "none",
@@ -997,7 +982,7 @@ plot_relative_importance <- function(
       panel.grid.major.y = element_blank(),
       
       plot.margin = margin(
-        5, 20, 5, 8
+        5, 15, 5, 8
       )
     )
 }
@@ -1014,28 +999,43 @@ combine_model_plots <- function(
     n_predictors
 ) {
   
-  # Dedicated space for multiline coefficient equation.
-  
   equation_height <- 0.9
   
   importance_height <- max(
-    1.1,
-    0.22 * n_predictors
+    0.65,
+    0.11 * n_predictors
   )
   
-  prediction_plot /
+  # Centred importance panel occupying 60% of figure width.
+  
+  importance_row <- (
+    patchwork::plot_spacer() +
+      importance_plot +
+      patchwork::plot_spacer()
+  ) +
+    
+    patchwork::plot_layout(
+      ncol = 3,
+      widths = c(0.20, 0.60, 0.20)
+    )
+  
+  # Stack panels vertically.
+  
+  combined_plot <- prediction_plot /
     
     equation_plot /
     
-    importance_plot +
+    importance_row +
     
     patchwork::plot_layout(
       heights = c(
-        3,
+        4,
         equation_height,
         importance_height
       )
     )
+  
+  combined_plot
 }
 
 
@@ -1211,6 +1211,7 @@ for (i in seq_along(prediction_files)) {
     }
   )
   
+  
   if (
     is.null(prediction_data) ||
     is.null(coefficient_data)
@@ -1309,7 +1310,7 @@ for (i in seq_along(prediction_files)) {
       model = model_id,
       response = response,
       response_label = get_variable_label(response),
-      status = "Skipped: no valid predictor coefficients",
+      status = "Skipped: no valid non-zero predictor coefficients",
       n_observations = nrow(prediction_data),
       n_predictors = 0L,
       prediction_file = basename(prediction_file),
@@ -1324,12 +1325,22 @@ for (i in seq_along(prediction_files)) {
   # Build multiline coefficient equation
   # ---------------------------------------------------------------------------
   
+  # IMPORTANT:
+  # Pass the ORIGINAL coefficient data directly to the equation builder.
+  # Do not filter the data beforehand, because the intercept must be retained.
+  #
+  # The equation builder:
+  #   - extracts the intercept separately;
+  #   - removes zero-valued predictor coefficients;
+  #   - displays all remaining selected predictors;
+  #   - places the intercept immediately after y-hat.
+  
   coefficient_equation <- tryCatch(
     
     build_coefficient_equation(
       coef_data = coefficient_data,
-      max_predictors = 5,
-      predictors_per_line = 3
+      predictors_per_line = 3,
+      zero_tolerance = 1e-8
     ),
     
     error = function(e) {
@@ -1465,6 +1476,16 @@ for (i in seq_along(prediction_files)) {
   
   
   # ---------------------------------------------------------------------------
+  # Calculate output dimensions
+  # ---------------------------------------------------------------------------
+  
+  output_height <- max(
+    6.5,
+    5.8 + 0.11 * nrow(importance_data)
+  )
+  
+  
+  # ---------------------------------------------------------------------------
   # Save PNG
   # ---------------------------------------------------------------------------
   
@@ -1481,10 +1502,7 @@ for (i in seq_along(prediction_files)) {
     filename = output_png,
     plot = model_plots,
     width = 10,
-    height = max(
-      7,
-      5.5 + 0.22 * nrow(importance_data)
-    ),
+    height = output_height,
     dpi = 400,
     bg = "white"
   )
@@ -1507,10 +1525,7 @@ for (i in seq_along(prediction_files)) {
     filename = output_pdf,
     plot = model_plots,
     width = 10,
-    height = max(
-      7,
-      5.5 + 0.22 * nrow(importance_data)
-    ),
+    height = output_height,
     bg = "white"
   )
   
@@ -1655,11 +1670,24 @@ message(
 )
 
 message(
-  "\nCoefficient equations display the five strongest predictors."
+  "\nCoefficient equations display the intercept first,",
+  " followed by all non-zero selected predictors."
+)
+
+message(
+  "Zero-valued predictor terms are excluded."
 )
 
 message(
   "Equations are displayed below prediction plots without borders."
+)
+
+message(
+  "\nRelative-importance plots are centred at 60% of figure width."
+)
+
+message(
+  "Observed-versus-predicted plots remain full width."
 )
 
 message(
