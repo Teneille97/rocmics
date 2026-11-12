@@ -7,10 +7,11 @@
 #   2. Load their corresponding best-model coefficient CSV files.
 #   3. Regenerate observed-versus-predicted plots.
 #   4. Show 95% fitted credible intervals and predictive intervals.
-#   5. Display multiline coefficient equations below prediction plots.
-#   6. Add compact relative-importance bar plots below coefficient equations.
-#   7. Save individual and combined relative-importance CSV summaries.
-#   8. Save a summary of successfully plotted and skipped models.
+#   5. Display predictive R-squared and RMSE on each prediction plot.
+#   6. Display multiline coefficient equations below prediction plots.
+#   7. Add compact relative-importance bar plots below coefficient equations.
+#   8. Save individual and combined relative-importance CSV summaries.
+#   9. Save a summary of successfully plotted and skipped models.
 #
 # IMPORTANT:
 #   - Does NOT fit or refit any Bayesian models.
@@ -741,6 +742,39 @@ plot_prediction <- function(
       is.finite(predictive_upper_95)
     )
   
+  # Calculate prediction-performance statistics using the observed values
+  # and posterior predictive means shown in the plot.
+  # R-squared is calculated as 1 - SSE / SST (predictive R-squared),
+  # rather than squaring the Pearson correlation.
+  
+  prediction_r2 <- if (
+    nrow(prediction_data) >= 2 &&
+    is.finite(stats::var(prediction_data$observed)) &&
+    stats::var(prediction_data$observed) > 0
+  ) {
+    1 - sum(
+      (prediction_data$observed - prediction_data$predicted_mean)^2
+    ) / sum(
+      (prediction_data$observed - mean(prediction_data$observed))^2
+    )
+  } else {
+    NA_real_
+  }
+  
+  prediction_rmse <- sqrt(
+    mean(
+      (prediction_data$observed - prediction_data$predicted_mean)^2
+    )
+  )
+  
+  performance_label <- paste0(
+    "Best model: ", model_id,
+    "\nR² = ",
+    ifelse(is.finite(prediction_r2), sprintf("%.2f", prediction_r2), "NA"),
+    "   |   RMSE = ",
+    ifelse(is.finite(prediction_rmse), sprintf("%.2f", prediction_rmse), "NA")
+  )
+  
   ggplot(
     prediction_data,
     aes(
@@ -788,10 +822,7 @@ plot_prediction <- function(
     labs(
       title = response_label,
       
-      subtitle = paste(
-        "Best model:",
-        model_id
-      ),
+      subtitle = performance_label,
       
       x = "Observed",
       
