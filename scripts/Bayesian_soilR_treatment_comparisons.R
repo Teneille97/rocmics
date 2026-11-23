@@ -26,7 +26,7 @@
 #   Decomposition rates: kf, ki, ks
 #   Transfer coefficients: alpha_fi, alpha_is
 #   Pool mean ages: fPOM_age, oPOM_age, MAOM_age
-#   System mean transit time: system_transit_time
+#   Transit-time distribution: mean, median and 95th percentile
 #
 # PRIMARY COMPARISONS:
 #   Lime - Control
@@ -39,7 +39,8 @@
 #   Primary treatment-versus-Control contrasts
 #   Posterior contrast draws
 #   Grouped forest plots
-#   Grouped posterior distribution plots
+#   Two grouped, two-panel posterior contrast density figures
+#   Mean, median and 95th-percentile transit-time summaries
 #   Model/persistence draw summaries
 #   RDS backup
 #
@@ -57,6 +58,7 @@ suppressPackageStartupMessages({
   library(here)
   library(SoilR)
   library(posterior)
+  library(patchwork)
   
 })
 
@@ -171,12 +173,12 @@ soilR_parameters <- c(
 # Derived persistence outcomes
 
 age_outcomes <- c(
-  
   "fPOM_age",
   "oPOM_age",
   "MAOM_age",
-  "system_transit_time"
-  
+  "system_transit_time",
+  "system_transit_time_median",
+  "system_transit_time_q95"
 )
 
 
@@ -208,13 +210,13 @@ plot_groups <- list(
   ),
   
   System_Transit_Time = c(
-    "system_transit_time"
+    "system_transit_time",
+    "system_transit_time_median",
+    "system_transit_time_q95"
   )
   
 )
 
-
-outcome_labels <- outcome_display_labels
 
 
 # Primary comparisons ONLY
@@ -270,7 +272,7 @@ group_display <- c(
   Decomposition_Rates = "Decomposition rates",
   Transfer_Coefficients = "Transfer coefficients",
   Pool_Mean_Ages = "Pool mean ages",
-  System_Transit_Time = "System mean transit time"
+  System_Transit_Time = "Mean Transit Time"
 )
 
 outcome_display_labels <- c(
@@ -282,8 +284,13 @@ outcome_display_labels <- c(
   fPOM_age = "fPOM mean age (years)",
   oPOM_age = "oPOM mean age (years)",
   MAOM_age = "MAOM mean age (years)",
-  system_transit_time = "System mean transit time (years)"
+  system_transit_time = "Mean transit time (years)",
+  system_transit_time_median = "Median transit time (years)",
+  system_transit_time_q95 = "95th percentile transit time (years)"
 )
+
+# Keep the plotting code compatible with the existing outcome_labels name.
+outcome_labels <- outcome_display_labels
 
 display_group <- function(x) {
   out <- unname(group_display[x])
@@ -352,6 +359,54 @@ mean_age <- function(age, density) {
     age,
     age * density
   ) / area
+  
+}
+
+# Calculate a quantile from a density sampled on the age grid.
+# The density is normalised over the supplied grid before calculating
+# the cumulative distribution. Transit-time quantiles are therefore
+# conditional on the current age_grid (0-500 years); inspect estimates
+# near 500 years for possible upper-tail truncation.
+density_quantile <- function(age, density, probability) {
+  
+  density <- as.numeric(density)
+  density[!is.finite(density) | density < 0] <- 0
+  
+  if (length(age) != length(density) ||
+      length(age) < 2L ||
+      probability <= 0 ||
+      probability >= 1) {
+    return(NA_real_)
+  }
+  
+  increments <- diff(age) *
+    (head(density, -1) + tail(density, -1)) / 2
+  
+  cumulative_area <- c(0, cumsum(increments))
+  total_area <- tail(cumulative_area, 1)
+  
+  if (!is.finite(total_area) || total_area <= 0) {
+    return(NA_real_)
+  }
+  
+  target_area <- probability * total_area
+  idx <- which(cumulative_area >= target_area)[1]
+  
+  if (is.na(idx) || idx <= 1L) {
+    return(age[1])
+  }
+  
+  lower_area <- cumulative_area[idx - 1L]
+  upper_area <- cumulative_area[idx]
+  
+  if (upper_area <= lower_area) {
+    return(age[idx])
+  }
+  
+  fraction <- (target_area - lower_area) /
+    (upper_area - lower_area)
+  
+  age[idx - 1L] + fraction * (age[idx] - age[idx - 1L])
   
 }
 
@@ -459,8 +514,19 @@ one_persistence_draw <- function(pars) {
     system_transit_time = mean_age(
       age_grid,
       tt$transitTimeDensity
-    )
+    ),
     
+    system_transit_time_median = density_quantile(
+      age_grid,
+      tt$transitTimeDensity,
+      probability = 0.50
+    ),
+    
+    system_transit_time_q95 = density_quantile(
+      age_grid,
+      tt$transitTimeDensity,
+      probability = 0.95
+    )
   )
   
 }
@@ -1651,238 +1717,220 @@ for (group_name in names(plot_groups)) {
 # 14. PLOT POSTERIOR CONTRAST DISTRIBUTIONS
 # =============================================================================
 
-# These plots show the full posterior distribution of treatment differences,
-# rather than only the median and credible interval.
+# Two composite figures are produced:
+#   Figure 1: A) decomposition rates; B) transfer coefficients
+#   Figure 2: A) mean pool ages; B) mean, median and 95th-percentile
+#                transit-time metrics
+#
+# Each panel contains treatment-minus-Control posterior contrast densities.
+# These are treatment-level posterior contrasts, not plot-level replicates.
 
 
 contrast_plot_data <- contrast_draws %>%
-  
   mutate(
-    
     Treatment = factor(
-      
       Treatment,
-      
-      levels = c(
-        "Lime",
-        "HB 50",
-        "EG 50",
-        "BD 50"
-      )
-      
+      levels = c("Lime", "HB 50", "EG 50", "BD 50")
     ),
-    
-    Response = factor(
-      
-      Response,
-      
-      levels = all_outcomes,
-      
-      labels = unname(
-        outcome_labels[all_outcomes]
-      )
-      
-    )
-    
+    Response = as.character(Response)
   )
 
 
-make_contrast_distribution_plot <- function(
+make_density_panel <- function(
     data,
     responses,
-    group_name
+    panel_title,
+    ncol = 1
 ) {
   
-  
-  selected_labels <- unname(
-    outcome_labels[responses]
-  )
-  
-  
   plot_data <- data %>%
-    
-    filter(
-      as.character(Response) %in% selected_labels
-    ) %>%
-    
+    filter(Response %in% responses) %>%
     mutate(
-      
       Response = factor(
         Response,
-        levels = selected_labels
+        levels = responses,
+        labels = unname(outcome_labels[responses])
       )
-      
     )
-  
   
   if (nrow(plot_data) == 0L) {
-    
-    return(NULL)
-    
+    stop("No contrast data available for panel: ", panel_title)
   }
   
-  
-  p <- ggplot(
-    
+  ggplot(
     plot_data,
-    
     aes(
       x = Difference,
-      fill = Treatment
+      fill = Treatment,
+      colour = Treatment
     )
-    
   ) +
-    
     geom_density(
-      alpha = 0.35,
-      linewidth = 0.55
+      alpha = 0.28,
+      linewidth = 0.65,
+      adjust = 1
     ) +
-    
     geom_vline(
-      
       xintercept = 0,
-      
       linetype = "dashed",
-      
-      colour = "black"
-      
+      colour = "grey30",
+      linewidth = 0.45
     ) +
-    
     facet_wrap(
-      
       ~ Response,
-      
       scales = "free",
-      
-      ncol = 2
-      
+      ncol = ncol
     ) +
-    
     scale_fill_manual(
       values = treatment_colours[c("Lime", "HB 50", "EG 50", "BD 50")],
       breaks = c("Lime", "HB 50", "EG 50", "BD 50"),
-      labels = treatment_display[c("Lime", "HB 50", "EG 50", "BD 50")]
+      labels = treatment_display[c("Lime", "HB 50", "EG 50", "BD 50")],
+      name = "Treatment"
     ) +
-    
-    
+    scale_colour_manual(
+      values = treatment_colours[c("Lime", "HB 50", "EG 50", "BD 50")],
+      breaks = c("Lime", "HB 50", "EG 50", "BD 50"),
+      labels = treatment_display[c("Lime", "HB 50", "EG 50", "BD 50")],
+      name = "Treatment"
+    ) +
     labs(
-      
-      title = paste("Posterior treatment differences:", display_group(group_name)),
-      
-      subtitle = "Each distribution represents treatment minus Control",
-      
-      x = "Posterior treatment difference (units specified in each panel heading)",
-      
-      y = "Density",
-      
-      fill = "Treatment"
-      
+      title = panel_title,
+      x = "Treatment − Control difference",
+      y = "Density"
     ) +
-    
-    theme_bw(
-      base_size = 11
-    ) +
-    
+    theme_bw(base_size = 10.5) +
     theme(
-      
+      legend.position = "bottom",
+      legend.title = element_text(face = "bold"),
+      legend.key.width = grid::unit(1.0, "cm"),
       strip.background = element_rect(
         fill = "grey92",
         colour = "grey40"
       ),
-      
-      strip.text = element_text(
-        face = "bold"
-      ),
-      
+      strip.text = element_text(face = "bold", size = 9),
       plot.title = element_text(
-        face = "bold"
+        face = "bold",
+        size = 11,
+        hjust = 0
       ),
-      
-      panel.grid.minor = element_blank()
-      
+      axis.title = element_text(size = 9.5),
+      axis.text = element_text(size = 8.5),
+      panel.grid.minor = element_blank(),
+      panel.spacing = grid::unit(0.7, "lines"),
+      plot.margin = margin(7, 7, 7, 7)
     )
-  
-  
-  height <- max(
-    5,
-    ceiling(length(responses) / 2) * 3
-  )
-  
-  
-  filename <- file.path(
-    
-    plots_dir,
-    
-    paste0(
-      "Posterior_Contrast_Distributions_",
-      group_name,
-      ".png"
-    )
-    
-  )
-  
-  
-  ggsave(
-    
+}
+
+
+save_two_panel_density_figure <- function(
+    panel_a,
+    panel_b,
+    figure_title,
     filename,
-    
-    p,
-    
-    width = 13,
-    
-    height = height,
-    
-    dpi = 300,
-    
-    bg = "white"
-    
-  )
+    width = 14,
+    height = 8
+) {
   
+  combined_plot <- (panel_a | panel_b) +
+    plot_layout(
+      ncol = 2,
+      widths = c(1.15, 1),
+      guides = "collect"
+    ) +
+    plot_annotation(
+      title = figure_title,
+      tag_levels = "A",
+      theme = theme(
+        plot.title = element_text(face = "bold", size = 14),
+        plot.tag = element_text(face = "bold", size = 13)
+      )
+    ) &
+    theme(legend.position = "bottom")
+  
+  png_file <- file.path(plots_dir, paste0(filename, ".png"))
+  pdf_file <- file.path(plots_dir, paste0(filename, ".pdf"))
   
   ggsave(
-    
-    sub(
-      "\\.png$",
-      ".pdf",
-      filename
-    ),
-    
-    p,
-    
-    width = 13,
-    
+    png_file,
+    combined_plot,
+    width = width,
     height = height,
-    
+    dpi = 300,
     bg = "white"
-    
   )
   
+  ggsave(
+    pdf_file,
+    combined_plot,
+    width = width,
+    height = height,
+    bg = "white"
+  )
   
-  print(p)
-  
-  p
-  
+  print(combined_plot)
+  combined_plot
 }
 
 
-contrast_distribution_plots <- list()
+# Figure 1: decomposition rates and transfer coefficients.
+
+density_decomposition <- make_density_panel(
+  data = contrast_plot_data,
+  responses = plot_groups$Decomposition_Rates,
+  panel_title = "Decomposition rates",
+  ncol = 1
+)
+
+density_transfer <- make_density_panel(
+  data = contrast_plot_data,
+  responses = plot_groups$Transfer_Coefficients,
+  panel_title = "Transfer coefficients",
+  ncol = 1
+)
+
+posterior_density_figure_1 <- save_two_panel_density_figure(
+  panel_a = density_decomposition,
+  panel_b = density_transfer,
+  figure_title = "Posterior treatment contrasts: decomposition and transfer",
+  filename = "Posterior_Contrast_Densities_Figure_1_Decomposition_Transfer",
+  width = 14,
+  height = 9
+)
 
 
-for (group_name in names(plot_groups)) {
-  
-  contrast_distribution_plots[[group_name]] <-
-    
-    make_contrast_distribution_plot(
-      
-      data = contrast_plot_data,
-      
-      responses = plot_groups[[group_name]],
-      
-      group_name = group_name
-      
-    )
-  
-}
+# Figure 2: mean carbon-pool ages and transit-time distribution metrics.
+
+density_pool_ages <- make_density_panel(
+  data = contrast_plot_data,
+  responses = plot_groups$Pool_Mean_Ages,
+  panel_title = "Mean carbon-pool ages",
+  ncol = 1
+)
+
+density_transit_time <- make_density_panel(
+  data = contrast_plot_data,
+  responses = plot_groups$System_Transit_Time,
+  panel_title = "Mean Transit Time",
+  ncol = 1
+)
+
+posterior_density_figure_2 <- save_two_panel_density_figure(
+  panel_a = density_pool_ages,
+  panel_b = density_transit_time,
+  figure_title = "Posterior treatment contrasts: carbon-pool ages and transit time",
+  filename = "Posterior_Contrast_Densities_Figure_2_Ages_Transit_Time",
+  width = 14,
+  height = 10
+)
+
+
+# Keep individual panel objects available for interactive inspection.
+contrast_distribution_plots <- list(
+  Decomposition_Rates = density_decomposition,
+  Transfer_Coefficients = density_transfer,
+  Pool_Mean_Ages = density_pool_ages,
+  Mean_Transit_Time = density_transit_time
+)
 
 
 # =============================================================================
