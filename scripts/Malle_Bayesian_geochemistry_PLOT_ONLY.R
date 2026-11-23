@@ -33,6 +33,7 @@ suppressPackageStartupMessages({
   
   library(tidyverse)
   library(here)
+  library(ggtext)
   
 })
 
@@ -279,6 +280,11 @@ group_display <- c(
 )
 
 
+# IMPORTANT:
+# HTML formatting is used for the CEC labels.
+# These labels are rendered using ggtext::element_markdown()
+# in the facet-strip text of the plots below.
+
 response_display <- c(
   
   soil_pH = "Soil pH (no units)",
@@ -291,16 +297,15 @@ response_display <- c(
   D_oxalate_over_h2o = "D-Oxalate / D-H₂O (no units)",
   MWD_oxalate_over_h2o = "MWD-Oxalate / MWD-H₂O (no units)",
   
-  CEC_CEC = "CEC (cmolc kg⁻¹)",
-  CEC_Base_saturation = "Base saturation (%)",
-  CEC_H = "Exchangeable H (cmolc kg⁻¹)",
-  CEC_Ca = "Exchangeable Ca (cmolc kg⁻¹)",
-  CEC_K = "Exchangeable K (cmolc kg⁻¹)",
-  CEC_Mg = "Exchangeable Mg (cmolc kg⁻¹)",
-  CEC_Na = "Exchangeable Na (cmolc kg⁻¹)",
-  CEC_Al = "Exchangeable Al (cmolc kg⁻¹)",
-  CEC_Fe = "Exchangeable Fe (cmolc kg⁻¹)",
-  CEC_Mn = "Exchangeable Mn (cmolc kg⁻¹)",
+  CEC_CEC = "CEC (cmol<sub>c</sub> kg<sup>-1</sup>)",
+  CEC_H = "Exchangeable H (cmol<sub>c</sub> kg<sup>-1</sup>)",
+  CEC_Ca = "Exchangeable Ca (cmol<sub>c</sub> kg<sup>-1</sup>)",
+  CEC_K = "Exchangeable K (cmol<sub>c</sub> kg<sup>-1</sup>)",
+  CEC_Mg = "Exchangeable Mg (cmol<sub>c</sub> kg<sup>-1</sup>)",
+  CEC_Na = "Exchangeable Na (cmol<sub>c</sub> kg<sup>-1</sup>)",
+  CEC_Al = "Exchangeable Al (cmol<sub>c</sub> kg<sup>-1</sup>)",
+  CEC_Fe = "Exchangeable Fe (cmol<sub>c</sub> kg<sup>-1</sup>)",
+  CEC_Mn = "Exchangeable Mn (cmol<sub>c</sub> kg<sup>-1</sup>)",
   
   Fe_ox_over_DCB = "Fe-ox / Fe-DCB (no units)",
   Al_ox_over_DCB = "Al-ox / Al-DCB (no units)",
@@ -655,7 +660,10 @@ make_grouped_forest_plot <- function(
         fill = "grey92",
         colour = "grey40"
       ),
-      strip.text = element_text(face = "bold", size = 9),
+      strip.text = ggtext::element_markdown(
+        face = "bold",
+        size = 9
+      ),
       axis.text.y = element_text(size = 8),
       plot.title = element_text(face = "bold", size = 13),
       panel.grid.minor = element_blank(),
@@ -784,7 +792,10 @@ make_grouped_violin_plot <- function(
         fill = "grey92",
         colour = "grey40"
       ),
-      strip.text = element_text(face = "bold", size = 9),
+      strip.text = ggtext::element_markdown(
+        face = "bold",
+        size = 9
+      ),
       axis.text.x = element_text(
         angle = 35,
         hjust = 1,
@@ -945,7 +956,9 @@ make_posterior_treatment_density <- function(
         fill = "grey92",
         colour = "grey40"
       ),
-      strip.text = element_text(face = "bold"),
+      strip.text = ggtext::element_markdown(
+        face = "bold"
+      ),
       plot.title = element_text(face = "bold"),
       panel.grid.minor = element_blank()
     )
@@ -1198,7 +1211,9 @@ make_contrast_density_plot <- function(
         fill = "grey92",
         colour = "grey40"
       ),
-      strip.text = element_text(face = "bold"),
+      strip.text = ggtext::element_markdown(
+        face = "bold"
+      ),
       plot.title = element_text(face = "bold"),
       panel.grid.minor = element_blank()
     )
@@ -1510,7 +1525,10 @@ make_grouped_dose_plot <- function(
         fill = "grey92",
         colour = "grey40"
       ),
-      strip.text = element_text(face = "bold", size = 9),
+      strip.text = ggtext::element_markdown(
+        face = "bold",
+        size = 9
+      ),
       plot.title = element_text(face = "bold"),
       panel.grid.minor = element_blank()
     )
@@ -1596,3 +1614,4 @@ if (length(contrast_density_plots) > 0) {
 }
 
 cat("\nNo Bayesian models were fitted or sampled.\n")
+

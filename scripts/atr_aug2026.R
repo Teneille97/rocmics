@@ -1294,3 +1294,89 @@ print(levene_results_pct)
 
 band_compare_pct_long %>%
   print(n = Inf, width = Inf)
+
+#### normalization check Nov 2026
+# =========================================================
+# DIAGNOSTIC: RAW VS NORMALISED AROMATIC SIGNAL
+# =========================================================
+
+get_aromatic_diagnostics <- function(df, dataset_name) {
+  
+  df %>%
+    group_by(sample, sample_rep) %>%
+    group_modify(~ {
+      
+      tmp <- .x %>%
+        arrange(wave)
+      
+      aromatic <- tmp %>%
+        filter(wave >= 1500, wave <= 1550)
+      
+      data.frame(
+        L2_norm = sqrt(sum(tmp$abs_corr^2, na.rm = TRUE)),
+        
+        aromatic_raw = trapz(
+          aromatic$wave,
+          aromatic$abs_corr
+        ),
+        
+        aromatic_normalised = trapz(
+          aromatic$wave,
+          aromatic$abs_norm
+        )
+      )
+      
+    }) %>%
+    ungroup() %>%
+    mutate(dataset = dataset_name)
+}
+
+diag_before <- get_aromatic_diagnostics(
+  before_individual, "Before"
+)
+
+diag_after <- get_aromatic_diagnostics(
+  after_individual, "After"
+)
+
+aromatic_diagnostics <- bind_rows(
+  diag_before,
+  diag_after
+)
+
+# Average replicate scans per soil sample
+aromatic_diagnostics_sample <- aromatic_diagnostics %>%
+  group_by(sample, dataset) %>%
+  summarise(
+    across(
+      c(L2_norm, aromatic_raw, aromatic_normalised),
+      ~ mean(.x, na.rm = TRUE)
+    ),
+    .groups = "drop"
+  )
+
+# Compare before and after
+aromatic_diagnostics_wide <- aromatic_diagnostics_sample %>%
+  pivot_wider(
+    names_from = dataset,
+    values_from = c(
+      L2_norm,
+      aromatic_raw,
+      aromatic_normalised
+    )
+  ) %>%
+  mutate(
+    raw_aromatic_change =
+      aromatic_raw_After - aromatic_raw_Before,
+    
+    normalised_aromatic_change =
+      aromatic_normalised_After -
+      aromatic_normalised_Before,
+    
+    L2_change =
+      L2_norm_After - L2_norm_Before
+  )
+
+
+aromatic_diagnostics_wide<-as.data.frame(aromatic_diagnostics_wide)
+print(aromatic_diagnostics_wide)
